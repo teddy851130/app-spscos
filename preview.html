@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPS International - 바이어 발굴 플랫폼</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #f1f5f9;
+            line-height: 1.5;
+        }
+
+        .app {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 220px;
+            background: #1e293b;
+            border-right: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .logo {
+            padding: 24px;
+            border-bottom: 1px solid #334155;
+        }
+
+        .logo-title {
+            font-weight: bold;
+            font-size: 16px;
+            color: #f1f5f9;
+        }
+
+        .logo-sub {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+
+        .nav {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        .nav-section {
+            font-size: 11px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            padding: 0 12px;
+            margin-bottom: 8px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+
+        .nav-item:hover {
+            background: rgba(51, 65, 85, 0.5);
+            color: #e2e8f0;
+        }
+
+        .nav-item.active {
+            background: #334155;
+            color: #60a5fa;
+        }
+
+        .nav-icon {
+            font-size: 16px;
+        }
+
+        .sidebar-footer {
+            border-top: 1px solid #334155;
+            padding: 16px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            background: #3b82f6;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+        }
+
+        .user-name {
+            font-weight: 600;
+            color: #f1f5f9;
+            font-size: 14px;
+        }
+
+        .user-role {
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .topbar {
+            background: #0f172a;
+            border-bottom: 1px solid #334155;
+            padding: 24px 32px;
+            display: flex;
+            justify-between;
+            align-items: center;
+        }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #f1f5f9;
+        }
+
+        .page-sub {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+
+        .topbar-right {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+
+        .btn-ghost {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+        }
+
+        .btn-ghost:hover {
+            background: #334155;
+        }
+
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 32px;
+        }
+
+        .page-section {
+            display: none;
+        }
+
+        .page-section.visible {
+            display: block;
+        }
+
+        .alert-banner {
+            background: rgba(127, 29, 29, 0.125);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            border-radius: 10px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .alert-text {
+            font-size: 12px;
+            color: #fca5a5;
+        }
+
+        .alert-title {
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .kpi-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 24px;
+        }
+
+        .kpi-label {
+            font-size: 12px;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+
+        .kpi-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin-top: 8px;
+        }
+
+        .kpi-value.blue {
+            color: #3b82f6;
+        }
+
+        .kpi-value.green {
+            color: #22c55e;
+        }
+
+        .kpi-value.yellow {
+            color: #f59e0b;
+        }
+
+        .kpi-change {
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .kpi-change.green {
+            color: #22c55e;
+        }
+
+        .kpi-change.yellow {
+            color: #f59e0b;
+        }
+
+        .kpi-bar {
+            height: 4px;
+            background: #334155;
+            border-radius: 2px;
+            margin-top: 12px;
+            overflow: hidden;
+        }
+
+        .kpi-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+        }
+
+        .kpi-bar-fill.bg-blue {
+            background: #3b82f6;
+        }
+
+        .kpi-bar-fill.bg-green {
+            background: #22c55e;
+        }
+
+        .kpi-bar-fill.bg-yellow {
+            background: #f59e0b;
+        }
+
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 24px;
+        }
+
+        .card-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #f1f5f9;
+        }
+
+        .card-sub {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 16px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #1a2744;
+            padding: 12px 16px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            border-bottom: 1px solid #334155;
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #334155;
+            font-size: 12px;
+        }
+
+        tr:hover {
+            background: #273549;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            margin-top: 24px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .badge-green {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        .badge-blue {
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+        }
+
+        .badge-yellow {
+            background: rgba(245, 158, 11, 0.2);
+            color: #f59e0b;
+        }
+
+        h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #f1f5f9;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <div class="logo">
+                <div class="logo-title">SPS International</div>
+                <div class="logo-sub">Buyer Platform v1.0</div>
+            </div>
+            <div class="nav">
+                <div class="nav-section">메인</div>
+                <div class="nav-item active" onclick="showPage('dashboard')">
+                    <span class="nav-icon">📊</span> 대시보드
+                </div>
+                <div class="nav-item" onclick="showPage('pipeline')">
+                    <span class="nav-icon">⚡</span> 파이프라인
+                </div>
+
+                <div class="nav-section">바이어 관리</div>
+                <div class="nav-item" onclick="showPage('buyers')">
+                    <span class="nav-icon">🏢</span> 바이어 DB
+                </div>
+                <div class="nav-item" onclick="showPage('emails')">
+                    <span class="nav-icon">📧</span> 이메일 로그
+                    <span style="color: #ef4444; font-size: 10px; background: #ef4444; color: white; padding: 0 6px; border-radius: 10px;">3</span>
+                </div>
+
+                <div class="nav-section">모니터링</div>
+                <div class="nav-item" onclick="showPage('kpi')">
+                    <span class="nav-icon">📈</span> KPI 리포트
+                </div>
+                <div class="nav-item" onclick="showPage('domain')">
+                    <span class="nav-icon">🛡️</span> 도메인 상태
+                </div>
+            </div>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="avatar">신</div>
+                    <div>
+                        <div class="user-name">신동환 CEO</div>
+                        <div class="user-role">teddy@spscos.com</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN -->
+        <div class="main">
+            <div class="topbar">
+                <div>
+                    <div class="page-title" id="pageTitle">대시보드</div>
+                    <div class="page-sub" id="pageSub">오늘 현황 · 2026년 4월 4일</div>
+                </div>
+                <div class="topbar-right">
+                    <button class="btn btn-ghost">▶ 파이프라인 실행</button>
+                    <button class="btn btn-primary">+ 바이어 추가</button>
+                    <div style="position: relative; font-size: 20px; cursor: pointer;">🔔<div style="position: absolute; top: 2px; right: 2px; width: 6px; height: 6px; background: #ef4444; border-radius: 50%;"></div></div>
+                </div>
+            </div>
+
+            <div class="content">
+                <!-- DASHBOARD -->
+                <div id="page-dashboard" class="page-section visible">
+                    <div class="alert-banner">
+                        <div style="font-size: 18px;">⚠️</div>
+                        <div class="alert-text">
+                            <div class="alert-title">KPI 경고: USA 팀 회신율 저조</div>
+                            이번 주 USA 팀 Tier 1 회신율 4.2% — 목표(10%) 미달.
+                        </div>
+                        <button class="btn btn-ghost" style="margin-left: auto; font-size: 11px;">상세 보기</button>
+                    </div>
+
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <div class="kpi-label">이번 주 발송</div>
+                            <div class="kpi-value blue">73통</div>
+                            <div class="kpi-change green">▲ 12% <span style="color: #64748b;">지난주 대비</span></div>
+                            <div class="kpi-bar"><div class="kpi-bar-fill bg-blue" style="width: 73%;"></div></div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">전달율</div>
+                            <div class="kpi-value green">98.6%</div>
+                            <div class="kpi-change green">✓ 목표 초과 <span style="color: #64748b;">(기준: 97%)</span></div>
+                            <div class="kpi-bar"><div class="kpi-bar-fill bg-green" style="width: 98.6%;"></div></div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">열람율 (Tier 1)</div>
+                            <div class="kpi-value yellow">38.2%</div>
+                            <div class="kpi-change yellow">▼ 경고 <span style="color: #64748b;">(기준: 45%)</span></div>
+                            <div class="kpi-bar"><div class="kpi-bar-fill bg-yellow" style="width: 38%;"></div></div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">회신율 (Tier 1)</div>
+                            <div class="kpi-value green">11.8%</div>
+                            <div class="kpi-change green">✓ 목표 달성 <span style="color: #64748b;">(기준: 10%)</span></div>
+                            <div class="kpi-bar"><div class="kpi-bar-fill bg-green" style="width: 100%;"></div></div>
+                        </div>
+                    </div>
+
+                    <div class="grid-3">
+                        <div class="card">
+                            <div class="card-header">
+                                <div>
+                                    <div class="card-title">팀별 일일 발송 추이 (최근 7일)</div>
+                                    <div class="card-sub">GCC · USA · Europe</div>
+                                </div>
+                            </div>
+                            <div style="height: 250px; display: flex; align-items: flex-end; justify-content: space-around; padding-top: 20px;">
+                                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1;">
+                                    <div style="display: flex; gap: 4px; align-items: flex-end; height: 150px; justify-content: center;">
+                                        <div style="width: 8px; height: 65px; background: #3b82f6; border-radius: 2px;"></div>
+                                        <div style="width: 8px; height: 45px; background: #7c3aed; border-radius: 2px;"></div>
+                                        <div style="width: 8px; height: 55px; background: #0891b2; border-radius: 2px;"></div>
+                                    </div>
+                                    <div style="font-size: 11px; color: #64748b;">3/29</div>
+                                </div>
+                                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1;">
+                                    <div style="display: flex; gap: 4px; align-items: flex-end; height: 150px; justify-content: center;">
+                                        <div style="width: 8px; height: 70px; background: #3b82f6; border-radius: 2px;"></div>
+                                        <div style="width: 8px; height: 50px; background: #7c3aed; border-radius: 2px;"></div>
+                                        <div style="width: 8px; height: 60px; background: #0891b2; border-radius: 2px;"></div>
+                                    </div>
+                                    <div style="font-size: 11px; color: #64748b;">3/30</div>
+                                </div>
+                                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1;">
+                                    <div style="display: flex; gap: 4px; align-items: flex-end; height: 150px; justify-content: center;">
+                                        <div style="width: 8px; height: 90px; background: #3b82f6; border-radius: 2px;"></div>
+                                        <div style="width: 8px; height: 65px; background: #7c3aed; border-radius: 2px;"></div>
+                                        <div style="width: 8px; height: 75px; background: #0891b2; border-radius: 2px;"></div>
+                                    </div>
+                                    <div style="font-size: 11px; color: #64748b;">4/3</div>
+                                </div>
+                                <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1;">
+                                    <div style="display: flex; gap: 4px; align-items: flex-end; height: 150px; justify-content: center;">
+                                        <div style="width: 8px; height: 85px; background: #3b82f6; border-radius: 2px;"></div>
+                                        <div style="width: 8px; height: 50px; background: #7c3aed; border-radius: 2px;"></div>
+                                        <div style="width: 8px; height: 70px; background: #0891b2; border-radius: 2px;"></div>
+                                    </div>
+                                    <div style="font-size: 11px; color: #64748b;">4/4</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h3 style="margin: 0 0 16px 0;">최근 회신</h3>
+                            <div style="space-y: 12px;">
+                                <div style="display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid #334155;">
+                                    <div style="width: 32px; height: 32px; background: #334155; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">M</div>
+                                    <div style="flex: 1; min-width: 0;">
+                                        <div style="font-size: 12px; font-weight: 600; color: #f1f5f9;">Maya Berberi</div>
+                                        <div style="font-size: 11px; color: #94a3b8;">Basharacare</div>
+                                        <div style="font-size: 11px; color: #64748b; margin-top: 4px;">1시간 전</div>
+                                    </div>
+                                    <span class="badge badge-green">회신</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid #334155;">
+                                    <div style="width: 32px; height: 32px; background: #334155; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">A</div>
+                                    <div style="flex: 1; min-width: 0;">
+                                        <div style="font-size: 12px; font-weight: 600; color: #f1f5f9;">Ahmad Al-Mansouri</div>
+                                        <div style="font-size: 11px; color: #94a3b8;">Namshi</div>
+                                        <div style="font-size: 11px; color: #64748b; margin-top: 4px;">2시간 전</div>
+                                    </div>
+                                    <span class="badge badge-blue">열람</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top: 24px;">
+                        <h3>팀별 주간 현황</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>팀</th>
+                                    <th style="text-align: right;">발송</th>
+                                    <th style="text-align: right;">열람</th>
+                                    <th style="text-align: right;">회신</th>
+                                    <th style="text-align: right;">회신율</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td style="font-weight: 600;">GCC</td>
+                                    <td style="text-align: right;">180</td>
+                                    <td style="text-align: right;">142</td>
+                                    <td style="text-align: right; color: #22c55e; font-weight: 600;">24</td>
+                                    <td style="text-align: right; color: #3b82f6; font-weight: 600;">13.3%</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: 600;">USA</td>
+                                    <td style="text-align: right;">150</td>
+                                    <td style="text-align: right;">52</td>
+                                    <td style="text-align: right; color: #22c55e; font-weight: 600;">6</td>
+                                    <td style="text-align: right; color: #3b82f6; font-weight: 600;">4.0%</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: 600;">Europe</td>
+                                    <td style="text-align: right;">120</td>
+                                    <td style="text-align: right;">80</td>
+                                    <td style="text-align: right; color: #22c55e; font-weight: 600;">14</td>
+                                    <td style="text-align: right; color: #3b82f6; font-weight: 600;">11.7%</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- PLACEHOLDER for other pages -->
+                <div id="page-pipeline" class="page-section">
+                    <h3>파이프라인</h3>
+                    <p>파이프라인 페이지 구현됨</p>
+                </div>
+                <div id="page-buyers" class="page-section">
+                    <h3>바이어 DB</h3>
+                    <p>바이어 DB 페이지 구현됨</p>
+                </div>
+                <div id="page-emails" class="page-section">
+                    <h3>이메일 로그</h3>
+                    <p>이메일 로그 페이지 구현됨</p>
+                </div>
+                <div id="page-kpi" class="page-section">
+                    <h3>KPI 리포트</h3>
+                    <p>KPI 리포트 페이지 구현됨</p>
+                </div>
+                <div id="page-domain" class="page-section">
+                    <h3>도메인 상태</h3>
+                    <p>도메인 상태 페이지 구현됨</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showPage(page) {
+            // Hide all pages
+            document.querySelectorAll('.page-section').forEach(el => el.classList.remove('visible'));
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+
+            // Show selected page
+            document.getElementById(`page-${page}`).classList.add('visible');
+
+            // Update nav
+            event.target.closest('.nav-item').classList.add('active');
+
+            // Update title
+            const titles = {
+                dashboard: '대시보드',
+                pipeline: '파이프라인',
+                buyers: '바이어 DB',
+                emails: '이메일 로그',
+                kpi: 'KPI 리포트',
+                domain: '도메인 상태'
+            };
+            document.getElementById('pageTitle').textContent = titles[page];
+            document.getElementById('pageSub').textContent = '페이지 보기 · 2026년 4월 4일';
+        }
+    </script>
+</body>
+</html>
