@@ -1,16 +1,35 @@
 'use client';
 
+import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+
 interface SidebarProps {
   currentPage: string;
   setCurrentPage: (page: string) => void;
 }
 
 export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
+  const [draftCount, setDraftCount] = useState(0);
+
+  useEffect(() => {
+    async function loadCount() {
+      const { count } = await supabase
+        .from('email_drafts')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_sent', false);
+      setDraftCount(count || 0);
+    }
+    loadCount();
+    // 30초마다 갱신
+    const interval = setInterval(loadCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const navItems = [
     { id: 'dashboard', label: '대시보드', icon: '📊' },
     { id: 'pipeline', label: '파이프라인', icon: '⚡', hasDot: true },
     { id: 'buyers', label: '바이어 DB', icon: '🏢' },
-    { id: 'emails', label: '이메일 로그', icon: '📧', badge: '3' },
+    { id: 'emails', label: '이메일 로그', icon: '📧', badgeCount: draftCount },
     { id: 'kpi', label: 'KPI 리포트', icon: '📈' },
     { id: 'domain', label: '도메인 상태', icon: '🛡️' },
   ];
@@ -52,9 +71,9 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
                   {item.hasDot && (
                     <div className="w-2 h-2 bg-[#ef4444] rounded-full"></div>
                   )}
-                  {item.badge && (
+                  {item.badgeCount !== undefined && item.badgeCount > 0 && (
                     <span className="bg-[#ef4444] text-white text-xs px-2 py-0.5 rounded-full">
-                      {item.badge}
+                      {item.badgeCount}
                     </span>
                   )}
                 </button>

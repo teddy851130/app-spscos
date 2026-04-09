@@ -42,34 +42,35 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
   useEffect(() => {
     if (!isOpen || !buyer) return;
 
-    // Load intel
+    // Load intel from buyers.recent_news (JSON from pipeline Agent C)
     setLoading(true);
-    fetch('/api/buyer-intel', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        buyerId: buyer.id,
-        company_name: buyer.company,
-        website: buyer.website,
-        region: buyer.region,
-        tier: buyer.tier,
-      }),
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        // Normalize field names (API returns camelCase, drawer expects snake_case)
-        const raw = data.intel || {};
-        setIntel({
-          overview: raw.overview || '',
-          products: typeof raw.products === 'string' ? raw.products.split(',').map((s: string) => s.trim()).filter(Boolean) : (raw.products || []),
-          why_kbeauty: raw.why_kbeauty || raw.whyKBeauty || '',
-          personalization_hooks: raw.personalization_hooks || raw.personalHooks || [],
-          website_insights: raw.website_insights || raw.websiteInsights || '',
-          tier_note: raw.tier_note || raw.tierNote || '',
-        });
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    supabase
+      .from('buyers')
+      .select('recent_news')
+      .eq('id', buyer.id)
+      .single()
+      .then(({ data }) => {
+        const raw = data?.recent_news;
+        if (raw && typeof raw === 'object') {
+          setIntel({
+            overview: raw.company_status || raw.overview || '',
+            products: raw.recommended_formula
+              ? (typeof raw.recommended_formula === 'string'
+                ? raw.recommended_formula.split(',').map((s: string) => s.trim()).filter(Boolean)
+                : Array.isArray(raw.recommended_formula) ? raw.recommended_formula : [])
+              : (typeof raw.products === 'string'
+                ? raw.products.split(',').map((s: string) => s.trim()).filter(Boolean)
+                : (raw.products || [])),
+            why_kbeauty: raw.kbeauty_interest || raw.why_kbeauty || '',
+            personalization_hooks: raw.personalization_hooks || [],
+            website_insights: raw.website_insights || '',
+            tier_note: raw.proposal_angle || raw.tier_note || '',
+          });
+        } else {
+          setIntel(null);
+        }
+        setLoading(false);
+      });
 
     // Load contacts from buyer_contacts table (fallback to main buyer contact)
     setContactsLoading(true);
@@ -316,41 +317,10 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
           <div className="px-6 py-5">
             <div className="flex items-center justify-between mb-4">
               <div className="text-sm font-semibold text-[#f1f5f9]">🔍 바이어 인텔</div>
-              {intel && !loading && (
-                <button
-                  onClick={() => {
-                    setIntel(null);
-                    setLoading(true);
-                    fetch('/api/buyer-intel', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        buyerId: null, // skip cache
-                        company_name: buyer.company,
-                        website: buyer.website,
-                        region: buyer.region,
-                        tier: buyer.tier,
-                      }),
-                    })
-                      .then((r) => r.json())
-                      .then((data) => {
-                        const raw = data.intel || {};
-                        setIntel({
-                          overview: raw.overview || '',
-                          products: typeof raw.products === 'string' ? raw.products.split(',').map((s: string) => s.trim()).filter(Boolean) : (raw.products || []),
-                          why_kbeauty: raw.why_kbeauty || raw.whyKBeauty || '',
-                          personalization_hooks: raw.personalization_hooks || raw.personalHooks || [],
-                          website_insights: raw.website_insights || raw.websiteInsights || '',
-                          tier_note: raw.tier_note || raw.tierNote || '',
-                        });
-                      })
-                      .catch(() => {})
-                      .finally(() => setLoading(false));
-                  }}
-                  className="text-xs text-[#64748b] hover:text-[#94a3b8] transition"
-                >
-                  🔄 새로 분석
-                </button>
+              {!loading && (
+                <span className="text-xs text-[#475569]">
+                  파이프라인 직원C 분석 결과
+                </span>
               )}
             </div>
 
@@ -427,8 +397,9 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
                 )}
               </div>
             ) : (
-              <div className="text-xs text-[#64748b] text-center py-8">
-                인텔 데이터를 불러올 수 없습니다.
+              <div className="text-center py-8">
+                <div className="text-xs text-[#64748b]">아직 분석 데이터가 없습니다.</div>
+                <div className="text-xs text-[#475569] mt-1">파이프라인을 실행해주세요.</div>
               </div>
             )}
           </div>

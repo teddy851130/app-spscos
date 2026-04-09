@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { supabase } from '../lib/supabase';
 
 interface EmailComposeModalProps {
   isOpen: boolean;
@@ -70,23 +71,22 @@ export default function EmailComposeModal({ isOpen, onClose, buyer }: EmailCompo
   const [intelLoading, setIntelLoading] = useState(false);
   const [intelLoaded, setIntelLoaded] = useState(false);
 
-  const fetchIntel = async (skipCache = false) => {
+  const fetchIntel = async () => {
     setIntelLoading(true);
     try {
-      const res = await fetch('/api/buyer-intel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          buyerId: skipCache ? null : (buyer as any).id || null,
-          company: buyer.company,
-          website: (buyer as any).website || '',
-          region: buyer.region,
-          tier: buyer.tier,
-        }),
-      });
-      const data = await res.json();
-      setIntel(data.intel);
-      setIntelLoaded(true);
+      const { data } = await supabase
+        .from('buyers')
+        .select('recent_news')
+        .eq('id', (buyer as any).id)
+        .single();
+
+      if (data?.recent_news && typeof data.recent_news === 'object') {
+        setIntel(data.recent_news);
+        setIntelLoaded(true);
+      } else {
+        setIntel(null);
+        setIntelLoaded(true);
+      }
     } catch {
       // keep empty
     } finally {
@@ -96,34 +96,31 @@ export default function EmailComposeModal({ isOpen, onClose, buyer }: EmailCompo
 
   const regenerateWithIntel = async () => {
     if (!intel) return;
-    setIsLoading(true);
-    try {
-      const hooksText = intel.personalization_hooks?.join('\n- ') || '';
-      const res = await fetch('/api/draft-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          buyer_name: buyer.contact,
-          company: buyer.company,
-          region: buyer.region,
-          tier: buyer.tier,
-          products: 'skincare, cosmetics OEM/ODM',
-          company_overview: intel.overview,
-          why_kbeauty: intel.why_kbeauty,
-          personalization_hooks: hooksText,
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.body) setEmailBody(data.body);
-        if (data.subject) setSubject(data.subject);
-        setCurrentTab('en');
-      }
-    } catch {
-      // keep current body
-    } finally {
-      setIsLoading(false);
-    }
+    const firstName = buyer.contact.split(' ')[0];
+    const companyStatus = intel.company_status || intel.overview || '';
+    const kbeautyInterest = intel.kbeauty_interest || intel.why_kbeauty || '';
+    const formula = Array.isArray(intel.recommended_formula)
+      ? intel.recommended_formula.join(', ')
+      : (intel.recommended_formula || 'skincare, cosmetics OEM/ODM');
+    const angle = intel.proposal_angle || '';
+
+    const personalizedBody = `Dear ${firstName},
+
+I hope this message finds you well. My name is Teddy Shin, CEO of SPS Cosmetics — a Korean OEM/ODM specialist.
+
+${companyStatus ? `I've been following ${buyer.company}'s recent developments — ${companyStatus}. ` : ''}${kbeautyInterest ? `Given your ${kbeautyInterest}, ` : ''}I believe there's a strong fit for us to collaborate on ${formula}.
+
+${angle || `We specialize in K-beauty formulations with a 3,000 unit MOQ, perfect for testing new product lines in the ${buyer.region} market.`}
+
+Would you be open to a brief call to explore this further?
+
+Best regards,
+Teddy Shin | CEO
+SPS Cosmetics | spscos.com`;
+
+    setEmailBody(personalizedBody);
+    setSubject(`${buyer.company} x K-Beauty ${formula.split(',')[0] || 'Partnership'} — SPS Cosmetics`);
+    setCurrentTab('en');
   };
 
   useEffect(() => {
@@ -464,7 +461,7 @@ export default function EmailComposeModal({ isOpen, onClose, buyer }: EmailCompo
                               {isLoading ? '생성 중...' : '✨ 이 인텔로 이메일 재생성'}
                             </button>
                             <button
-                              onClick={() => { setIntelLoaded(false); setIntel(null); fetchIntel(true); }}
+                              onClick={() => { setIntelLoaded(false); setIntel(null); fetchIntel(); }}
                               disabled={intelLoading}
                               className="text-xs border border-[#334155] text-[#64748b] px-3 py-2 rounded-lg hover:bg-[#334155] transition"
                             >

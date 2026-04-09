@@ -58,7 +58,7 @@ export interface EmailDraft {
   body_followup: string
   tier: 'Tier1' | 'Tier2'
   spam_score?: number
-  spam_status?: 'pass' | 'flag' | 'rewrite' | null
+  spam_status?: 'pass' | 'flag' | 'rewrite' | 'pending_intel' | null
   is_sent: boolean
   sent_at?: string
   created_at?: string

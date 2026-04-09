@@ -488,6 +488,7 @@ async function agentD(sb: SB, jobId: string, _team: string) {
   const buyerMap = new Map((buyers || []).map((b: { id: string }) => [b.id, b]));
 
   let drafted = 0;
+  let pendingIntel = 0;
   let totalCost = 0;
 
   for (const c of newContacts) {
@@ -496,7 +497,27 @@ async function agentD(sb: SB, jobId: string, _team: string) {
 
     const tier = buyer.tier as string;
     const analysis = buyer.recent_news as Record<string, unknown> | null;
-    const proposalAngle = analysis?.proposal_angle || "K-beauty OEM/ODM partnership opportunity";
+
+    // 인텔 데이터 없으면 pending_intel로 저장하고 건너뜀
+    if (!analysis || !analysis.company_status) {
+      await sb.from("email_drafts").insert({
+        buyer_contact_id: c.id,
+        subject_line_1: "", subject_line_2: "", subject_line_3: "",
+        body_first: "", body_followup: "",
+        tier, spam_status: "pending_intel" as any,
+      });
+      pendingIntel++;
+      continue;
+    }
+
+    // 인텔 데이터에서 필수 필드 추출
+    const companyStatus = String(analysis.company_status || "");
+    const kbeautyInterest = String(analysis.kbeauty_interest || "");
+    const recommendedFormula = Array.isArray(analysis.recommended_formula)
+      ? (analysis.recommended_formula as string[]).join(", ")
+      : String(analysis.recommended_formula || "skincare, cosmetics");
+    const proposalAngle = String(analysis.proposal_angle || "K-beauty OEM/ODM partnership opportunity");
+
     const followupDays = tier === "Tier1" ? 5 : 7;
     const salesAngle = tier === "Tier1"
       ? "Strategic partnership angle — position SPS as a long-term K-beauty OEM/ODM partner for their premium portfolio"
@@ -508,17 +529,23 @@ CEO: Teddy Shin (teddy@spscos.com) | MOQ: 3,000 units
 
 Contact: ${c.contact_name} | Title: ${c.contact_title} | Company: ${buyer.company_name}
 Region: ${buyer.region} | Tier: ${tier}
-Company Analysis: ${analysis ? JSON.stringify(analysis) : "N/A"}
+
+=== BUYER INTELLIGENCE (MUST reference in email) ===
+Company Status: ${companyStatus}
+K-Beauty Interest: ${kbeautyInterest}
+Recommended Formula: ${recommendedFormula}
 Proposal Angle: ${proposalAngle}
+=== END INTELLIGENCE ===
+
 Sales Strategy: ${salesAngle}
 
 Return ONLY a JSON object (no markdown):
 {
-  "subject_line_1": "Company name + product category mention (e.g., '[Company] x K-Beauty Skincare Serums')",
-  "subject_line_2": "Recent news/campaign reference (e.g., 'Re: [Company]'s new beauty expansion')",
-  "subject_line_3": "K-beauty trend angle (e.g., 'The K-beauty formula trending with [region] buyers')",
-  "body_first": "EXACTLY 120-150 words. Structure: Opening hook (1 sentence) → Relevance to their business using their title '${c.contact_title}' and company '${buyer.company_name}' and proposal angle (2 sentences) → SPS value proposition (2 sentences) → Clear CTA for meeting/call (1 sentence). Max 2 spscos.com links, max 1 external link. Sign off as Teddy Shin, CEO, SPS Cosmetics. NO spam words (free, guaranteed, act now, limited time).",
-  "body_followup": "EXACTLY 80-100 words. Reference first email briefly → New angle or proof point → Soft CTA. ${tier === "Tier1" ? "Note: send 5 days after first email" : "Note: send 7 days after first email"}. Sign off as Teddy."
+  "subject_line_1": "Company name + product category from recommended_formula (e.g., '${buyer.company_name} x K-Beauty ${recommendedFormula.split(",")[0]}')",
+  "subject_line_2": "Reference company_status news/campaign (e.g., 'Re: ${buyer.company_name}'s ${companyStatus.slice(0, 30)}...')",
+  "subject_line_3": "K-beauty trend angle (e.g., 'The K-beauty formula trending with ${buyer.region} buyers')",
+  "body_first": "EXACTLY 120-150 words. Structure: Opening hook (1 sentence) → Relevance using title '${c.contact_title}', company '${buyer.company_name}', company_status AND proposal_angle (2 sentences) → SPS value prop mentioning recommended_formula (2 sentences) → CTA (1 sentence). Max 2 spscos.com links, max 1 external link. Sign off as Teddy Shin, CEO, SPS Cosmetics. NO spam words.",
+  "body_followup": "EXACTLY 80-100 words. Reference first email → New angle using kbeauty_interest → Soft CTA. ${tier === "Tier1" ? "Note: send 5 days after first email" : "Note: send 7 days after first email"}. Sign off as Teddy."
 }`;
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -561,7 +588,7 @@ Return ONLY a JSON object (no markdown):
   }
 
   await log(sb, jobId, "D", "completed",
-    `직원D 완료: ${drafted}개 이메일 초안 작성, API 비용 $${totalCost.toFixed(4)}`, 0, totalCost);
+    `직원D 완료: 초안 ${drafted}개, 인텔대기 ${pendingIntel}개, API $${totalCost.toFixed(4)}`, 0, totalCost);
 }
 
 // ============================================

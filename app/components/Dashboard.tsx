@@ -64,6 +64,7 @@ export default function Dashboard() {
   const [todayStats, setTodayStats] = useState({ companies: 0, contacts: 0, tier1: 0, tier2: 0, tier3: 0 });
   const [emailDrafts, setEmailDrafts] = useState<(EmailDraft & { contact_name?: string; company_name?: string })[]>([]);
   const [flaggedDrafts, setFlaggedDrafts] = useState<(EmailDraft & { contact_name?: string; company_name?: string })[]>([]);
+  const [pendingIntelDrafts, setPendingIntelDrafts] = useState<(EmailDraft & { contact_name?: string; company_name?: string })[]>([]);
   const [systemWarnings, setSystemWarnings] = useState<string[]>([]);
   const [previewDraft, setPreviewDraft] = useState<(EmailDraft & { contact_name?: string; company_name?: string }) | null>(null);
 
@@ -241,8 +242,9 @@ export default function Dashboard() {
             company_name: buyerNameMap.get((d.buyer_contacts as Record<string, unknown>)?.buyer_id as string) || '',
           })) as (EmailDraft & { contact_name?: string; company_name?: string })[];
 
-          setEmailDrafts(enrichedDrafts.filter((d) => d.spam_status !== 'flag'));
+          setEmailDrafts(enrichedDrafts.filter((d) => d.spam_status !== 'flag' && d.spam_status !== 'pending_intel'));
           setFlaggedDrafts(enrichedDrafts.filter((d) => d.spam_status === 'flag'));
+          setPendingIntelDrafts(enrichedDrafts.filter((d) => (d.spam_status as string) === 'pending_intel'));
         }
 
         // 시스템 경고 (직원 F 최근 로그)
@@ -626,6 +628,32 @@ export default function Dashboard() {
                     </span>
                   </div>
                   <div className="text-xs text-[#94a3b8]">{draft.subject_line_1}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Pending Intel 항목 */}
+        {pendingIntelDrafts.length > 0 && (
+          <div className="bg-[#1e293b] border border-[#f59e0b]/30 rounded-lg p-5">
+            <div className="text-sm font-semibold text-[#f59e0b] mb-3">
+              인텔 데이터 필요 — {pendingIntelDrafts.length}건
+            </div>
+            <div className="text-xs text-[#fbbf24] mb-3">
+              파이프라인 실행 후 재시도하면 자동으로 초안이 생성됩니다.
+            </div>
+            <div className="space-y-2">
+              {pendingIntelDrafts.map((draft) => (
+                <div key={draft.id} className="p-3 bg-[#0f172a] rounded-lg border border-[#f59e0b]/20">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#f1f5f9]">
+                      {draft.contact_name} @ {draft.company_name}
+                    </span>
+                    <span className="text-xs bg-[#f59e0b]/20 text-[#f59e0b] px-2 py-0.5 rounded font-semibold">
+                      인텔 대기
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
