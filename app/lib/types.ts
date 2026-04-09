@@ -40,7 +40,7 @@ export interface BuyerContact {
   contact_name: string
   contact_title: string
   contact_email: string
-  email_status?: 'valid' | 'invalid' | 'catch-all' | 'risky' | 'unknown' | null
+  email_status?: 'valid' | 'invalid' | 'catch-all' | 'catch-all-pass' | 'catch-all-fail' | 'risky' | 'unknown' | null
   linkedin_url?: string
   work_history_summary?: string
   is_primary: boolean

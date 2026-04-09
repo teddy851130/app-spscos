@@ -1,5 +1,5 @@
-// SPS Pipeline Edge Function
-// 직원 A→B→C→D→E 순차 실행 (백그라운드)
+// SPS Pipeline Edge Function v2
+// 직원 A→B→C→D→E→F 순차 실행 (백그라운드)
 // 브라우저를 닫아도 Supabase에서 독립적으로 실행됨
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -10,10 +10,9 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// ============================================
-// Supabase Client (service_role for backend)
-// ============================================
-function getSupabase() {
+type SB = ReturnType<typeof createClient>;
+
+function getSupabase(): SB {
   return createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -24,986 +23,836 @@ function getSupabase() {
 // 로그 기록 헬퍼
 // ============================================
 async function log(
-  supabase: ReturnType<typeof createClient>,
-  jobId: string,
-  agent: string,
-  status: string,
-  message: string,
-  creditsUsed = 0,
-  apiCostUsd = 0
+  sb: SB, jobId: string, agent: string, status: string,
+  message: string, creditsUsed = 0, apiCostUsd = 0
 ) {
-  await supabase.from("pipeline_logs").insert({
-    job_id: jobId,
-    agent,
-    status,
-    message,
-    credits_used: creditsUsed,
-    api_cost_usd: apiCostUsd,
+  await sb.from("pipeline_logs").insert({
+    job_id: jobId, agent, status, message,
+    credits_used: creditsUsed, api_cost_usd: apiCostUsd,
   });
 }
 
 // ============================================
-// 직원 A: Clay API - 바이어 발굴
+// 직원 A: Clay API — 바이어 발굴
 // ============================================
-async function agentA(
-  supabase: ReturnType<typeof createClient>,
-  jobId: string,
-  team: string
-) {
-  await log(supabase, jobId, "A", "running", `직원A 시작: ${team}팀 바이어 발굴`);
+
+const EXCLUDED_TITLES_RE = /\b(CEO|COO|CMO|CFO|CTO|CIO|Finance|Legal|HR|Human Resources|IT|PR|Public Relations|Communications)\b/i;
+
+const TEAM_CONFIG: Record<string, { countries: string[]; industries: string[] }> = {
+  GCC: {
+    countries: ["United Arab Emirates", "Saudi Arabia", "Kuwait"],
+    industries: ["beauty", "cosmetics", "retail"],
+  },
+  USA: {
+    countries: ["United States", "Canada"],
+    industries: ["beauty", "personal care", "e-commerce"],
+  },
+  Europe: {
+    countries: ["United Kingdom", "France", "Germany"],
+    industries: ["beauty", "FMCG", "lifestyle"],
+  },
+};
+
+function computeIcpScore(company: Record<string, unknown>): number {
+  let score = 0;
+  // 매출구간 (30점)
+  const rev = Number(company.annual_revenue || 0);
+  if (rev >= 500_000_000) score += 30;
+  else if (rev >= 100_000_000) score += 25;
+  else if (rev >= 50_000_000) score += 20;
+  else if (rev >= 10_000_000) score += 15;
+  else if (rev >= 5_000_000) score += 10;
+  else score += 5;
+
+  // 채용공고 키워드 매칭 (20점)
+  const jobs = String(company.open_jobs_text || company.job_postings || "").toLowerCase();
+  const beautyKeywords = ["beauty", "cosmetic", "skincare", "k-beauty", "personal care", "formulation"];
+  const jobMatches = beautyKeywords.filter((k) => jobs.includes(k)).length;
+  score += Math.min(jobMatches * 5, 20);
+
+  // 최근뉴스 관련성 (20점)
+  const news = String(company.recent_news || company.news || "").toLowerCase();
+  const newsKeywords = ["korea", "k-beauty", "oem", "odm", "private label", "new product", "expansion"];
+  const newsMatches = newsKeywords.filter((k) => news.includes(k)).length;
+  score += Math.min(newsMatches * 5, 20);
+
+  // 헤드카운트 성장률 (15점)
+  const empGrowth = Number(company.employee_growth_rate || company.headcount_growth || 0);
+  if (empGrowth > 20) score += 15;
+  else if (empGrowth > 10) score += 10;
+  else if (empGrowth > 0) score += 5;
+
+  // 담당자 경력 매칭도 (15점) — 기본 7점, 정확한 매칭은 담당자 탐색 후
+  score += 7;
+
+  return score;
+}
+
+async function agentA(sb: SB, jobId: string, team: string) {
+  await log(sb, jobId, "A", "running", `직원A 시작: ${team}팀 바이어 발굴`);
 
   const CLAY_API_KEY = Deno.env.get("CLAY_API_KEY");
   if (!CLAY_API_KEY) {
-    await log(supabase, jobId, "A", "failed", "CLAY_API_KEY 환경변수 없음");
+    await log(sb, jobId, "A", "failed", "CLAY_API_KEY 환경변수 없음");
     return;
   }
 
-  // 팀별 검색 조건
-  const teamConfig: Record<string, { countries: string[]; industries: string[] }> = {
-    GCC: {
-      countries: ["United Arab Emirates", "Saudi Arabia", "Kuwait"],
-      industries: ["beauty", "cosmetics", "retail"],
-    },
-    USA: {
-      countries: ["United States", "Canada"],
-      industries: ["beauty", "personal care", "e-commerce"],
-    },
-    Europe: {
-      countries: ["United Kingdom", "France", "Germany"],
-      industries: ["beauty", "FMCG", "lifestyle"],
-    },
-  };
+  const config = TEAM_CONFIG[team];
+  if (!config) { await log(sb, jobId, "A", "failed", `알 수 없는 팀: ${team}`); return; }
 
-  const config = teamConfig[team];
-  if (!config) {
-    await log(supabase, jobId, "A", "failed", `알 수 없는 팀: ${team}`);
-    return;
+  // 기존 도메인 + 블랙리스트 조회
+  const { data: existingRows } = await sb
+    .from("buyers").select("domain, is_blacklisted").not("domain", "is", null);
+
+  const existingDomains = new Set<string>();
+  const blacklistDomains = new Set<string>();
+  for (const r of existingRows || []) {
+    const d = (r.domain as string)?.toLowerCase();
+    if (d) existingDomains.add(d);
+    if (d && r.is_blacklisted) blacklistDomains.add(d);
   }
 
-  // 기존 도메인 조회 (중복 제거용)
-  const { data: existingBuyers } = await supabase
-    .from("buyers")
-    .select("domain")
-    .eq("team", team)
-    .not("domain", "is", null);
-
-  const existingDomains = new Set(
-    (existingBuyers || []).map((b: { domain: string }) => b.domain?.toLowerCase())
-  );
-
-  // 블랙리스트 도메인 조회
-  const { data: blacklisted } = await supabase
-    .from("buyers")
-    .select("domain")
-    .eq("is_blacklisted", true);
-
-  const blacklistDomains = new Set(
-    (blacklisted || []).map((b: { domain: string }) => b.domain?.toLowerCase())
-  );
-
-  let totalCreditsUsed = 0;
+  let totalCredits = 0;
+  const DAILY_LIMIT = 90;
   let companiesFound = 0;
   let contactsFound = 0;
+  let tier1 = 0, tier2 = 0, tier3 = 0;
 
-  try {
-    // Clay API: find-and-enrich-company
-    for (const country of config.countries) {
-      for (const industry of config.industries) {
-        // 일일 크레딧 한도 체크 (90/일)
-        if (totalCreditsUsed >= 85) {
-          await log(supabase, jobId, "A", "running", `일일 크레딧 한도 근접 (${totalCreditsUsed}), 중단`);
-          break;
-        }
+  for (const country of config.countries) {
+    for (const industry of config.industries) {
+      if (totalCredits >= DAILY_LIMIT - 5) {
+        await log(sb, jobId, "A", "running",
+          `일일 크레딧 한도 근접 (${totalCredits}/${DAILY_LIMIT}), 중단`, totalCredits);
+        break;
+      }
 
-        // Clay API 호출 - 기업 탐색
-        const searchResponse = await fetch("https://api.clay.com/v3/sources/search", {
+      // Clay 기업 검색
+      let companies: Record<string, unknown>[] = [];
+      try {
+        const res = await fetch("https://api.clay.com/v3/sources/search", {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${CLAY_API_KEY}`,
-            "Content-Type": "application/json",
-          },
+          headers: { Authorization: `Bearer ${CLAY_API_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             query: `${industry} companies in ${country}`,
-            filters: {
-              min_employees: 50,
-              industries: [industry],
-              countries: [country],
-            },
+            filters: { min_employees: 50, industries: [industry], countries: [country] },
             limit: 10,
           }),
         });
-
-        if (!searchResponse.ok) {
-          const errorText = await searchResponse.text();
-          await log(supabase, jobId, "A", "running",
-            `Clay 검색 실패 (${country}/${industry}): ${searchResponse.status} - ${errorText}`);
+        if (res.ok) {
+          const data = await res.json();
+          companies = data.results || data.data || [];
+          totalCredits += 2;
+        } else {
+          await log(sb, jobId, "A", "running", `Clay 검색 실패 (${country}/${industry}): ${res.status}`);
           continue;
         }
+      } catch { continue; }
 
-        const searchData = await searchResponse.json();
-        const companies = searchData.results || searchData.data || [];
-        totalCreditsUsed += 2; // 검색 크레딧
+      for (const co of companies) {
+        if (totalCredits >= DAILY_LIMIT - 5) break;
 
-        for (const company of companies) {
-          const domain = (company.domain || company.website || "")
-            .replace(/^https?:\/\//, "")
-            .replace(/\/.*$/, "")
-            .toLowerCase();
+        const domain = String(co.domain || co.website || "")
+          .replace(/^https?:\/\//, "").replace(/\/.*$/, "").toLowerCase();
+        if (!domain || existingDomains.has(domain) || blacklistDomains.has(domain)) continue;
 
-          if (!domain || existingDomains.has(domain) || blacklistDomains.has(domain)) {
-            continue;
+        // Clay Enrichment: Annual Revenue + Open Jobs (2 크레딧)
+        let annualRevenue = Number(co.annual_revenue || co.estimated_annual_revenue || 0);
+        let openJobsSignal = false;
+        let openJobsText = "";
+        let recentNews = "";
+        let empGrowth = 0;
+
+        try {
+          const enrichRes = await fetch("https://api.clay.com/v3/sources/enrich", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${CLAY_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ domain, enrichments: ["annual_revenue", "open_jobs"] }),
+          });
+          if (enrichRes.ok) {
+            const ed = await enrichRes.json();
+            annualRevenue = ed.annual_revenue || annualRevenue;
+            openJobsSignal = (ed.open_jobs_count || 0) > 0;
+            openJobsText = ed.open_jobs_text || ed.job_postings || "";
+            empGrowth = ed.employee_growth_rate || ed.headcount_growth || 0;
+            totalCredits += 2;
           }
+        } catch { /* enrichment 실패 시 기본값 */ }
 
-          // Clay Enrichment: Annual Revenue + Open Jobs (2 크레딧)
-          let annualRevenue = company.annual_revenue || company.estimated_annual_revenue || 0;
-          let openJobsSignal = false;
+        // ICP 스코어링
+        const icpScore = computeIcpScore({
+          annual_revenue: annualRevenue, open_jobs_text: openJobsText,
+          recent_news: recentNews, employee_growth_rate: empGrowth,
+        });
 
-          try {
-            const enrichResponse = await fetch("https://api.clay.com/v3/sources/enrich", {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${CLAY_API_KEY}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                domain: domain,
-                enrichments: ["annual_revenue", "open_jobs"],
-              }),
+        let tier: string;
+        if (icpScore >= 80) { tier = "Tier1"; tier1++; }
+        else if (icpScore >= 50) { tier = "Tier2"; tier2++; }
+        else { tier = "Tier3"; tier3++; }
+
+        // buyers에 INSERT
+        const { data: newBuyer } = await sb.from("buyers").insert({
+          company_name: co.name || co.company_name || domain,
+          domain, website: co.website || `https://${domain}`,
+          region: team, team, tier, annual_revenue: annualRevenue,
+          open_jobs_signal: openJobsSignal, employee_count: Number(co.employee_count || co.num_employees || 0),
+          is_blacklisted: false, job_id: jobId, status: "Cold", k_beauty_flag: "Unknown",
+        }).select("id, tier").single();
+
+        if (!newBuyer) continue;
+        existingDomains.add(domain);
+        companiesFound++;
+
+        // Tier3 → 저장만, 담당자 탐색 안함
+        if (tier === "Tier3") continue;
+
+        // Tier1/2 담당자 탐색
+        const titleKeywords = ["Buying", "Procurement", "Beauty", "NPD", "Sourcing", "Product Development"];
+        const seniorityLevels = tier === "Tier1"
+          ? ["Manager", "Senior Manager", "Director", "VP"]
+          : ["Manager", "Senior Manager", "Director"];
+
+        try {
+          const cRes = await fetch("https://api.clay.com/v3/sources/find-contacts", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${CLAY_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              domain, title_keywords: titleKeywords,
+              seniority_levels: seniorityLevels, min_tenure_months: 6,
+              preferred_language: "en", limit: 3,
+            }),
+          });
+
+          if (cRes.ok) {
+            const cData = await cRes.json();
+            const candidates = (cData.results || cData.data || []) as Record<string, unknown>[];
+            totalCredits += 1;
+
+            // CEO/COO/CMO/CFO/Finance/Legal/HR/IT/PR 제외, 기업당 1명
+            const validContact = candidates.find((c) => {
+              const title = String(c.title || c.job_title || "");
+              return !EXCLUDED_TITLES_RE.test(title);
             });
 
-            if (enrichResponse.ok) {
-              const enrichData = await enrichResponse.json();
-              annualRevenue = enrichData.annual_revenue || annualRevenue;
-              openJobsSignal = (enrichData.open_jobs_count || 0) > 0;
-              totalCreditsUsed += 2;
-            }
-          } catch {
-            // enrichment 실패 시 기본값 사용
-          }
+            if (validContact) {
+              let contactEmail = String(validContact.email || "");
 
-          // Tier 분류
-          const revenue = typeof annualRevenue === "number" ? annualRevenue : parseFloat(String(annualRevenue)) || 0;
-          let tier: string;
-          if (revenue >= 50_000_000) {
-            tier = "Tier1";
-          } else if (revenue >= 5_000_000) {
-            tier = "Tier2";
-          } else {
-            tier = "Tier3";
-          }
-
-          // 바이어 DB에 INSERT
-          const { data: newBuyer } = await supabase
-            .from("buyers")
-            .insert({
-              company_name: company.name || company.company_name || domain,
-              domain,
-              website: company.website || `https://${domain}`,
-              region: team,
-              team,
-              tier,
-              annual_revenue: revenue,
-              open_jobs_signal: openJobsSignal,
-              employee_count: company.employee_count || company.num_employees,
-              is_blacklisted: false,
-              job_id: jobId,
-              status: "Cold",
-              k_beauty_flag: "Unknown",
-            })
-            .select("id, tier")
-            .single();
-
-          if (!newBuyer) continue;
-
-          existingDomains.add(domain);
-          companiesFound++;
-
-          // Tier3 → 저장 후 담당자 탐색 안함
-          if (tier === "Tier3") continue;
-
-          // Tier1/2 → 담당자 탐색
-          const titleKeywords = [
-            "Buying", "Procurement", "Beauty", "NPD",
-            "Sourcing", "Product Development",
-          ];
-          const seniorityLevels = tier === "Tier1"
-            ? ["Manager", "Senior Manager", "Director", "VP"]
-            : ["Manager", "Senior Manager", "Director"];
-
-          try {
-            const contactResponse = await fetch(
-              "https://api.clay.com/v3/sources/find-contacts",
-              {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${CLAY_API_KEY}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  domain: domain,
-                  title_keywords: titleKeywords,
-                  seniority_levels: seniorityLevels,
-                  min_tenure_months: 6,
-                  limit: 1, // 기업당 1명
-                }),
-              }
-            );
-
-            if (contactResponse.ok) {
-              const contactData = await contactResponse.json();
-              const contacts = contactData.results || contactData.data || [];
-              totalCreditsUsed += 1;
-
-              if (contacts.length > 0) {
-                const contact = contacts[0];
-
-                // Email enrichment (1 크레딧/명)
-                let contactEmail = contact.email || "";
-                if (!contactEmail && contact.linkedin_url) {
-                  try {
-                    const emailRes = await fetch(
-                      "https://api.clay.com/v3/sources/enrich-email",
-                      {
-                        method: "POST",
-                        headers: {
-                          Authorization: `Bearer ${CLAY_API_KEY}`,
-                          "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({
-                          linkedin_url: contact.linkedin_url,
-                        }),
-                      }
-                    );
-                    if (emailRes.ok) {
-                      const emailData = await emailRes.json();
-                      contactEmail = emailData.email || "";
-                      totalCreditsUsed += 1;
-                    }
-                  } catch {
-                    // email enrichment 실패
+              // 이메일 없으면 Clay Email enrichment (1 크레딧)
+              if (!contactEmail && validContact.linkedin_url) {
+                try {
+                  const eRes = await fetch("https://api.clay.com/v3/sources/enrich-email", {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${CLAY_API_KEY}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({ linkedin_url: validContact.linkedin_url }),
+                  });
+                  if (eRes.ok) {
+                    const eData = await eRes.json();
+                    contactEmail = eData.email || "";
+                    totalCredits += 1;
                   }
-                }
-
-                // buyer_contacts에 INSERT
-                await supabase.from("buyer_contacts").insert({
-                  buyer_id: newBuyer.id,
-                  contact_name: contact.name || contact.full_name || "",
-                  contact_title: contact.title || contact.job_title || "",
-                  contact_email: contactEmail,
-                  linkedin_url: contact.linkedin_url || "",
-                  work_history_summary: contact.work_history_summary || "",
-                  is_primary: true,
-                  source: "clay",
-                });
-
-                contactsFound++;
-
-                // buyers 테이블에도 primary contact 정보 업데이트
-                await supabase
-                  .from("buyers")
-                  .update({
-                    contact_name: contact.name || contact.full_name,
-                    contact_title: contact.title || contact.job_title,
-                    contact_email: contactEmail,
-                    linkedin_url: contact.linkedin_url,
-                  })
-                  .eq("id", newBuyer.id);
+                } catch { /* email enrichment 실패 */ }
               }
-            }
-          } catch {
-            // 담당자 탐색 실패 시 계속 진행
-          }
 
-          // Tier1 기업만 Recent News 추가 (1 크레딧/기업)
-          if (tier === "Tier1") {
-            try {
-              const newsRes = await fetch("https://api.clay.com/v3/sources/enrich", {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${CLAY_API_KEY}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  domain: domain,
-                  enrichments: ["recent_news"],
-                }),
+              // buyer_contacts INSERT
+              await sb.from("buyer_contacts").insert({
+                buyer_id: newBuyer.id,
+                contact_name: validContact.name || validContact.full_name || "",
+                contact_title: validContact.title || validContact.job_title || "",
+                contact_email: contactEmail || null,
+                linkedin_url: String(validContact.linkedin_url || ""),
+                work_history_summary: String(validContact.work_history_summary || ""),
+                is_primary: true, source: "clay",
               });
 
-              if (newsRes.ok) {
-                const newsData = await newsRes.json();
-                if (newsData.recent_news) {
-                  await supabase
-                    .from("buyers")
-                    .update({ recent_news: newsData.recent_news })
-                    .eq("id", newBuyer.id);
-                }
-                totalCreditsUsed += 1;
-              }
-            } catch {
-              // news enrichment 실패
+              // buyers에도 primary contact 반영
+              await sb.from("buyers").update({
+                contact_name: validContact.name || validContact.full_name,
+                contact_title: validContact.title || validContact.job_title,
+                contact_email: contactEmail || null,
+                linkedin_url: String(validContact.linkedin_url || ""),
+              }).eq("id", newBuyer.id);
+
+              contactsFound++;
             }
           }
+        } catch { /* 담당자 탐색 실패 */ }
+
+        // Tier1만 Recent News (1 크레딧)
+        if (tier === "Tier1") {
+          try {
+            const nRes = await fetch("https://api.clay.com/v3/sources/enrich", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${CLAY_API_KEY}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ domain, enrichments: ["recent_news"] }),
+            });
+            if (nRes.ok) {
+              const nData = await nRes.json();
+              if (nData.recent_news) {
+                await sb.from("buyers").update({ recent_news: nData.recent_news }).eq("id", newBuyer.id);
+              }
+              totalCredits += 1;
+            }
+          } catch { /* news 실패 */ }
         }
       }
     }
-  } catch (error) {
-    await log(supabase, jobId, "A", "failed",
-      `직원A 오류: ${error instanceof Error ? error.message : String(error)}`,
-      totalCreditsUsed);
-    return;
   }
 
-  await log(supabase, jobId, "A", "completed",
-    `직원A 완료: 기업 ${companiesFound}개, 담당자 ${contactsFound}명 발굴 (크레딧 ${totalCreditsUsed} 사용)`,
-    totalCreditsUsed);
+  await log(sb, jobId, "A", "completed",
+    `직원A 완료: 기업 ${companiesFound}개 (T1:${tier1} T2:${tier2} T3:${tier3}), 담당자 ${contactsFound}명, 크레딧 ${totalCredits} 사용`,
+    totalCredits);
 }
 
 // ============================================
-// 직원 B: ZeroBounce API - 이메일 유효성 검증
+// 직원 B: ZeroBounce — 이메일 유효성 검증
 // ============================================
-async function agentB(
-  supabase: ReturnType<typeof createClient>,
-  jobId: string,
-  _team: string
-) {
-  await log(supabase, jobId, "B", "running", "직원B 시작: 이메일 유효성 검증");
+async function agentB(sb: SB, jobId: string, _team: string) {
+  await log(sb, jobId, "B", "running", "직원B 시작: 이메일 유효성 검증");
 
-  const ZEROBOUNCE_API_KEY = Deno.env.get("ZEROBOUNCE_API_KEY");
-  if (!ZEROBOUNCE_API_KEY) {
-    await log(supabase, jobId, "B", "failed", "ZEROBOUNCE_API_KEY 환경변수 없음");
-    return;
-  }
+  const ZB_KEY = Deno.env.get("ZEROBOUNCE_API_KEY");
+  if (!ZB_KEY) { await log(sb, jobId, "B", "failed", "ZEROBOUNCE_API_KEY 없음"); return; }
 
-  // email_status가 null인 buyer_contacts 조회
-  const { data: contacts } = await supabase
-    .from("buyer_contacts")
+  const { data: contacts } = await sb.from("buyer_contacts")
     .select("id, contact_email, buyer_id")
     .is("email_status", null)
     .not("contact_email", "is", null)
     .not("contact_email", "eq", "");
 
   if (!contacts || contacts.length === 0) {
-    await log(supabase, jobId, "B", "completed", "검증할 이메일 없음");
+    await log(sb, jobId, "B", "completed", "검증할 이메일 없음");
     return;
   }
 
   // buyer_id → tier 매핑
   const buyerIds = [...new Set(contacts.map((c: { buyer_id: string }) => c.buyer_id))];
-  const { data: buyers } = await supabase
-    .from("buyers")
-    .select("id, tier")
-    .in("id", buyerIds);
+  const { data: buyers } = await sb.from("buyers").select("id, tier").in("id", buyerIds);
+  const tierMap = new Map((buyers || []).map((b: { id: string; tier: string }) => [b.id, b.tier]));
 
-  const buyerTierMap = new Map(
-    (buyers || []).map((b: { id: string; tier: string }) => [b.id, b.tier])
-  );
+  let valid = 0, invalid = 0, catchAllPass = 0, catchAllFail = 0, risky = 0;
 
-  let validated = 0;
-  let valid = 0;
-  let invalid = 0;
-  let excluded = 0;
-
-  for (const contact of contacts) {
+  for (const c of contacts) {
     try {
-      const response = await fetch(
-        `https://api.zerobounce.net/v2/validate?api_key=${ZEROBOUNCE_API_KEY}&email=${encodeURIComponent(contact.contact_email)}`
+      const res = await fetch(
+        `https://api.zerobounce.net/v2/validate?api_key=${ZB_KEY}&email=${encodeURIComponent(c.contact_email)}`
       );
+      if (!res.ok) continue;
 
-      if (!response.ok) continue;
-
-      const result = await response.json();
-      const zbStatus = (result.status || "").toLowerCase();
-      const tier = buyerTierMap.get(contact.buyer_id) || "Tier2";
-
+      const r = await res.json();
+      const zbStatus = String(r.status || "").toLowerCase();
+      const tier = tierMap.get(c.buyer_id) || "Tier2";
       let emailStatus: string;
-      let shouldBlacklist = false;
+      let blacklist = false;
 
       if (zbStatus === "valid") {
         emailStatus = "valid";
         valid++;
-      } else if (zbStatus === "invalid") {
+      } else if (zbStatus === "invalid" || zbStatus === "hard_bounce") {
         emailStatus = "invalid";
-        shouldBlacklist = true;
+        blacklist = true;
         invalid++;
-      } else if (zbStatus === "catch-all") {
-        emailStatus = "catch-all";
-        if (tier !== "Tier1") {
-          shouldBlacklist = true; // Tier2 catch-all → 제외
-          excluded++;
+      } else if (zbStatus === "catch-all" || zbStatus === "catch_all") {
+        if (tier === "Tier1") {
+          emailStatus = "catch-all-pass";
+          catchAllPass++;
         } else {
-          valid++; // Tier1 catch-all → 통과
+          emailStatus = "catch-all-fail";
+          blacklist = true;
+          catchAllFail++;
         }
       } else {
-        // risky, unknown → 제외
-        emailStatus = zbStatus === "do_not_mail" ? "risky" : "unknown";
-        shouldBlacklist = true;
-        excluded++;
+        emailStatus = "risky";
+        blacklist = true;
+        risky++;
       }
 
-      // buyer_contacts 업데이트
-      await supabase
-        .from("buyer_contacts")
-        .update({ email_status: emailStatus })
-        .eq("id", contact.id);
-
-      // 블랙리스트 처리
-      if (shouldBlacklist) {
-        await supabase
-          .from("buyers")
-          .update({ is_blacklisted: true })
-          .eq("id", contact.buyer_id);
+      await sb.from("buyer_contacts").update({ email_status: emailStatus }).eq("id", c.id);
+      if (blacklist) {
+        await sb.from("buyers").update({ is_blacklisted: true }).eq("id", c.buyer_id);
       }
-
-      validated++;
-    } catch {
-      // 개별 검증 실패 시 계속 진행
-    }
+    } catch { /* 개별 실패 */ }
   }
 
-  await log(supabase, jobId, "B", "completed",
-    `직원B 완료: ${validated}건 검증 (valid: ${valid}, invalid: ${invalid}, 제외: ${excluded})`);
+  await log(sb, jobId, "B", "completed",
+    `직원B 완료: ${contacts.length}건 검증 — valid:${valid} invalid:${invalid} catch-all-pass:${catchAllPass} catch-all-fail:${catchAllFail} risky:${risky}`);
 }
 
 // ============================================
-// 직원 C: Claude API + web_search - 기업 분석
+// 직원 C: Claude API — 기업 분석
 // ============================================
-async function agentC(
-  supabase: ReturnType<typeof createClient>,
-  jobId: string,
-  _team: string
-) {
-  await log(supabase, jobId, "C", "running", "직원C 시작: 기업 분석");
+async function agentC(sb: SB, jobId: string, _team: string) {
+  await log(sb, jobId, "C", "running", "직원C 시작: 기업 분석");
 
-  const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!ANTHROPIC_API_KEY) {
-    await log(supabase, jobId, "C", "failed", "ANTHROPIC_API_KEY 환경변수 없음");
-    return;
-  }
+  const API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!API_KEY) { await log(sb, jobId, "C", "failed", "ANTHROPIC_API_KEY 없음"); return; }
 
-  // valid 또는 catch-all(Tier1) 이메일의 기업만 조회
-  const { data: validContacts } = await supabase
-    .from("buyer_contacts")
-    .select("buyer_id")
-    .in("email_status", ["valid", "catch-all"]);
+  // valid 또는 catch-all-pass 이메일의 기업만
+  const { data: validContacts } = await sb.from("buyer_contacts")
+    .select("buyer_id").in("email_status", ["valid", "catch-all-pass"]);
 
   if (!validContacts || validContacts.length === 0) {
-    await log(supabase, jobId, "C", "completed", "분석할 기업 없음");
-    return;
+    await log(sb, jobId, "C", "completed", "분석할 기업 없음"); return;
   }
 
-  const validBuyerIds = [...new Set(validContacts.map((c: { buyer_id: string }) => c.buyer_id))];
-
-  const { data: buyers } = await supabase
-    .from("buyers")
-    .select("*")
-    .in("id", validBuyerIds)
-    .eq("is_blacklisted", false)
-    .is("recent_news", null); // 아직 분석 안된 기업만
+  const validIds = [...new Set(validContacts.map((c: { buyer_id: string }) => c.buyer_id))];
+  const { data: buyers } = await sb.from("buyers").select("*")
+    .in("id", validIds).eq("is_blacklisted", false).is("recent_news", null);
 
   if (!buyers || buyers.length === 0) {
-    await log(supabase, jobId, "C", "completed", "분석할 새 기업 없음");
-    return;
+    await log(sb, jobId, "C", "completed", "분석할 새 기업 없음"); return;
   }
 
   let analyzed = 0;
   let totalCost = 0;
 
-  for (const buyer of buyers) {
+  for (const b of buyers) {
     try {
-      const prompt = `You are a B2B sales analyst for SPS Cosmetics (spscos.com), a Korean cosmetics OEM/ODM manufacturer.
+      const prompt = `You are a B2B analyst for SPS Cosmetics (spscos.com), a Korean OEM/ODM manufacturer.
+Company: ${b.company_name} | Domain: ${b.domain || b.website}
+Region: ${b.region} | Tier: ${b.tier} | Revenue: $${b.annual_revenue || "Unknown"}
+Employees: ${b.employee_count || "Unknown"} | Open Jobs: ${b.open_jobs_signal ? "Yes" : "No"}
 
-Analyze this potential buyer company and provide a JSON response:
-
-Company: ${buyer.company_name}
-Domain: ${buyer.domain || buyer.website}
-Region: ${buyer.region}
-Tier: ${buyer.tier}
-Annual Revenue: $${buyer.annual_revenue || "Unknown"}
-Employee Count: ${buyer.employee_count || "Unknown"}
-
-Provide analysis in this exact JSON format:
+Analyze and return ONLY a JSON object (no markdown):
 {
-  "company_summary": "2-3 sentence summary of the company, their market position, and product focus",
-  "kbeauty_interest": "low/medium/high - their likely interest in K-beauty products based on their portfolio",
-  "recommended_formulas": ["list of 3-5 spscos.com product categories that match their needs, e.g. skincare serums, sheet masks, lip products"],
-  "pitch_angle": "1-2 sentence recommended sales approach angle specific to this company",
-  "analysis_date": "${new Date().toISOString().split("T")[0]}"
-}
+  "company_status": "1-2 sentence summary of recent products, campaigns, or partnerships",
+  "kbeauty_interest": "Korean beauty brand history and interest level (low/medium/high with reasoning)",
+  "recommended_formula": "Match to spscos.com categories: skincare→serums/creams, bodycare→lotions/oils, color→lip/eye, haircare→shampoo/treatment. List 3-5 specific products.",
+  "proposal_angle": "One-line pitch angle for approaching this company"
+}`;
 
-Be specific and actionable. Use the company data provided - minimize speculation.`;
-
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
-          "x-api-key": ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
+          "x-api-key": API_KEY, "anthropic-version": "2023-06-01",
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 500,
+          model: "claude-haiku-4-5-20251001", max_tokens: 500,
           messages: [{ role: "user", content: prompt }],
         }),
       });
 
-      if (!response.ok) {
-        const errText = await response.text();
-        await log(supabase, jobId, "C", "running",
-          `Claude API 실패 (${buyer.company_name}): ${response.status} - ${errText}`);
+      if (!res.ok) {
+        await log(sb, jobId, "C", "running", `Claude 실패 (${b.company_name}): ${res.status}`);
         continue;
       }
 
-      const result = await response.json();
+      const result = await res.json();
       const text = result.content?.[0]?.text || "";
-
-      // 비용 계산 (Haiku: input $0.80/MTok, output $4/MTok)
-      const inputTokens = result.usage?.input_tokens || 0;
-      const outputTokens = result.usage?.output_tokens || 0;
-      const cost = (inputTokens * 0.0000008) + (outputTokens * 0.000004);
+      const inTok = result.usage?.input_tokens || 0;
+      const outTok = result.usage?.output_tokens || 0;
+      const cost = (inTok * 0.0000008) + (outTok * 0.000004);
       totalCost += cost;
 
-      // JSON 파싱
-      let analysisJson;
+      let json;
       try {
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        analysisJson = jsonMatch ? JSON.parse(jsonMatch[0]) : { raw: text };
-      } catch {
-        analysisJson = { raw: text };
-      }
+        const m = text.match(/\{[\s\S]*\}/);
+        json = m ? JSON.parse(m[0]) : { raw: text };
+      } catch { json = { raw: text }; }
 
-      // buyers.recent_news에 JSON으로 업데이트
-      await supabase
-        .from("buyers")
-        .update({ recent_news: analysisJson })
-        .eq("id", buyer.id);
-
+      await sb.from("buyers").update({ recent_news: json }).eq("id", b.id);
       analyzed++;
-    } catch {
-      // 개별 분석 실패 시 계속
-    }
+    } catch { /* 개별 실패 */ }
   }
 
-  await log(supabase, jobId, "C", "completed",
-    `직원C 완료: ${analyzed}개 기업 분석 (API 비용: $${totalCost.toFixed(4)})`,
-    0, totalCost);
+  await log(sb, jobId, "C", "completed",
+    `직원C 완료: ${analyzed}개 기업 분석, API 비용 $${totalCost.toFixed(4)}`, 0, totalCost);
 }
 
 // ============================================
-// 직원 D: Claude API - 이메일 초안 작성
+// 직원 D: Claude API — 이메일 초안
 // ============================================
-async function agentD(
-  supabase: ReturnType<typeof createClient>,
-  jobId: string,
-  _team: string
-) {
-  await log(supabase, jobId, "D", "running", "직원D 시작: 이메일 초안 작성");
+async function agentD(sb: SB, jobId: string, _team: string) {
+  await log(sb, jobId, "D", "running", "직원D 시작: 이메일 초안 작성");
 
-  const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!ANTHROPIC_API_KEY) {
-    await log(supabase, jobId, "D", "failed", "ANTHROPIC_API_KEY 환경변수 없음");
-    return;
-  }
+  const API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!API_KEY) { await log(sb, jobId, "D", "failed", "ANTHROPIC_API_KEY 없음"); return; }
 
-  // valid/catch-all 담당자 + 기업 정보 JOIN
-  const { data: contacts } = await supabase
-    .from("buyer_contacts")
+  const { data: contacts } = await sb.from("buyer_contacts")
     .select("id, buyer_id, contact_name, contact_title, contact_email, email_status")
-    .in("email_status", ["valid", "catch-all"]);
+    .in("email_status", ["valid", "catch-all-pass"]);
 
   if (!contacts || contacts.length === 0) {
-    await log(supabase, jobId, "D", "completed", "이메일 작성할 담당자 없음");
-    return;
+    await log(sb, jobId, "D", "completed", "이메일 작성할 담당자 없음"); return;
   }
 
   // 이미 초안이 있는 contact 제외
-  const { data: existingDrafts } = await supabase
-    .from("email_drafts")
-    .select("buyer_contact_id");
-
-  const existingContactIds = new Set(
-    (existingDrafts || []).map((d: { buyer_contact_id: string }) => d.buyer_contact_id)
-  );
-
-  const newContacts = contacts.filter(
-    (c: { id: string }) => !existingContactIds.has(c.id)
-  );
+  const { data: existing } = await sb.from("email_drafts").select("buyer_contact_id");
+  const existingSet = new Set((existing || []).map((d: { buyer_contact_id: string }) => d.buyer_contact_id));
+  const newContacts = contacts.filter((c: { id: string }) => !existingSet.has(c.id));
 
   if (newContacts.length === 0) {
-    await log(supabase, jobId, "D", "completed", "새 이메일 초안 작성 대상 없음");
-    return;
+    await log(sb, jobId, "D", "completed", "새 초안 대상 없음"); return;
   }
 
-  // buyer 정보 조회
   const buyerIds = [...new Set(newContacts.map((c: { buyer_id: string }) => c.buyer_id))];
-  const { data: buyers } = await supabase
-    .from("buyers")
-    .select("*")
-    .in("id", buyerIds)
-    .eq("is_blacklisted", false);
-
-  const buyerMap = new Map(
-    (buyers || []).map((b: { id: string }) => [b.id, b])
-  );
+  const { data: buyers } = await sb.from("buyers").select("*").in("id", buyerIds).eq("is_blacklisted", false);
+  const buyerMap = new Map((buyers || []).map((b: { id: string }) => [b.id, b]));
 
   let drafted = 0;
   let totalCost = 0;
 
-  for (const contact of newContacts) {
-    const buyer = buyerMap.get(contact.buyer_id) as Record<string, unknown> | undefined;
+  for (const c of newContacts) {
+    const buyer = buyerMap.get(c.buyer_id) as Record<string, unknown> | undefined;
     if (!buyer) continue;
 
     const tier = buyer.tier as string;
     const analysis = buyer.recent_news as Record<string, unknown> | null;
+    const proposalAngle = analysis?.proposal_angle || "K-beauty OEM/ODM partnership opportunity";
+    const followupDays = tier === "Tier1" ? 5 : 7;
+    const salesAngle = tier === "Tier1"
+      ? "Strategic partnership angle — position SPS as a long-term K-beauty OEM/ODM partner for their premium portfolio"
+      : "Test order angle — low-risk 3,000 unit MOQ trial to test K-beauty products in their market";
 
     try {
-      const tierAngle = tier === "Tier1"
-        ? "Partnership angle - position SPS as a strategic K-beauty OEM/ODM partner for their premium portfolio"
-        : "Test order angle - low-risk trial with 3,000 unit MOQ to test K-beauty products in their market";
+      const prompt = `You write B2B cold emails for SPS Cosmetics (spscos.com), a Korean OEM/ODM manufacturer.
+CEO: Teddy Shin (teddy@spscos.com) | MOQ: 3,000 units
 
-      const followupDays = tier === "Tier1" ? 5 : 7;
+Contact: ${c.contact_name} | Title: ${c.contact_title} | Company: ${buyer.company_name}
+Region: ${buyer.region} | Tier: ${tier}
+Company Analysis: ${analysis ? JSON.stringify(analysis) : "N/A"}
+Proposal Angle: ${proposalAngle}
+Sales Strategy: ${salesAngle}
 
-      const prompt = `You are writing B2B cold emails for SPS Cosmetics (spscos.com), a Korean cosmetics OEM/ODM manufacturer.
-CEO: Teddy Shin (teddy@spscos.com)
-MOQ: 3,000 units minimum
-
-Target Contact:
-- Name: ${contact.contact_name}
-- Title: ${contact.contact_title}
-- Company: ${buyer.company_name}
-- Region: ${buyer.region}
-- Tier: ${tier}
-
-Company Analysis:
-${analysis ? JSON.stringify(analysis) : "No analysis available"}
-
-Sales Angle: ${tierAngle}
-
-Generate a JSON response with:
+Return ONLY a JSON object (no markdown):
 {
-  "subject_line_1": "Subject line option 1 (curiosity-based)",
-  "subject_line_2": "Subject line option 2 (value-based)",
-  "subject_line_3": "Subject line option 3 (personalized)",
-  "body_first": "First cold email (120-150 words). Structure: Opening hook → Relevance to their business → SPS value proposition → Clear CTA (meeting/call). Professional but warm tone. No spam words.",
-  "body_followup": "Follow-up email (80-100 words, sent ${followupDays} days later). Reference first email briefly → New angle or social proof → Soft CTA. Don't be pushy."
-}
+  "subject_line_1": "Company name + product category mention (e.g., '[Company] x K-Beauty Skincare Serums')",
+  "subject_line_2": "Recent news/campaign reference (e.g., 'Re: [Company]'s new beauty expansion')",
+  "subject_line_3": "K-beauty trend angle (e.g., 'The K-beauty formula trending with [region] buyers')",
+  "body_first": "EXACTLY 120-150 words. Structure: Opening hook (1 sentence) → Relevance to their business using their title '${c.contact_title}' and company '${buyer.company_name}' and proposal angle (2 sentences) → SPS value proposition (2 sentences) → Clear CTA for meeting/call (1 sentence). Max 2 spscos.com links, max 1 external link. Sign off as Teddy Shin, CEO, SPS Cosmetics. NO spam words (free, guaranteed, act now, limited time).",
+  "body_followup": "EXACTLY 80-100 words. Reference first email briefly → New angle or proof point → Soft CTA. ${tier === "Tier1" ? "Note: send 5 days after first email" : "Note: send 7 days after first email"}. Sign off as Teddy."
+}`;
 
-Rules:
-- No spam trigger words (free, guaranteed, act now, limited time)
-- Max 2 links to spscos.com
-- Max 1 external link
-- Address by first name
-- Sign off as Teddy Shin, CEO, SPS Cosmetics`;
-
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
-          "x-api-key": ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
+          "x-api-key": API_KEY, "anthropic-version": "2023-06-01",
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 800,
+          model: "claude-haiku-4-5-20251001", max_tokens: 900,
           messages: [{ role: "user", content: prompt }],
         }),
       });
 
-      if (!response.ok) continue;
+      if (!res.ok) continue;
 
-      const result = await response.json();
+      const result = await res.json();
       const text = result.content?.[0]?.text || "";
+      const inTok = result.usage?.input_tokens || 0;
+      const outTok = result.usage?.output_tokens || 0;
+      totalCost += (inTok * 0.0000008) + (outTok * 0.000004);
 
-      const inputTokens = result.usage?.input_tokens || 0;
-      const outputTokens = result.usage?.output_tokens || 0;
-      const cost = (inputTokens * 0.0000008) + (outputTokens * 0.000004);
-      totalCost += cost;
-
-      let emailJson;
+      let json;
       try {
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        emailJson = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
-      } catch {
-        emailJson = null;
-      }
+        const m = text.match(/\{[\s\S]*\}/);
+        json = m ? JSON.parse(m[0]) : null;
+      } catch { json = null; }
+      if (!json) continue;
 
-      if (!emailJson) continue;
-
-      // email_drafts에 INSERT
-      await supabase.from("email_drafts").insert({
-        buyer_contact_id: contact.id,
-        subject_line_1: emailJson.subject_line_1 || "",
-        subject_line_2: emailJson.subject_line_2 || "",
-        subject_line_3: emailJson.subject_line_3 || "",
-        body_first: emailJson.body_first || "",
-        body_followup: emailJson.body_followup || "",
+      await sb.from("email_drafts").insert({
+        buyer_contact_id: c.id,
+        subject_line_1: json.subject_line_1 || "", subject_line_2: json.subject_line_2 || "",
+        subject_line_3: json.subject_line_3 || "",
+        body_first: json.body_first || "", body_followup: json.body_followup || "",
         tier,
       });
 
       drafted++;
-    } catch {
-      // 개별 실패 시 계속
-    }
+    } catch { /* 개별 실패 */ }
   }
 
-  await log(supabase, jobId, "D", "completed",
-    `직원D 완료: ${drafted}개 이메일 초안 작성 (API 비용: $${totalCost.toFixed(4)})`,
-    0, totalCost);
+  await log(sb, jobId, "D", "completed",
+    `직원D 완료: ${drafted}개 이메일 초안 작성, API 비용 $${totalCost.toFixed(4)}`, 0, totalCost);
 }
 
 // ============================================
-// 직원 E: GlockApps API - 스팸 검토
+// 직원 E: Claude API 규칙 기반 스팸 검토
 // ============================================
-async function agentE(
-  supabase: ReturnType<typeof createClient>,
-  jobId: string,
-  _team: string
-) {
-  await log(supabase, jobId, "E", "running", "직원E 시작: 스팸 검토");
 
-  const GLOCKAPP_API_KEY = Deno.env.get("GLOCKAPP_API_KEY");
-  if (!GLOCKAPP_API_KEY) {
-    await log(supabase, jobId, "E", "failed", "GLOCKAPP_API_KEY 환경변수 없음");
-    return;
+const SPAM_WORDS = [
+  "free", "guarantee", "guaranteed", "winner", "congratulations",
+  "limited time", "act now", "click here", "no cost", "risk free",
+  "risk-free", "exclusive deal", "don't miss", "urgent",
+  "buy now", "order now", "special promotion", "no obligation",
+  "double your", "earn extra", "cash bonus",
+];
+
+function checkSpamRules(subject: string, body: string): string[] {
+  const issues: string[] = [];
+  const full = `${subject} ${body}`;
+  const lower = full.toLowerCase();
+
+  // 1. 스팸 단어
+  const found = SPAM_WORDS.filter((w) => lower.includes(w));
+  if (found.length > 0) issues.push(`스팸단어 ${found.length}개: ${found.join(", ")}`);
+
+  // 2. spscos.com 링크 3개+
+  const spsLinks = (body.match(/spscos\.com/gi) || []).length;
+  if (spsLinks >= 3) issues.push(`spscos.com 링크 ${spsLinks}개 (최대 2개)`);
+
+  // 3. 외부 링크 2개+
+  const extLinks = (body.match(/https?:\/\/(?!.*spscos\.com)[^\s)]+/gi) || []).length;
+  if (extLinks >= 2) issues.push(`외부 링크 ${extLinks}개 (최대 1개)`);
+
+  // 4. 대문자 3개+ 연속
+  if (/\b[A-Z]{2,}(\s+[A-Z]{2,}){2,}\b/.test(body)) issues.push("대문자 단어 3개+ 연속");
+
+  // 5. 느낌표 2개+
+  if (/!{2,}/.test(full)) issues.push("느낌표 2개+ 연속");
+
+  return issues;
+}
+
+function autoFixSpam(body: string): { fixed: string; fixes: string[] } {
+  let fixed = body;
+  const fixes: string[] = [];
+
+  // 1. 스팸 단어 제거
+  for (const w of SPAM_WORDS) {
+    const re = new RegExp(`\\b${w}\\b`, "gi");
+    if (re.test(fixed)) {
+      fixed = fixed.replace(re, "").replace(/\s{2,}/g, " ").trim();
+      fixes.push(`단어제거: "${w}"`);
+    }
   }
 
-  // spam_status가 null인 email_drafts 조회
-  const { data: drafts } = await supabase
-    .from("email_drafts")
+  // 2. spscos.com 링크 → 최대 2개
+  let spsCount = 0;
+  fixed = fixed.replace(/spscos\.com/gi, (m: string) => { spsCount++; return spsCount <= 2 ? m : ""; });
+  if (spsCount > 2) fixes.push(`spscos링크 ${spsCount}→2개`);
+
+  // 3. 외부 링크 → 최대 1개
+  const extRe = /https?:\/\/(?!.*spscos\.com)[^\s)]+/gi;
+  let extCount = 0;
+  fixed = fixed.replace(extRe, (m: string) => { extCount++; return extCount <= 1 ? m : ""; });
+  if (extCount > 1) fixes.push(`외부링크 ${extCount}→1개`);
+
+  // 4. 대문자 연속 → 소문자
+  fixed = fixed.replace(/\b([A-Z]{2,}(?:\s+[A-Z]{2,}){2,})\b/g, (m: string) => {
+    fixes.push("대문자연속→소문자");
+    return m.toLowerCase();
+  });
+
+  // 5. 느낌표 다중 → 1개
+  if (/!{2,}/.test(fixed)) {
+    fixed = fixed.replace(/!{2,}/g, "!");
+    fixes.push("느낌표→1개");
+  }
+
+  fixed = fixed.replace(/\s{2,}/g, " ").trim();
+  return { fixed, fixes };
+}
+
+async function agentE(sb: SB, jobId: string, _team: string) {
+  await log(sb, jobId, "E", "running", "직원E 시작: 규칙 기반 스팸 검토");
+
+  const API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+
+  const { data: drafts } = await sb.from("email_drafts")
     .select("id, subject_line_1, body_first, body_followup")
     .is("spam_status", null);
 
   if (!drafts || drafts.length === 0) {
-    await log(supabase, jobId, "E", "completed", "스팸 검토할 이메일 없음");
-    return;
+    await log(sb, jobId, "E", "completed", "스팸 검토할 이메일 없음"); return;
   }
 
-  const spamWords = [
-    "free", "guaranteed", "act now", "limited time", "exclusive deal",
-    "don't miss", "urgent", "winner", "congratulations", "click here",
-    "buy now", "order now", "special promotion", "no obligation",
-  ];
+  let checked = 0, passed = 0, rewritten = 0, flagged = 0, totalCost = 0;
 
-  let checked = 0;
-  let passed = 0;
-  let flagged = 0;
-
-  for (const draft of drafts) {
+  for (const d of drafts) {
     try {
-      const emailContent = `Subject: ${draft.subject_line_1}\n\n${draft.body_first}`;
+      const issues = checkSpamRules(d.subject_line_1, d.body_first);
 
-      // GlockApps API 호출
-      const response = await fetch("https://gappie-api.glockapps.com/api/v1/spam-test", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${GLOCKAPP_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          subject: draft.subject_line_1,
-          body: draft.body_first,
-        }),
-      });
+      if (issues.length === 0) {
+        // 규칙 통과 → Claude 보조 검증
+        let score = 10;
 
-      let spamScore = 10; // 기본값: 통과
-      let spamStatus: string;
-
-      if (response.ok) {
-        const result = await response.json();
-        spamScore = result.spam_score ?? result.score ?? 10;
-      } else {
-        // API 실패 시 로컬 스팸 단어 체크로 대체
-        const lowerContent = emailContent.toLowerCase();
-        const foundSpamWords = spamWords.filter((w) => lowerContent.includes(w));
-        spamScore = foundSpamWords.length > 0 ? 6 : 9;
-      }
-
-      if (spamScore >= 8) {
-        spamStatus = "pass";
-        passed++;
-      } else {
-        // 7점 이하 → 위험단어 교체 후 재검사 1회
-        let cleanedBody = draft.body_first;
-        const lowerBody = cleanedBody.toLowerCase();
-
-        // spscos.com 링크 최대 2개 조정
-        const spsLinks = (cleanedBody.match(/spscos\.com/gi) || []).length;
-        if (spsLinks > 2) {
-          let count = 0;
-          cleanedBody = cleanedBody.replace(/spscos\.com/gi, (match: string) => {
-            count++;
-            return count <= 2 ? match : "";
-          });
+        if (API_KEY) {
+          try {
+            const res = await fetch("https://api.anthropic.com/v1/messages", {
+              method: "POST",
+              headers: {
+                "x-api-key": API_KEY, "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+              },
+              body: JSON.stringify({
+                model: "claude-haiku-4-5-20251001", max_tokens: 50,
+                messages: [{
+                  role: "user",
+                  content: `Rate this B2B email spam risk 1-10 (10=safe). Reply ONLY the number.\n\nSubject: ${d.subject_line_1}\n\n${d.body_first}`,
+                }],
+              }),
+            });
+            if (res.ok) {
+              const r = await res.json();
+              const s = parseInt((r.content?.[0]?.text || "").trim());
+              if (!isNaN(s) && s >= 1 && s <= 10) score = s;
+              totalCost += (r.usage?.input_tokens || 0) * 0.0000008 + (r.usage?.output_tokens || 0) * 0.000004;
+            }
+          } catch { /* Claude 실패 시 규칙 점수 유지 */ }
         }
 
-        // 외부 링크 최대 1개 조정
-        const urlRegex = /https?:\/\/(?!.*spscos\.com)[^\s)]+/gi;
-        const externalLinks = cleanedBody.match(urlRegex) || [];
-        if (externalLinks.length > 1) {
-          let extCount = 0;
-          cleanedBody = cleanedBody.replace(urlRegex, (match: string) => {
-            extCount++;
-            return extCount <= 1 ? match : "";
-          });
-        }
-
-        // 스팸 단어 교체
-        for (const word of spamWords) {
-          const regex = new RegExp(word, "gi");
-          if (regex.test(cleanedBody)) {
-            cleanedBody = cleanedBody.replace(regex, "");
-          }
-        }
-
-        // 재검사 (1회)
-        let retryScore = spamScore;
-        try {
-          const retryRes = await fetch("https://gappie-api.glockapps.com/api/v1/spam-test", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${GLOCKAPP_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              subject: draft.subject_line_1,
-              body: cleanedBody,
-            }),
-          });
-
-          if (retryRes.ok) {
-            const retryResult = await retryRes.json();
-            retryScore = retryResult.spam_score ?? retryResult.score ?? spamScore;
-          }
-        } catch {
-          // 재검사 실패
-        }
-
-        if (retryScore >= 8) {
-          spamStatus = "rewrite";
-          spamScore = retryScore;
-          // 수정된 본문 업데이트
-          await supabase
-            .from("email_drafts")
-            .update({ body_first: cleanedBody })
-            .eq("id", draft.id);
+        if (score >= 8) {
+          await sb.from("email_drafts").update({ spam_score: score, spam_status: "pass" }).eq("id", d.id);
           passed++;
         } else {
-          spamStatus = "flag"; // 동환님 검토 필요
+          await sb.from("email_drafts").update({ spam_score: score, spam_status: "flag" }).eq("id", d.id);
           flagged++;
         }
+      } else {
+        // 규칙 위반 → 자동 수정 (최대 1회)
+        const { fixed, fixes } = autoFixSpam(d.body_first);
+        const retryIssues = checkSpamRules(d.subject_line_1, fixed);
+
+        if (retryIssues.length === 0) {
+          await sb.from("email_drafts").update({ body_first: fixed, spam_score: 8, spam_status: "rewrite" }).eq("id", d.id);
+          rewritten++;
+          await log(sb, jobId, "E", "running", `수정통과 (${d.id.slice(0, 8)}): ${fixes.join(", ")}`);
+        } else {
+          await sb.from("email_drafts").update({ body_first: fixed, spam_score: 5, spam_status: "flag" }).eq("id", d.id);
+          flagged++;
+          await log(sb, jobId, "E", "running", `검토필요 (${d.id.slice(0, 8)}): ${retryIssues.join(", ")}`);
+        }
       }
-
-      // email_drafts 업데이트
-      await supabase
-        .from("email_drafts")
-        .update({ spam_score: spamScore, spam_status: spamStatus })
-        .eq("id", draft.id);
-
       checked++;
-    } catch {
-      // 개별 실패 시 계속
-    }
+    } catch { /* 개별 실패 */ }
   }
 
-  await log(supabase, jobId, "E", "completed",
-    `직원E 완료: ${checked}건 검토 (통과: ${passed}, 검토필요: ${flagged})`);
+  await log(sb, jobId, "E", "completed",
+    `직원E 완료: ${checked}건 (pass:${passed} rewrite:${rewritten} flag:${flagged})${totalCost > 0 ? ` API $${totalCost.toFixed(4)}` : ""}`,
+    0, totalCost);
 }
 
 // ============================================
-// 직원 F: 모니터링 (파이프라인 완료 후)
+// 직원 F: 시스템 헬스 모니터링
 // ============================================
-async function agentF(
-  supabase: ReturnType<typeof createClient>,
-  jobId: string,
-  _team: string
-) {
-  await log(supabase, jobId, "F", "running", "직원F 시작: 시스템 모니터링");
+async function agentF(sb: SB, jobId: string, _team: string) {
+  await log(sb, jobId, "F", "running", "직원F 시작: 시스템 헬스 모니터링");
 
   const warnings: string[] = [];
+  const today = new Date().toISOString().split("T")[0];
 
-  // 1. Clay 크레딧 체크
-  const CLAY_API_KEY = Deno.env.get("CLAY_API_KEY");
-  if (CLAY_API_KEY) {
+  // 1. Clay 크레딧 잔량 체크
+  const CLAY_KEY = Deno.env.get("CLAY_API_KEY");
+  if (CLAY_KEY) {
     try {
       const res = await fetch("https://api.clay.com/v3/credits", {
-        headers: { Authorization: `Bearer ${CLAY_API_KEY}` },
+        headers: { Authorization: `Bearer ${CLAY_KEY}` },
       });
       if (res.ok) {
-        const data = await res.json();
-        const remaining = data.remaining_credits ?? data.credits ?? 0;
-        if (remaining <= 500) {
-          warnings.push(`Clay 크레딧 부족: ${remaining}개 남음 (500 이하)`);
-        }
+        const d = await res.json();
+        const remaining = d.remaining_credits ?? d.credits ?? 0;
+        if (remaining <= 500) warnings.push(`Clay 크레딧 ${remaining}개 남음 (≤500)`);
       }
-    } catch {
-      // API 체크 실패
-    }
+    } catch { /* API 실패 */ }
   }
 
   // 2. ZeroBounce 잔여량 체크
-  const ZEROBOUNCE_API_KEY = Deno.env.get("ZEROBOUNCE_API_KEY");
-  if (ZEROBOUNCE_API_KEY) {
+  const ZB_KEY = Deno.env.get("ZEROBOUNCE_API_KEY");
+  if (ZB_KEY) {
     try {
-      const res = await fetch(
-        `https://api.zerobounce.net/v2/getcredits?api_key=${ZEROBOUNCE_API_KEY}`
-      );
+      const res = await fetch(`https://api.zerobounce.net/v2/getcredits?api_key=${ZB_KEY}`);
       if (res.ok) {
-        const data = await res.json();
-        const credits = data.Credits ?? 0;
-        if (credits <= 200) {
-          warnings.push(`ZeroBounce 크레딧 부족: ${credits}건 남음 (200 이하)`);
-        }
+        const d = await res.json();
+        const credits = d.Credits ?? 0;
+        if (credits <= 200) warnings.push(`ZeroBounce ${credits}건 남음 (≤200)`);
       }
-    } catch {
-      // API 체크 실패
-    }
+    } catch { /* API 실패 */ }
   }
 
   // 3. Claude API 일일 비용 체크
-  const today = new Date().toISOString().split("T")[0];
-  const { data: todayLogs } = await supabase
-    .from("pipeline_logs")
-    .select("api_cost_usd")
-    .in("agent", ["C", "D"])
+  const { data: costLogs } = await sb.from("pipeline_logs")
+    .select("api_cost_usd").in("agent", ["C", "D", "E"])
     .gte("created_at", `${today}T00:00:00Z`);
 
-  const dailyCost = (todayLogs || []).reduce(
-    (sum: number, l: { api_cost_usd: number }) => sum + (l.api_cost_usd || 0), 0
-  );
+  const dailyCost = (costLogs || []).reduce(
+    (s: number, l: { api_cost_usd: number }) => s + (l.api_cost_usd || 0), 0);
+  if (dailyCost > 5) warnings.push(`Claude API 일일 $${dailyCost.toFixed(2)} (>$5)`);
 
-  if (dailyCost > 5) {
-    warnings.push(`Claude API 일일 비용 초과: $${dailyCost.toFixed(2)} (상한 $5)`);
+  // 4. 8시간 미완료 파이프라인
+  const cutoff = new Date(Date.now() - 8 * 3600_000).toISOString();
+  const { data: stale } = await sb.from("pipeline_jobs")
+    .select("id").eq("status", "running").lt("created_at", cutoff);
+  if (stale && stale.length > 0) warnings.push(`${stale.length}개 파이프라인 8시간+ 미완료`);
+
+  // 5. 당일 신규 바이어 0건
+  const { count: todayBuyers } = await sb.from("buyers")
+    .select("id", { count: "exact", head: true })
+    .gte("discovered_at", `${today}T00:00:00Z`);
+  if ((todayBuyers || 0) === 0) warnings.push("당일 신규 바이어 0건");
+
+  // 주간 리포트 (월요일 체크)
+  const dayOfWeek = new Date().getDay();
+  let weeklyReport = "";
+
+  if (dayOfWeek === 1) {
+    const weekAgo = new Date(Date.now() - 7 * 86400_000).toISOString();
+
+    // 총 발굴 기업 수
+    const { count: weekBuyers } = await sb.from("buyers")
+      .select("id", { count: "exact", head: true })
+      .gte("discovered_at", weekAgo);
+
+    // Tier 분류
+    const { data: tierData } = await sb.from("buyers")
+      .select("tier").gte("discovered_at", weekAgo);
+    const t1 = (tierData || []).filter((b: { tier: string }) => b.tier === "Tier1").length;
+    const t2 = (tierData || []).filter((b: { tier: string }) => b.tier === "Tier2").length;
+
+    // 유효 이메일 통과율
+    const { data: emailData } = await sb.from("buyer_contacts")
+      .select("email_status").gte("created_at", weekAgo);
+    const totalEmails = (emailData || []).length;
+    const validEmails = (emailData || []).filter(
+      (e: { email_status: string }) => e.email_status === "valid" || e.email_status === "catch-all-pass"
+    ).length;
+    const emailPassRate = totalEmails > 0 ? Math.round((validEmails / totalEmails) * 100) : 0;
+
+    // 스팸 통과율
+    const { data: spamData } = await sb.from("email_drafts")
+      .select("spam_status").gte("created_at", weekAgo);
+    const totalSpam = (spamData || []).length;
+    const spamPass = (spamData || []).filter((s: { spam_status: string }) => s.spam_status === "pass").length;
+    const spamRewrite = (spamData || []).filter((s: { spam_status: string }) => s.spam_status === "rewrite").length;
+    const spamFlag = (spamData || []).filter((s: { spam_status: string }) => s.spam_status === "flag").length;
+
+    // API 비용 합산
+    const { data: weekCosts } = await sb.from("pipeline_logs")
+      .select("agent, api_cost_usd, credits_used").gte("created_at", weekAgo);
+    const clayCreds = (weekCosts || []).filter((l: { agent: string }) => l.agent === "A")
+      .reduce((s: number, l: { credits_used: number }) => s + (l.credits_used || 0), 0);
+    const claudeCost = (weekCosts || []).filter((l: { agent: string }) => ["C", "D", "E"].includes(l.agent))
+      .reduce((s: number, l: { api_cost_usd: number }) => s + (l.api_cost_usd || 0), 0);
+
+    // 이상 로그
+    const { data: errorLogs } = await sb.from("pipeline_logs")
+      .select("agent, message").eq("status", "failed").gte("created_at", weekAgo);
+
+    weeklyReport = [
+      `[주간 리포트] 발굴 ${weekBuyers || 0}개 (T1:${t1} T2:${t2})`,
+      `이메일 통과율 ${emailPassRate}% (${validEmails}/${totalEmails})`,
+      `스팸 pass:${spamPass} rewrite:${spamRewrite} flag:${spamFlag}`,
+      `Clay ${clayCreds}크레딧 / Claude $${claudeCost.toFixed(2)}`,
+      errorLogs && errorLogs.length > 0 ? `이상로그 ${errorLogs.length}건` : "이상로그 없음",
+    ].join(" | ");
   }
 
-  // 4. 8시간 미완료 파이프라인 체크
-  const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
-  const { data: staleJobs } = await supabase
-    .from("pipeline_jobs")
-    .select("id, created_at")
-    .eq("status", "running")
-    .lt("created_at", eightHoursAgo);
+  // 결과 기록
+  const parts: string[] = [];
+  if (warnings.length > 0) parts.push(`경고 ${warnings.length}건: ${warnings.join(" | ")}`);
+  else parts.push("시스템 정상: 모든 API 상태 양호");
+  if (weeklyReport) parts.push(weeklyReport);
 
-  if (staleJobs && staleJobs.length > 0) {
-    warnings.push(`${staleJobs.length}개 파이프라인이 8시간 이상 미완료`);
-  }
-
-  // 경고를 pipeline_logs에 기록
-  const warningMsg = warnings.length > 0
-    ? `경고 ${warnings.length}건: ${warnings.join(" | ")}`
-    : "시스템 정상: 모든 API 상태 양호";
-
-  await log(supabase, jobId, "F", "completed", warningMsg);
+  await log(sb, jobId, "F", "completed", parts.join("\n"));
 }
 
 // ============================================
 // 메인 핸들러
 // ============================================
 Deno.serve(async (req: Request) => {
-  // CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const supabase = getSupabase();
+  const sb = getSupabase();
 
   try {
     const { jobId } = await req.json();
@@ -1015,12 +864,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // job 정보 조회
-    const { data: job, error: jobError } = await supabase
-      .from("pipeline_jobs")
-      .select("*")
-      .eq("id", jobId)
-      .single();
+    const { data: job, error: jobError } = await sb
+      .from("pipeline_jobs").select("*").eq("id", jobId).single();
 
     if (jobError || !job) {
       return new Response(
@@ -1029,12 +874,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 즉시 응답 반환 (클라이언트는 여기서 끊어도 됨)
-    // EdgeRuntime.waitUntil 사용하여 백그라운드 실행
     const backgroundTask = (async () => {
-      // job 상태 → running
-      await supabase
-        .from("pipeline_jobs")
+      await sb.from("pipeline_jobs")
         .update({ status: "running", started_at: new Date().toISOString(), current_agent: "A" })
         .eq("id", jobId);
 
@@ -1050,40 +891,29 @@ Deno.serve(async (req: Request) => {
       let failed = false;
 
       for (const agent of agents) {
-        // current_agent 업데이트
-        await supabase
-          .from("pipeline_jobs")
-          .update({ current_agent: agent.name })
-          .eq("id", jobId);
-
+        await sb.from("pipeline_jobs").update({ current_agent: agent.name }).eq("id", jobId);
         try {
-          await agent.fn(supabase, jobId, job.team);
+          await agent.fn(sb, jobId, job.team);
         } catch (error) {
-          await log(supabase, jobId, agent.name, "failed",
+          await log(sb, jobId, agent.name, "failed",
             `치명적 오류: ${error instanceof Error ? error.message : String(error)}`);
           failed = true;
           break;
         }
       }
 
-      // job 완료 처리
-      await supabase
-        .from("pipeline_jobs")
-        .update({
-          status: failed ? "failed" : "completed",
-          completed_at: new Date().toISOString(),
-          current_agent: null,
-        })
-        .eq("id", jobId);
+      await sb.from("pipeline_jobs").update({
+        status: failed ? "failed" : "completed",
+        completed_at: new Date().toISOString(),
+        current_agent: null,
+      }).eq("id", jobId);
     })();
 
-    // 백그라운드 실행 등록
-    // @ts-ignore: EdgeRuntime is available in Supabase Edge Functions
+    // @ts-ignore: EdgeRuntime available in Supabase Edge Functions
     if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
       // @ts-ignore
       EdgeRuntime.waitUntil(backgroundTask);
     } else {
-      // fallback: await (개발 환경)
       backgroundTask.catch(console.error);
     }
 

@@ -9,7 +9,7 @@ const PIPELINE_STEPS = [
   { key: 'B', icon: '✉️', name: '직원 B — 이메일 검증', desc: 'ZeroBounce API 이메일 유효성 검증' },
   { key: 'C', icon: '📊', name: '직원 C — 기업 분석', desc: 'Claude API 기업 분석 및 K-beauty 매칭' },
   { key: 'D', icon: '✍️', name: '직원 D — 이메일 초안', desc: 'Claude API 개인화 이메일 초안 생성' },
-  { key: 'E', icon: '🛡️', name: '직원 E — 스팸 테스트', desc: 'GlockApps API 스팸 점수 검사' },
+  { key: 'E', icon: '🛡️', name: '직원 E — 스팸 테스트', desc: 'Claude API 규칙 기반 스팸 검사 및 자동 수정' },
   { key: 'F', icon: '📋', name: '직원 F — 시스템 모니터링', desc: 'API 상태 체크 및 경고' },
 ];
 

@@ -113,11 +113,11 @@ export default function Domain() {
           </div>
         </div>
 
-        {/* GlockApps Card */}
+        {/* Mail-Tester Card */}
         <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
           <div className="text-sm font-semibold text-[#f1f5f9] mb-4">받은편지함 배치율</div>
           <div className="p-4 bg-[#0f172a] border border-[#334155] rounded-lg text-center">
-            <div className="text-xs text-[#64748b] mb-2">GlockApps 또는 Mail-Tester 연동 시 실시간 표시</div>
+            <div className="text-xs text-[#64748b] mb-2">Mail-Tester 연동 시 실시간 표시</div>
             <div className="text-xs text-[#94a3b8]">
               현재 DNS 설정(SPF/DKIM/DMARC)은 모두 완료되어 있으며,<br />
               실제 스팸 점수 테스트는 외부 도구에서 확인이 필요합니다.
