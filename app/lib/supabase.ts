@@ -44,6 +44,6 @@ export async function startPipeline(team: 'GCC' | 'USA' | 'Europe'): Promise<{
 
   return {
     jobId: job.id,
-    message: '파이프라인이 시작되었습니다. 브라우저를 닫으셔도 결과는 자동으로 저장됩니다.',
+    message: '파이프라인이 시작되었습니다. 브라우저를 닫으셔도 됩니다.',
   }
 }
