@@ -24,8 +24,8 @@
   export const supabase = createClient(supabaseUrl, supabaseAnonKey)
   ```
 - `.env.local` 환경변수 확인
-  - URL: `https://hoerrdwupqhmqyyvwefg.supabase.co`
-  - anon key: 설정 완료
+  - URL: `.env.local` 참조
+  - anon key: `.env.local` 참조
 
 ### 2단계: DB 스키마 SQL 파일 생성 ✅
 `/mnt/Claude/app-spscos/supabase/schema.sql` 생성:

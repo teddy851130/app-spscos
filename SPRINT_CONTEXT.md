@@ -40,7 +40,7 @@ npx playwright test tests/sps.spec.ts
 - Next.js 14.2.29 (App Router)
 - React 18 + TypeScript
 - Tailwind CSS v3
-- Supabase (hoerrdwupqhmqyyvwefg.supabase.co)
+- Supabase (환경변수 .env.local 참조)
 - 목업 데이터 fallback (Supabase 실패 시 자동)
 
 ## 비즈니스 규칙 (절대 변경 금지)
@@ -54,8 +54,8 @@ npx playwright test tests/sps.spec.ts
 - 직원: A(발굴) → B(검증) → C(이메일작성) → D(스팸테스트) → E(발송+BCC) → F(모니터링)
 
 ## Supabase 설정
-- URL: https://hoerrdwupqhmqyyvwefg.supabase.co
-- anon key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhvZXJyZHd1cHFobXF5eXZ3ZWZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0Nzc4MjAsImV4cCI6MjA5MTA1MzgyMH0.is4qnr5sPQ-0u0-0Ozpw1mMtiFaljw8aY2Hq1WXk6P0
+- URL: .env.local의 NEXT_PUBLIC_SUPABASE_URL 참조
+- anon key: .env.local의 NEXT_PUBLIC_SUPABASE_ANON_KEY 참조
 - 스키마: supabase/schema_fix.sql (실행 완료 ✅)
 - 샘플 데이터: supabase/sample_data.sql (⚠️ 아직 미실행 — 신동환 대표 직접 실행 필요)
 
@@ -63,7 +63,7 @@ npx playwright test tests/sps.spec.ts
 
 ### [신동환 대표 직접 실행 필요]
 1. Supabase sample_data.sql 실행
-   - https://supabase.com/dashboard/project/hoerrdwupqhmqyyvwefg → SQL Editor
+   - Supabase Dashboard → SQL Editor
    - supabase/sample_data.sql 내용 붙여넣기 → Run
 2. GitHub 리포지토리 생성 (app-spscos)
 3. Vercel 배포 → app.spscos.com 도메인 연결
