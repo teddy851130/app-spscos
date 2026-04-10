@@ -46,7 +46,8 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [pipelineModalOpen, setPipelineModalOpen] = useState(false);
   const [csvUploadModalOpen, setCsvUploadModalOpen] = useState(false);
-  const [buyers, setBuyers] = useState<any[]>([]);
+  // CSV 업로드 후 Buyers 컴포넌트를 강제 재마운트해 fetch를 다시 트리거하기 위한 key
+  const [buyersRefreshKey, setBuyersRefreshKey] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -152,8 +153,11 @@ export default function Home() {
     setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
   };
 
-  const handleCSVImport = (importedBuyers: any[]) => {
-    setBuyers((prevBuyers) => [...prevBuyers, ...importedBuyers]);
+  const handleCSVImport = (_importedBuyers: any[]) => {
+    // CSV 업로드는 이미 DB에 INSERT 완료된 상태로 콜백됨.
+    // Buyers 페이지로 이동하면서 컴포넌트를 강제 재마운트해 새 데이터 fetch.
+    setCurrentPage('buyers');
+    setBuyersRefreshKey((k) => k + 1);
   };
 
   return (
@@ -274,7 +278,7 @@ export default function Home() {
         <div className="flex-1 flex flex-col min-h-0">
           {currentPage === 'dashboard' && <Dashboard />}
           {currentPage === 'pipeline' && <Pipeline />}
-          {currentPage === 'buyers' && <Buyers />}
+          {currentPage === 'buyers' && <Buyers key={buyersRefreshKey} />}
           {currentPage === 'emails' && <Emails />}
           {currentPage === 'kpi' && <KPIReport />}
           {currentPage === 'domain' && <Domain />}
