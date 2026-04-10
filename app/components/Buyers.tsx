@@ -179,7 +179,9 @@ export default function Buyers() {
         contact_name: buyerData.contact,
         contact_title: buyerData.title,
         contact_email: buyerData.email,
-        status: '미발송',
+        // DB는 영어 enum만 허용 (schema.sql CHECK 제약)
+        // 화면 표시는 mapStatus('Cold') → '미발송'으로 자동 변환됨
+        status: 'Cold',
       };
       const { data, error } = await supabase
         .from('buyers')

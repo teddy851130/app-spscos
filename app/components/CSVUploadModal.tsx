@@ -68,7 +68,8 @@ export default function CSVUploadModal({ isOpen, onClose, onImport }: CSVUploadM
         contact_name: row.contact || row.contact_name || row['담당자'] || '',
         contact_title: row.title || row.contact_title || row['직책'] || '',
         contact_email: row.email || row.contact_email || row['이메일'] || '',
-        status: '미발송',
+        // DB는 영어 enum만 허용 (schema.sql CHECK 제약)
+        status: 'Cold',
       })).filter((d) => d.company_name);
 
       if (insertData.length === 0) {
