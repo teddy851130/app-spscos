@@ -124,12 +124,18 @@ export default function Pipeline() {
         return;
       }
 
-      // 기존 도메인 조회 (중복 체크)
+      // 기존 buyers 조회 (중복 체크 + 담당자 추가 결정에 tier 필요)
       const { data: existingBuyers } = await supabase
-        .from('buyers').select('domain').not('domain', 'is', null);
-      const existingDomains = new Set(
-        (existingBuyers || []).map((b: { domain: string }) => b.domain?.toLowerCase())
-      );
+        .from('buyers').select('id, domain, tier').not('domain', 'is', null);
+      const existingByDomain = new Map<string, { id: string; tier: 'Tier1' | 'Tier2' | 'Tier3' }>();
+      for (const b of (existingBuyers || []) as { id: string; domain: string; tier: string }[]) {
+        if (b.domain) {
+          existingByDomain.set(
+            b.domain.toLowerCase(),
+            { id: b.id, tier: (b.tier || 'Tier2') as 'Tier1' | 'Tier2' | 'Tier3' }
+          );
+        }
+      }
 
       // tier 정규화: '1'/1 → 'Tier1', '2'/2 → 'Tier2', '3'/3 → 'Tier3' (CHECK 제약: Tier1/Tier2/Tier3)
       const normalizeTier = (raw: string | number): 'Tier1' | 'Tier2' | 'Tier3' => {
@@ -153,7 +159,21 @@ export default function Pipeline() {
         return v === 'true' || v === '1' || v === 'yes' || v === 'y';
       };
 
-      let added = 0;
+      // ICP 직함 매칭: 직무 키워드 + 시니어리티 키워드 둘 다 포함 (VP는 Tier1만)
+      const ICP_TITLE_KW = ['buying', 'procurement', 'beauty', 'npd', 'sourcing', 'product development'];
+      const ICP_SENIORITY_T1 = ['manager', 'senior manager', 'director', 'vp'];
+      const ICP_SENIORITY_OTHER = ['manager', 'senior manager', 'director'];
+      const isIcpTitle = (title: string, tier: 'Tier1' | 'Tier2' | 'Tier3'): boolean => {
+        const t = (title || '').toLowerCase();
+        if (!t) return false;
+        const hasTitleKw = ICP_TITLE_KW.some((k) => t.includes(k));
+        const seniorityList = tier === 'Tier1' ? ICP_SENIORITY_T1 : ICP_SENIORITY_OTHER;
+        const hasSeniorityKw = seniorityList.some((k) => t.includes(k));
+        return hasTitleKw && hasSeniorityKw;
+      };
+
+      let added = 0;          // 신규 buyers 생성 수
+      let addedContacts = 0;  // 기존 buyer에 추가된 contact 수
       let skipped = 0;
       const byTeam: Record<string, number> = { GCC: 0, USA: 0, Europe: 0 };
       let firstError: string | null = null;
@@ -161,8 +181,54 @@ export default function Pipeline() {
       for (const row of rows) {
         const domain = (row.domain || '').toLowerCase().trim();
         if (!domain || !row.company_name) { skipped++; continue; }
-        if (existingDomains.has(domain)) { skipped++; continue; }
 
+        const existingBuyer = existingByDomain.get(domain);
+
+        // ── 기존 buyer: 담당자 추가 조건 체크 후 buyer_contacts만 INSERT ──
+        if (existingBuyer) {
+          // contact 정보가 없거나 ICP 직함이 아니면 스킵
+          if (!row.contact_name || !row.contact_email || !row.contact_title) {
+            skipped++; continue;
+          }
+          if (!isIcpTitle(row.contact_title, existingBuyer.tier)) {
+            skipped++; continue;
+          }
+
+          // 현재 담당자 수 + 이메일 중복 체크 (최대 3명 유지 → 현재 2명 이하일 때 추가)
+          const { data: currentContacts } = await supabase
+            .from('buyer_contacts')
+            .select('contact_email')
+            .eq('buyer_id', existingBuyer.id);
+          const contactCount = currentContacts?.length || 0;
+          if (contactCount >= 3) { skipped++; continue; }
+
+          const emailLower = row.contact_email.toLowerCase();
+          const dup = (currentContacts || []).some(
+            (c: { contact_email: string | null }) =>
+              (c.contact_email || '').toLowerCase() === emailLower
+          );
+          if (dup) { skipped++; continue; }
+
+          const { error: contactError } = await supabase.from('buyer_contacts').insert({
+            buyer_id: existingBuyer.id,
+            contact_name: row.contact_name,
+            contact_title: row.contact_title,
+            contact_email: row.contact_email,
+            linkedin_url: row.linkedin_url || '',
+            is_primary: false,
+            source: 'csv',
+          });
+          if (contactError) {
+            console.error('buyer_contacts INSERT 실패:', contactError, 'row:', row);
+            if (!firstError) firstError = `buyer_contacts: ${contactError.message}`;
+            skipped++;
+            continue;
+          }
+          addedContacts++;
+          continue;
+        }
+
+        // ── 신규 buyer 생성 경로 ──
         const team = normalizeTeam(row.team || 'GCC');
         const tier = normalizeTier(row.tier || 'Tier2');
         // annual_revenue는 TEXT 타입 — 원본 문자열 그대로 저장 (빈 값은 null)
@@ -192,7 +258,7 @@ export default function Pipeline() {
         }
         if (!newBuyer) { skipped++; continue; }
 
-        // buyer_contacts INSERT (if contact data exists)
+        // 신규 buyer의 primary contact INSERT (contact 정보가 있으면)
         if (row.contact_name && row.contact_email) {
           const { error: contactError } = await supabase.from('buyer_contacts').insert({
             buyer_id: newBuyer.id,
@@ -209,7 +275,7 @@ export default function Pipeline() {
           }
         }
 
-        existingDomains.add(domain);
+        existingByDomain.set(domain, { id: newBuyer.id, tier });
         added++;
         byTeam[team] = (byTeam[team] || 0) + 1;
       }
@@ -217,15 +283,19 @@ export default function Pipeline() {
       setUploadResult({ added, skipped, total: rows.length, byTeam });
       // CSV 파싱이 성공했으면 파일명은 항상 표시 (added=0이어도)
       setUploadedFile({ name: file.name, size: file.size });
-      // 실행 버튼 활성화: 이번에 추가됐거나, 이미 buyers에 데이터가 있으면 true
-      const hasExistingBuyers = existingDomains.size > 0;
-      setCsvUploaded(added > 0 || hasExistingBuyers);
+      // 실행 버튼 활성화: 이번에 뭔가 추가됐거나, 이미 buyers에 데이터가 있으면 true
+      const hasExistingBuyers = existingByDomain.size > 0;
+      setCsvUploaded(added > 0 || addedContacts > 0 || hasExistingBuyers);
       if (firstError) {
-        setSuccessMessage(`CSV 부분 오류: ${added}개 추가 / ${skipped}개 실패. 첫 오류 — ${firstError}`);
+        setSuccessMessage(`CSV 부분 오류: 신규 ${added}개 / 담당자 추가 ${addedContacts}명 / 건너뜀 ${skipped}개. 첫 오류 — ${firstError}`);
+      } else if (added > 0 && addedContacts > 0) {
+        setSuccessMessage(`CSV 완료: 신규 기업 ${added}개 + 기존 기업 담당자 ${addedContacts}명 추가, ${skipped}개 건너뜀`);
       } else if (added > 0) {
         setSuccessMessage(`CSV 업로드 완료: ${added}개 기업 추가, ${skipped}개 건너뜀`);
+      } else if (addedContacts > 0) {
+        setSuccessMessage(`기존 기업에 담당자 ${addedContacts}명 추가 (신규 기업 없음, ${skipped}개 건너뜀)`);
       } else if (hasExistingBuyers) {
-        setSuccessMessage(`새로운 기업 없음 (${skipped}개 모두 중복). 기존 buyers ${existingDomains.size}개로 파이프라인 실행 가능`);
+        setSuccessMessage(`새로운 데이터 없음 (${skipped}개 건너뜀). 기존 buyers ${existingByDomain.size}개로 파이프라인 실행 가능`);
       } else {
         setSuccessMessage(`CSV 업로드: 새로운 기업이 없습니다 (${skipped}개 모두 중복)`);
       }

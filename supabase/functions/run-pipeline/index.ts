@@ -86,12 +86,17 @@ async function agentB(sb: SB, jobId: string, _team: string) {
       let emailStatus: string;
       let blacklist = false;
 
+      // 블랙리스트 정책: Hard Bounce만 차단. invalid/catch-all-fail/risky는
+      // email_status만 업데이트하고 블랙리스트 처리하지 않음.
       if (zbStatus === "valid") {
         emailStatus = "valid";
         valid++;
-      } else if (zbStatus === "invalid" || zbStatus === "hard_bounce") {
+      } else if (zbStatus === "hard_bounce") {
         emailStatus = "invalid";
-        blacklist = true;
+        blacklist = true; // hard bounce만 차단
+        invalid++;
+      } else if (zbStatus === "invalid") {
+        emailStatus = "invalid";
         invalid++;
       } else if (zbStatus === "catch-all" || zbStatus === "catch_all") {
         if (tier === "Tier1") {
@@ -99,12 +104,11 @@ async function agentB(sb: SB, jobId: string, _team: string) {
           catchAllPass++;
         } else {
           emailStatus = "catch-all-fail";
-          blacklist = true;
           catchAllFail++;
         }
       } else {
+        // unknown/spamtrap/abuse/do_not_mail 등
         emailStatus = "risky";
-        blacklist = true;
         risky++;
       }
 
