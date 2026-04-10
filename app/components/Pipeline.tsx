@@ -123,18 +123,20 @@ export default function Pipeline() {
         (existingBuyers || []).map((b: { domain: string }) => b.domain?.toLowerCase())
       );
 
-      // tier 정규화: 'Tier 1', 'tier1', 'TIER1' → 'Tier1' (CHECK 제약: Tier1/Tier2/Tier3)
-      const normalizeTier = (raw: string): 'Tier1' | 'Tier2' | 'Tier3' => {
-        const t = (raw || '').toString().replace(/\s+/g, '').toLowerCase();
+      // tier 정규화: '1'/1 → 'Tier1', '2'/2 → 'Tier2', '3'/3 → 'Tier3' (CHECK 제약: Tier1/Tier2/Tier3)
+      const normalizeTier = (raw: string | number): 'Tier1' | 'Tier2' | 'Tier3' => {
+        const t = (raw ?? '').toString().replace(/\s+/g, '').toLowerCase();
         if (t === 'tier1' || t === '1') return 'Tier1';
+        if (t === 'tier2' || t === '2') return 'Tier2';
         if (t === 'tier3' || t === '3') return 'Tier3';
         return 'Tier2';
       };
       // team/region 정규화 (CHECK 제약: GCC/USA/Europe)
       const normalizeTeam = (raw: string): 'GCC' | 'USA' | 'Europe' => {
         const t = (raw || '').toString().trim().toLowerCase();
-        if (t === 'usa' || t === 'us' || t === 'america' || t === 'united states') return 'USA';
-        if (t === 'europe' || t === 'eu' || t === 'eur') return 'Europe';
+        if (t === 'gcc') return 'GCC';
+        if (raw === '미국' || t === 'usa' || t === 'us' || t === 'america' || t === 'united states') return 'USA';
+        if (raw === '유럽' || t === 'europe' || t === 'eu' || t === 'eur') return 'Europe';
         return 'GCC';
       };
       // boolean 정규화: 'true'/'1'/'TRUE'/'yes' 모두 true
@@ -155,10 +157,11 @@ export default function Pipeline() {
 
         const team = normalizeTeam(row.team || 'GCC');
         const tier = normalizeTier(row.tier || 'Tier2');
-        const annualRevenueParsed = parseFloat(row.annual_revenue);
-        const annualRevenue = Number.isFinite(annualRevenueParsed) ? annualRevenueParsed : null;
+        // annual_revenue는 TEXT 타입 — 원본 문자열 그대로 저장 (빈 값은 null)
+        const annualRevenue = (row.annual_revenue || '').toString().trim() || null;
 
         // buyers INSERT (recent_news는 직원 C가 자동 채움)
+        // icp_score는 buyers 테이블에 없으므로 INSERT에서 제외
         const { data: newBuyer, error: insertError } = await supabase.from('buyers').insert({
           company_name: row.company_name,
           domain,
