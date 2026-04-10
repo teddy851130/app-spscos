@@ -1,28 +1,32 @@
 // SPS Send-Email Edge Function
-// Gmail SMTP를 통해 콜드 메일 실제 발송 + email_logs 기록
+// nodemailer로 Gmail SMTP 발송 + email_logs 기록
+//
+// 교체 이력:
+//   v1: denomailer@1.6.0 사용 → Gmail SMTP 프로토콜 "invalid cmd" 에러 발생
+//   v2: nodemailer@6.9.16 (npm specifier) — Gmail 호환성 검증된 Node.js 생태계 표준
 //
 // 입력 (POST JSON):
 // {
 //   to: string           // 수신자 이메일 (필수)
-//   toName?: string      // 수신자 이름 (선택, 있으면 "Name <email>" 형식으로 발송)
+//   toName?: string      // 수신자 이름 (선택)
 //   subject: string      // 제목 (필수)
 //   body: string         // 본문 plain text (필수)
 //   buyerId?: string     // 바이어 UUID — 있으면 email_logs에 기록
 // }
 //
-// 출력 (성공): { success: true, message: "발송 완료", logId?: string }
-// 출력 (실패): { success: false, error: "..." }
+// 출력 성공: { success: true, message: "발송 완료", logId?: string }
+// 출력 실패: { success: false, error: "..." }
 //
 // 필수 환경변수 (Supabase Secrets):
 //   SMTP_HOST      예) smtp.gmail.com
 //   SMTP_PORT      예) 587 (STARTTLS) 또는 465 (SSL)
 //   SMTP_USER      예) teddy@spscos.com
-//   SMTP_PASS      Google Workspace 앱 비밀번호 (16자, 공백 제거)
+//   SMTP_PASS      Gmail 앱 비밀번호 (16자, 공백 제거)
 //   SUPABASE_URL              — Supabase가 자동 주입
 //   SERVICE_ROLE_KEY 또는 SUPABASE_SERVICE_ROLE_KEY — email_logs INSERT용
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import nodemailer from "npm:nodemailer@6.9.16";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -104,40 +108,39 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  // SMTP 클라이언트 생성
-  // Gmail 기준: 587=STARTTLS(tls:false, 내부 업그레이드), 465=SSL(tls:true)
   const smtpUser = Deno.env.get("SMTP_USER")!;
   const smtpPort = Number(Deno.env.get("SMTP_PORT")!);
-  const client = new SMTPClient({
-    connection: {
-      hostname: Deno.env.get("SMTP_HOST")!,
-      port: smtpPort,
-      tls: smtpPort === 465,
-      auth: {
-        username: smtpUser,
-        password: Deno.env.get("SMTP_PASS")!,
-      },
+
+  // nodemailer transporter 생성
+  // Gmail 기준: 587=STARTTLS(secure:false), 465=SSL(secure:true)
+  const transporter = nodemailer.createTransport({
+    host: Deno.env.get("SMTP_HOST"),
+    port: smtpPort,
+    secure: smtpPort === 465,
+    auth: {
+      user: smtpUser,
+      pass: Deno.env.get("SMTP_PASS"),
     },
   });
 
   // 발송 시도
   try {
-    await client.send({
+    const info = await transporter.sendMail({
       from: `Teddy Shin <${smtpUser}>`,
-      to: toName ? `${toName} <${to}>` : to,
+      to: toName ? `"${toName}" <${to}>` : to,
       subject,
-      content: emailBody, // text/plain
-      html: emailBody.replace(/\n/g, "<br>"), // 단순 HTML 변환 (줄바꿈만)
+      text: emailBody, // plain text 본문
+      html: emailBody.replace(/\n/g, "<br>"), // 줄바꿈만 HTML로 변환
     });
+    console.log(`[send-email] 발송 성공: messageId=${info.messageId}, to=${to}`);
   } catch (err) {
-    await client.close().catch(() => {});
     const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[send-email] SMTP 실패: ${msg}`);
     return jsonResponse(
       { success: false, error: `SMTP 발송 실패: ${msg}` },
       502,
     );
   }
-  await client.close().catch(() => {});
 
   // email_logs 기록 (buyerId가 있을 때만)
   // 발송은 이미 성공했으므로, 로그 실패는 warning으로만 반환하고 success=true 유지
@@ -163,6 +166,7 @@ Deno.serve(async (req: Request) => {
       logId = data?.id;
     } catch (logErr) {
       const msg = logErr instanceof Error ? logErr.message : String(logErr);
+      console.warn(`[send-email] email_logs 기록 실패: ${msg}`);
       return jsonResponse(
         {
           success: true,
