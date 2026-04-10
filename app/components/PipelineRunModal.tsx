@@ -16,13 +16,12 @@ export default function PipelineRunModal({ isOpen, onClose }: PipelineRunModalPr
       >
         <div className="text-base font-bold text-[#f1f5f9] mb-2">파이프라인 실행</div>
         <p className="text-xs text-[#64748b] mb-5">
-          GCC, USA, Europe 팀에 대해 직원 A~F 파이프라인을 순차 실행합니다.
-          Supabase DB에서 실시간 데이터를 조회하며, 실행 결과가 pipeline_runs 테이블에 기록됩니다.
+          GCC, USA, Europe 팀에 대해 직원 B~F 파이프라인을 순차 실행합니다.
+          바이어 발굴은 CSV 업로드로 대체됐으며, 업로드된 buyers 데이터로 B부터 시작합니다.
         </p>
 
         <div className="space-y-2 mb-5">
           {[
-            { step: 'A', label: '바이어 발굴', desc: 'DB 신규 바이어 확인' },
             { step: 'B', label: '이메일 검증', desc: '이메일 주소 유효성 확인' },
             { step: 'C', label: '바이어 분석', desc: '바이어 적합성 분석' },
             { step: 'D', label: '이메일 초안', desc: '개인화 초안 생성' },
