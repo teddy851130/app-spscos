@@ -45,7 +45,15 @@ export default function Pipeline() {
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<{ name: string; size: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 파일 크기 표시용 포맷 (Bytes/KB/MB)
+  function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
 
   // Pipeline state
   const [activeJobs, setActiveJobs] = useState<PipelineJob[]>([]);
@@ -208,6 +216,7 @@ export default function Pipeline() {
 
       setUploadResult({ added, skipped, total: rows.length, byTeam });
       setCsvUploaded(added > 0);
+      if (added > 0) setUploadedFile({ name: file.name, size: file.size });
       if (firstError) {
         setSuccessMessage(`CSV 부분 오류: ${added}개 추가 / ${skipped}개 실패. 첫 오류 — ${firstError}`);
       } else if (added > 0) {
@@ -499,31 +508,64 @@ export default function Pipeline() {
               className={`border-2 border-dashed rounded-lg p-6 mb-4 text-center cursor-pointer transition-all select-none ${
                 isDragging
                   ? 'border-[#3b82f6] bg-[#3b82f6]/15 scale-[1.01] shadow-lg shadow-[#3b82f6]/20'
-                  : 'border-[#475569] bg-[#0f172a] hover:border-[#3b82f6]/60 hover:bg-[#0f172a]/80'
+                  : uploadedFile
+                    ? 'border-[#22c55e] bg-[#22c55e]/10 hover:bg-[#22c55e]/15'
+                    : 'border-[#475569] bg-[#0f172a] hover:border-[#3b82f6]/60 hover:bg-[#0f172a]/80'
               } ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              <div className="text-4xl mb-2" style={{ pointerEvents: 'none' }}>
-                {isDragging ? '⬇️' : '📄'}
-              </div>
-              <div
-                className={`text-sm font-semibold mb-1 ${isDragging ? 'text-[#3b82f6]' : 'text-[#f1f5f9]'}`}
-                style={{ pointerEvents: 'none' }}
-              >
-                {isUploading
-                  ? '업로드 중...'
-                  : isDragging
-                    ? '여기에 CSV 파일을 놓으세요'
-                    : '여기에 CSV 파일을 드래그하거나 클릭해서 업로드'}
-              </div>
-              <div className="text-xs text-[#64748b] mb-3" style={{ pointerEvents: 'none' }}>
-                .csv 파일만 지원
-              </div>
-              <div
-                className="text-xs text-[#475569] font-mono break-all max-w-2xl mx-auto"
-                style={{ pointerEvents: 'none' }}
-              >
-                컬럼: {CSV_COLUMNS.join(', ')}
-              </div>
+              {uploadedFile && !isDragging && !isUploading ? (
+                // 업로드 성공 상태 — 파일 카드 + X 버튼
+                <div className="flex items-center justify-center gap-3">
+                  <div className="text-3xl" style={{ pointerEvents: 'none' }}>📄</div>
+                  <div className="text-left" style={{ pointerEvents: 'none' }}>
+                    <div className="text-sm font-semibold text-[#22c55e] break-all">
+                      {uploadedFile.name}
+                    </div>
+                    <div className="text-xs text-[#64748b]">
+                      {formatFileSize(uploadedFile.size)} · 업로드 완료
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setUploadedFile(null);
+                      setCsvUploaded(false);
+                      setUploadResult(null);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                    aria-label="업로드된 파일 제거"
+                    className="ml-2 w-7 h-7 flex items-center justify-center rounded-full bg-[#1e293b] hover:bg-[#ef4444] text-[#94a3b8] hover:text-white transition-colors text-sm font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="text-4xl mb-2" style={{ pointerEvents: 'none' }}>
+                    {isDragging ? '⬇️' : '📄'}
+                  </div>
+                  <div
+                    className={`text-sm font-semibold mb-1 ${isDragging ? 'text-[#3b82f6]' : 'text-[#f1f5f9]'}`}
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    {isUploading
+                      ? '업로드 중...'
+                      : isDragging
+                        ? '여기에 CSV 파일을 놓으세요'
+                        : '여기에 CSV 파일을 드래그하거나 클릭해서 업로드'}
+                  </div>
+                  <div className="text-xs text-[#64748b] mb-3" style={{ pointerEvents: 'none' }}>
+                    .csv 파일만 지원
+                  </div>
+                  <div
+                    className="text-xs text-[#475569] font-mono break-all max-w-2xl mx-auto"
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    컬럼: {CSV_COLUMNS.join(', ')}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
