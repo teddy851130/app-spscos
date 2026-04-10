@@ -82,6 +82,7 @@ export default function Buyers() {
             title: row.contact_title || '',
             email: row.contact_email || '',
             website: row.website || '',
+            linkedin_url: row.linkedin_url || '',
             lastSent: row.last_sent_at ? new Date(row.last_sent_at).toLocaleDateString('ko-KR') : '미발송',
             status: mapStatus(row.status),
             is_blacklisted: row.is_blacklisted || false,
@@ -366,6 +367,7 @@ export default function Buyers() {
               <thead>
                 <tr className="border-b border-[#334155]">
                   <th className="text-left px-4 py-3 font-semibold text-[#64748b]">회사</th>
+                  <th className="text-center px-2 py-3 font-semibold text-[#64748b]">사이트</th>
                   <th className="text-left px-4 py-3 font-semibold text-[#64748b]">리전</th>
                   <th className="text-left px-4 py-3 font-semibold text-[#64748b]">Tier</th>
                   <th className="text-left px-4 py-3 font-semibold text-[#64748b]">담당자</th>
@@ -407,9 +409,39 @@ export default function Buyers() {
                           </div>
                         </div>
                       </td>
+                      <td className="px-2 py-3 text-center">
+                        {buyer.domain ? (
+                          <a
+                            href={`http://${buyer.domain}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={buyer.domain}
+                            className="inline-flex items-center justify-center w-7 h-7 rounded bg-[#3b82f6]/10 text-[#3b82f6] hover:bg-[#3b82f6]/20 transition"
+                          >
+                            🌐
+                          </a>
+                        ) : (
+                          <span className="text-[#475569]">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-[#94a3b8]">{buyer.region}</td>
                       <td className="px-4 py-3 text-[#94a3b8]">{buyer.tierDisplay || buyer.tier}</td>
-                      <td className="px-4 py-3 text-[#94a3b8]">{buyer.contact}</td>
+                      <td className="px-4 py-3 text-[#94a3b8]">
+                        <div className="flex items-center gap-2">
+                          <span>{buyer.contact}</span>
+                          {buyer.linkedin_url && (
+                            <a
+                              href={buyer.linkedin_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="LinkedIn 프로필"
+                              className="inline-flex items-center justify-center w-5 h-5 rounded bg-[#0a66c2]/20 text-[#0a66c2] hover:bg-[#0a66c2]/30 transition text-xs font-bold"
+                            >
+                              in
+                            </a>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-[#94a3b8]">{buyer.title}</td>
                       <td className="px-4 py-3 text-[#94a3b8]">{buyer.email}</td>
                       <td className="px-4 py-3 text-[#64748b]">{buyer.lastSent}</td>

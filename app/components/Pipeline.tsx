@@ -20,7 +20,7 @@ const TEAMS = [
 
 const CSV_COLUMNS = [
   'company_name', 'domain', 'tier', 'annual_revenue', 'open_jobs_signal',
-  'recent_news', 'team', 'contact_name', 'contact_title', 'contact_email',
+  'team', 'contact_name', 'contact_title', 'contact_email',
   'linkedin_url', 'icp_score',
 ];
 
@@ -133,7 +133,7 @@ export default function Pipeline() {
         const tier = row.tier || 'Tier2';
         const annualRevenue = parseFloat(row.annual_revenue) || 0;
 
-        // buyers INSERT
+        // buyers INSERT (recent_news는 직원 C가 자동 채움)
         const { data: newBuyer } = await supabase.from('buyers').insert({
           company_name: row.company_name,
           domain,
@@ -143,7 +143,6 @@ export default function Pipeline() {
           tier,
           annual_revenue: annualRevenue,
           open_jobs_signal: row.open_jobs_signal === 'true' || row.open_jobs_signal === '1',
-          recent_news: row.recent_news ? (() => { try { return JSON.parse(row.recent_news); } catch { return null; } })() : null,
           status: 'Cold',
           k_beauty_flag: 'Unknown',
           is_blacklisted: false,
