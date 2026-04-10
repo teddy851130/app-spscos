@@ -123,21 +123,43 @@ export default function Pipeline() {
         (existingBuyers || []).map((b: { domain: string }) => b.domain?.toLowerCase())
       );
 
+      // tier 정규화: 'Tier 1', 'tier1', 'TIER1' → 'Tier1' (CHECK 제약: Tier1/Tier2/Tier3)
+      const normalizeTier = (raw: string): 'Tier1' | 'Tier2' | 'Tier3' => {
+        const t = (raw || '').toString().replace(/\s+/g, '').toLowerCase();
+        if (t === 'tier1' || t === '1') return 'Tier1';
+        if (t === 'tier3' || t === '3') return 'Tier3';
+        return 'Tier2';
+      };
+      // team/region 정규화 (CHECK 제약: GCC/USA/Europe)
+      const normalizeTeam = (raw: string): 'GCC' | 'USA' | 'Europe' => {
+        const t = (raw || '').toString().trim().toLowerCase();
+        if (t === 'usa' || t === 'us' || t === 'america' || t === 'united states') return 'USA';
+        if (t === 'europe' || t === 'eu' || t === 'eur') return 'Europe';
+        return 'GCC';
+      };
+      // boolean 정규화: 'true'/'1'/'TRUE'/'yes' 모두 true
+      const normalizeBool = (raw: string): boolean => {
+        const v = (raw || '').toString().trim().toLowerCase();
+        return v === 'true' || v === '1' || v === 'yes' || v === 'y';
+      };
+
       let added = 0;
       let skipped = 0;
       const byTeam: Record<string, number> = { GCC: 0, USA: 0, Europe: 0 };
+      let firstError: string | null = null;
 
       for (const row of rows) {
         const domain = (row.domain || '').toLowerCase().trim();
         if (!domain || !row.company_name) { skipped++; continue; }
         if (existingDomains.has(domain)) { skipped++; continue; }
 
-        const team = row.team || 'GCC';
-        const tier = row.tier || 'Tier2';
-        const annualRevenue = parseFloat(row.annual_revenue) || 0;
+        const team = normalizeTeam(row.team || 'GCC');
+        const tier = normalizeTier(row.tier || 'Tier2');
+        const annualRevenueParsed = parseFloat(row.annual_revenue);
+        const annualRevenue = Number.isFinite(annualRevenueParsed) ? annualRevenueParsed : null;
 
         // buyers INSERT (recent_news는 직원 C가 자동 채움)
-        const { data: newBuyer } = await supabase.from('buyers').insert({
+        const { data: newBuyer, error: insertError } = await supabase.from('buyers').insert({
           company_name: row.company_name,
           domain,
           website: `https://${domain}`,
@@ -145,17 +167,23 @@ export default function Pipeline() {
           team,
           tier,
           annual_revenue: annualRevenue,
-          open_jobs_signal: row.open_jobs_signal === 'true' || row.open_jobs_signal === '1',
+          open_jobs_signal: normalizeBool(row.open_jobs_signal),
           status: 'Cold',
           k_beauty_flag: 'Unknown',
           is_blacklisted: false,
         }).select('id').single();
 
+        if (insertError) {
+          console.error('buyers INSERT 실패:', insertError, 'row:', row);
+          if (!firstError) firstError = `buyers: ${insertError.message}`;
+          skipped++;
+          continue;
+        }
         if (!newBuyer) { skipped++; continue; }
 
         // buyer_contacts INSERT (if contact data exists)
         if (row.contact_name && row.contact_email) {
-          await supabase.from('buyer_contacts').insert({
+          const { error: contactError } = await supabase.from('buyer_contacts').insert({
             buyer_id: newBuyer.id,
             contact_name: row.contact_name,
             contact_title: row.contact_title || '',
@@ -164,6 +192,10 @@ export default function Pipeline() {
             is_primary: true,
             source: 'csv',
           });
+          if (contactError) {
+            console.error('buyer_contacts INSERT 실패:', contactError, 'row:', row);
+            if (!firstError) firstError = `buyer_contacts: ${contactError.message}`;
+          }
         }
 
         existingDomains.add(domain);
@@ -173,7 +205,9 @@ export default function Pipeline() {
 
       setUploadResult({ added, skipped, total: rows.length, byTeam });
       setCsvUploaded(added > 0);
-      if (added > 0) {
+      if (firstError) {
+        setSuccessMessage(`CSV 부분 오류: ${added}개 추가 / ${skipped}개 실패. 첫 오류 — ${firstError}`);
+      } else if (added > 0) {
         setSuccessMessage(`CSV 업로드 완료: ${added}개 기업 추가, ${skipped}개 건너뜀`);
       } else {
         setSuccessMessage(`CSV 업로드: 새로운 기업이 없습니다 (${skipped}개 모두 중복)`);
