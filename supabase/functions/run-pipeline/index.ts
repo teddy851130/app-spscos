@@ -59,13 +59,26 @@ async function agentB(sb: SB, jobId: string, _team: string) {
   const tierMap = new Map((buyers || []).map((b: { id: string; tier: string }) => [b.id, b.tier]));
 
   let valid = 0, invalid = 0, catchAllPass = 0, catchAllFail = 0, risky = 0;
+  let httpErrorCount = 0;
+  let sampleHttpError: string | null = null;
 
   for (const c of contacts) {
     try {
       const res = await fetch(
         `https://api.zerobounce.net/v2/validate?api_key=${ZB_KEY}&email=${encodeURIComponent(c.contact_email)}`
       );
-      if (!res.ok) continue;
+      if (!res.ok) {
+        httpErrorCount++;
+        if (!sampleHttpError) {
+          // 401=인증 실패, 402=결제 필요, 403=권한 없음, 429=레이트 리밋
+          const hint = res.status === 401 ? " (인증 실패)"
+            : res.status === 402 ? " (크레딧 부족/결제 필요)"
+            : res.status === 403 ? " (접근 거부)"
+            : res.status === 429 ? " (레이트 리밋)" : "";
+          sampleHttpError = `HTTP ${res.status}${hint}`;
+        }
+        continue;
+      }
 
       const r = await res.json();
       const zbStatus = String(r.status || "").toLowerCase();
@@ -99,7 +112,16 @@ async function agentB(sb: SB, jobId: string, _team: string) {
       if (blacklist) {
         await sb.from("buyers").update({ is_blacklisted: true }).eq("id", c.buyer_id);
       }
-    } catch { /* 개별 실패 */ }
+    } catch (e) {
+      httpErrorCount++;
+      if (!sampleHttpError) sampleHttpError = `fetch 실패: ${e instanceof Error ? e.message : String(e)}`;
+    }
+  }
+
+  // API 오류가 있었으면 별도 로그 (F가 스캔하여 경고 생성)
+  if (httpErrorCount > 0) {
+    await log(sb, jobId, "B", "running",
+      `ZeroBounce API 오류 ${httpErrorCount}건 — 샘플: ${sampleHttpError}`);
   }
 
   await log(sb, jobId, "B", "completed",
@@ -133,6 +155,9 @@ async function agentC(sb: SB, jobId: string, _team: string) {
 
   let analyzed = 0;
   let totalCost = 0;
+  let httpErrorCount = 0;
+  let rateLimitCount = 0;
+  let sampleHttpError: string | null = null;
 
   for (const b of buyers) {
     try {
@@ -162,7 +187,9 @@ Analyze and return ONLY a JSON object (no markdown):
       });
 
       if (!res.ok) {
-        await log(sb, jobId, "C", "running", `Claude 실패 (${b.company_name}): ${res.status}`);
+        httpErrorCount++;
+        if (res.status === 429) rateLimitCount++;
+        if (!sampleHttpError) sampleHttpError = `HTTP ${res.status}${res.status === 429 ? " (Claude 레이트 리밋)" : ""}`;
         continue;
       }
 
@@ -181,7 +208,16 @@ Analyze and return ONLY a JSON object (no markdown):
 
       await sb.from("buyers").update({ recent_news: json }).eq("id", b.id);
       analyzed++;
-    } catch { /* 개별 실패 */ }
+    } catch (e) {
+      httpErrorCount++;
+      if (!sampleHttpError) sampleHttpError = `fetch 실패: ${e instanceof Error ? e.message : String(e)}`;
+    }
+  }
+
+  if (httpErrorCount > 0) {
+    const rateLimitSuffix = rateLimitCount > 0 ? ` (429: ${rateLimitCount}건)` : "";
+    await log(sb, jobId, "C", "running",
+      `Claude API 오류 ${httpErrorCount}건${rateLimitSuffix} — 샘플: ${sampleHttpError}`);
   }
 
   await log(sb, jobId, "C", "completed",
@@ -221,6 +257,9 @@ async function agentD(sb: SB, jobId: string, _team: string) {
   let drafted = 0;
   let pendingIntel = 0;
   let totalCost = 0;
+  let httpErrorCount = 0;
+  let rateLimitCount = 0;
+  let sampleHttpError: string | null = null;
 
   for (const c of newContacts) {
     const buyer = buyerMap.get(c.buyer_id) as Record<string, unknown> | undefined;
@@ -291,7 +330,12 @@ Return ONLY a JSON object (no markdown):
         }),
       });
 
-      if (!res.ok) continue;
+      if (!res.ok) {
+        httpErrorCount++;
+        if (res.status === 429) rateLimitCount++;
+        if (!sampleHttpError) sampleHttpError = `HTTP ${res.status}${res.status === 429 ? " (Claude 레이트 리밋)" : ""}`;
+        continue;
+      }
 
       const result = await res.json();
       const text = result.content?.[0]?.text || "";
@@ -315,7 +359,16 @@ Return ONLY a JSON object (no markdown):
       });
 
       drafted++;
-    } catch { /* 개별 실패 */ }
+    } catch (e) {
+      httpErrorCount++;
+      if (!sampleHttpError) sampleHttpError = `fetch 실패: ${e instanceof Error ? e.message : String(e)}`;
+    }
+  }
+
+  if (httpErrorCount > 0) {
+    const rateLimitSuffix = rateLimitCount > 0 ? ` (429: ${rateLimitCount}건)` : "";
+    await log(sb, jobId, "D", "running",
+      `Claude API 오류 ${httpErrorCount}건${rateLimitSuffix} — 샘플: ${sampleHttpError}`);
   }
 
   await log(sb, jobId, "D", "completed",
@@ -414,6 +467,9 @@ async function agentE(sb: SB, jobId: string, _team: string) {
   }
 
   let checked = 0, passed = 0, rewritten = 0, flagged = 0, totalCost = 0;
+  let httpErrorCount = 0;
+  let rateLimitCount = 0;
+  let sampleHttpError: string | null = null;
 
   for (const d of drafts) {
     try {
@@ -444,8 +500,15 @@ async function agentE(sb: SB, jobId: string, _team: string) {
               const s = parseInt((r.content?.[0]?.text || "").trim());
               if (!isNaN(s) && s >= 1 && s <= 10) score = s;
               totalCost += (r.usage?.input_tokens || 0) * 0.0000008 + (r.usage?.output_tokens || 0) * 0.000004;
+            } else {
+              httpErrorCount++;
+              if (res.status === 429) rateLimitCount++;
+              if (!sampleHttpError) sampleHttpError = `HTTP ${res.status}${res.status === 429 ? " (Claude 레이트 리밋)" : ""}`;
             }
-          } catch { /* Claude 실패 시 규칙 점수 유지 */ }
+          } catch (e) {
+            httpErrorCount++;
+            if (!sampleHttpError) sampleHttpError = `fetch 실패: ${e instanceof Error ? e.message : String(e)}`;
+          }
         }
 
         if (score >= 8) {
@@ -471,7 +534,13 @@ async function agentE(sb: SB, jobId: string, _team: string) {
         }
       }
       checked++;
-    } catch { /* 개별 실패 */ }
+    } catch { /* 규칙 체크 자체는 로컬이라 실패 가능성 낮음 */ }
+  }
+
+  if (httpErrorCount > 0) {
+    const rateLimitSuffix = rateLimitCount > 0 ? ` (429: ${rateLimitCount}건)` : "";
+    await log(sb, jobId, "E", "running",
+      `Claude API 오류 ${httpErrorCount}건${rateLimitSuffix} — 샘플: ${sampleHttpError}`);
   }
 
   await log(sb, jobId, "E", "completed",
@@ -480,126 +549,143 @@ async function agentE(sb: SB, jobId: string, _team: string) {
 }
 
 // ============================================
-// 직원 F: 시스템 헬스 모니터링
+// 직원 F: 파이프라인 검증 + 시스템 모니터링
 // ============================================
+// 이 job의 B~E 로그를 전부 스캔해서 실제 오류/누락을 구체 경고로 기록.
+// 웹앱 파서 호환을 위해 경고 포맷은 "경고 N건: msg1 | msg2" 유지.
 async function agentF(sb: SB, jobId: string, _team: string) {
-  await log(sb, jobId, "F", "running", "직원F 시작: 시스템 헬스 모니터링");
+  await log(sb, jobId, "F", "running", "직원F 시작: 파이프라인 검증");
 
   const warnings: string[] = [];
-  const today = new Date().toISOString().split("T")[0];
 
-  // 1. Clay 크레딧 잔량 체크
-  const CLAY_KEY = Deno.env.get("CLAY_API_KEY");
-  if (CLAY_KEY) {
-    try {
-      const res = await fetch("https://api.clay.com/v3/credits", {
-        headers: { Authorization: `Bearer ${CLAY_KEY}` },
-      });
-      if (res.ok) {
-        const d = await res.json();
-        const remaining = d.remaining_credits ?? d.credits ?? 0;
-        if (remaining <= 500) warnings.push(`Clay 크레딧 ${remaining}개 남음 (≤500)`);
-      }
-    } catch { /* API 실패 */ }
+  // === 1. 이번 job의 B~E 로그 전체 스캔 ===
+  const { data: jobLogs } = await sb.from("pipeline_logs")
+    .select("agent, status, message")
+    .eq("job_id", jobId)
+    .in("agent", ["B", "C", "D", "E"]);
+
+  const logs = (jobLogs || []) as { agent: string; status: string; message: string }[];
+
+  // 1-a. status='failed' 항목 — 치명적 오류
+  for (const l of logs.filter((x) => x.status === "failed")) {
+    warnings.push(`직원 ${l.agent} 치명적 오류: ${(l.message || "").slice(0, 100)}`);
   }
 
-  // 2. ZeroBounce 잔여량 체크
+  // 1-b. HTTP 오류/크레딧 부족/레이트 리밋 키워드 스캔 (running 로그 대상)
+  // 각 직원별 첫 에러 메시지만 샘플로 수집해 중복 방지
+  const ERROR_RE = /\b(401|402|403|404|429|500|502|503)\b|크레딧\s*(부족|없음|소진)|레이트\s*리밋|인증\s*실패|API\s*오류|API\s*키\s*없음/i;
+  const byAgentError: Record<string, string> = {};
+  for (const l of logs) {
+    if (l.status === "failed") continue;
+    if (ERROR_RE.test(l.message || "") && !byAgentError[l.agent]) {
+      byAgentError[l.agent] = (l.message || "").slice(0, 100);
+    }
+  }
+  for (const [agent, msg] of Object.entries(byAgentError)) {
+    warnings.push(`직원 ${agent} API 오류: ${msg}`);
+  }
+
+  // 1-c. 각 직원의 completed 로그에서 "없음" 감지 (처리 대상 0건)
+  const completedByAgent = new Map<string, string>();
+  for (const l of logs) {
+    if (l.status === "completed") completedByAgent.set(l.agent, l.message || "");
+  }
+  for (const agent of ["B", "C", "D", "E"]) {
+    const msg = completedByAgent.get(agent);
+    if (!msg) {
+      // 실행 자체가 누락/중단된 케이스 (치명적 오류는 1-a에서 이미 잡힘)
+      if (!logs.some((l) => l.agent === agent && l.status === "failed")) {
+        warnings.push(`직원 ${agent} 완료 로그 없음 (실행 누락 또는 중단)`);
+      }
+      continue;
+    }
+    if (/없음/.test(msg)) {
+      warnings.push(`직원 ${agent} 처리 대상 0건: ${msg.slice(0, 80)}`);
+    }
+  }
+
+  // === 2. 데이터 상태 검증 ===
+  // 2-a. B 미처리: email_status=null 인데 이메일이 있는 담당자
+  const { count: nullStatusCount } = await sb.from("buyer_contacts")
+    .select("id", { count: "exact", head: true })
+    .is("email_status", null)
+    .not("contact_email", "is", null)
+    .not("contact_email", "eq", "");
+  if ((nullStatusCount || 0) > 0) {
+    warnings.push(`직원 B 미처리 데이터: email_status=null ${nullStatusCount}건 남음`);
+  }
+
+  // 2-b. C 미처리: Tier1/2 + blacklist=false + recent_news=null
+  // (Tier3는 C가 의도적으로 분석하지 않으므로 제외)
+  const { count: nullNewsCount } = await sb.from("buyers")
+    .select("id", { count: "exact", head: true })
+    .in("tier", ["Tier1", "Tier2"])
+    .eq("is_blacklisted", false)
+    .is("recent_news", null);
+  if ((nullNewsCount || 0) > 0) {
+    warnings.push(`직원 C 미처리 데이터: recent_news=null ${nullNewsCount}건 (Tier1/2)`);
+  }
+
+  // 2-c. D 이번 실행 중 email_drafts 생성 0건 (started_at 이후 기준)
+  const { data: job } = await sb.from("pipeline_jobs")
+    .select("started_at").eq("id", jobId).single();
+  const startedAt = (job as { started_at?: string } | null)?.started_at;
+  // D가 "처리 대상 없음"을 이미 로그에 남겼다면 1-c에서 잡히므로 중복 방지
+  const dAlreadyWarned = /없음/.test(completedByAgent.get("D") || "");
+  if (startedAt && !dAlreadyWarned) {
+    const { count: draftCount } = await sb.from("email_drafts")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", startedAt);
+    if ((draftCount || 0) === 0) {
+      warnings.push(`직원 D 결과 없음: 이번 실행에서 email_drafts 0건 생성`);
+    }
+  }
+
+  // === 3. ZeroBounce API 상태 (실제 응답 코드 확인) ===
   const ZB_KEY = Deno.env.get("ZEROBOUNCE_API_KEY");
-  if (ZB_KEY) {
+  if (!ZB_KEY) {
+    warnings.push("ZEROBOUNCE_API_KEY 환경변수 없음");
+  } else {
     try {
       const res = await fetch(`https://api.zerobounce.net/v2/getcredits?api_key=${ZB_KEY}`);
-      if (res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        warnings.push(`ZeroBounce 인증 실패 (HTTP ${res.status})`);
+      } else if (res.status === 402) {
+        warnings.push(`ZeroBounce 결제 필요 (HTTP 402)`);
+      } else if (!res.ok) {
+        warnings.push(`ZeroBounce API 응답 오류 (HTTP ${res.status})`);
+      } else {
         const d = await res.json();
         const credits = d.Credits ?? 0;
-        if (credits <= 200) warnings.push(`ZeroBounce ${credits}건 남음 (≤200)`);
+        if (credits <= 0) warnings.push(`ZeroBounce 크레딧 소진`);
+        else if (credits <= 200) warnings.push(`ZeroBounce ${credits}건 남음 (≤200)`);
       }
-    } catch { /* API 실패 */ }
+    } catch (e) {
+      warnings.push(`ZeroBounce 통신 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
-  // 3. Claude API 일일 비용 체크
-  const { data: costLogs } = await sb.from("pipeline_logs")
-    .select("api_cost_usd").in("agent", ["C", "D", "E"])
-    .gte("created_at", `${today}T00:00:00Z`);
+  // === 4. Anthropic API 키 존재 확인 ===
+  if (!Deno.env.get("ANTHROPIC_API_KEY")) {
+    warnings.push("ANTHROPIC_API_KEY 환경변수 없음");
+  }
 
-  const dailyCost = (costLogs || []).reduce(
-    (s: number, l: { api_cost_usd: number }) => s + (l.api_cost_usd || 0), 0);
-  if (dailyCost > 5) warnings.push(`Claude API 일일 $${dailyCost.toFixed(2)} (>$5)`);
-
-  // 4. 8시간 미완료 파이프라인
+  // === 5. 8시간+ 미완료 파이프라인 ===
   const cutoff = new Date(Date.now() - 8 * 3600_000).toISOString();
   const { data: stale } = await sb.from("pipeline_jobs")
     .select("id").eq("status", "running").lt("created_at", cutoff);
-  if (stale && stale.length > 0) warnings.push(`${stale.length}개 파이프라인 8시간+ 미완료`);
-
-  // 5. 당일 신규 바이어 0건
-  const { count: todayBuyers } = await sb.from("buyers")
-    .select("id", { count: "exact", head: true })
-    .gte("discovered_at", `${today}T00:00:00Z`);
-  if ((todayBuyers || 0) === 0) warnings.push("당일 신규 바이어 0건");
-
-  // 주간 리포트 (월요일 체크)
-  const dayOfWeek = new Date().getDay();
-  let weeklyReport = "";
-
-  if (dayOfWeek === 1) {
-    const weekAgo = new Date(Date.now() - 7 * 86400_000).toISOString();
-
-    // 총 발굴 기업 수
-    const { count: weekBuyers } = await sb.from("buyers")
-      .select("id", { count: "exact", head: true })
-      .gte("discovered_at", weekAgo);
-
-    // Tier 분류
-    const { data: tierData } = await sb.from("buyers")
-      .select("tier").gte("discovered_at", weekAgo);
-    const t1 = (tierData || []).filter((b: { tier: string }) => b.tier === "Tier1").length;
-    const t2 = (tierData || []).filter((b: { tier: string }) => b.tier === "Tier2").length;
-
-    // 유효 이메일 통과율
-    const { data: emailData } = await sb.from("buyer_contacts")
-      .select("email_status").gte("created_at", weekAgo);
-    const totalEmails = (emailData || []).length;
-    const validEmails = (emailData || []).filter(
-      (e: { email_status: string }) => e.email_status === "valid" || e.email_status === "catch-all-pass"
-    ).length;
-    const emailPassRate = totalEmails > 0 ? Math.round((validEmails / totalEmails) * 100) : 0;
-
-    // 스팸 통과율
-    const { data: spamData } = await sb.from("email_drafts")
-      .select("spam_status").gte("created_at", weekAgo);
-    const totalSpam = (spamData || []).length;
-    const spamPass = (spamData || []).filter((s: { spam_status: string }) => s.spam_status === "pass").length;
-    const spamRewrite = (spamData || []).filter((s: { spam_status: string }) => s.spam_status === "rewrite").length;
-    const spamFlag = (spamData || []).filter((s: { spam_status: string }) => s.spam_status === "flag").length;
-
-    // API 비용 합산
-    const { data: weekCosts } = await sb.from("pipeline_logs")
-      .select("agent, api_cost_usd, credits_used").gte("created_at", weekAgo);
-    const clayCreds = (weekCosts || []).filter((l: { agent: string }) => l.agent === "A")
-      .reduce((s: number, l: { credits_used: number }) => s + (l.credits_used || 0), 0);
-    const claudeCost = (weekCosts || []).filter((l: { agent: string }) => ["C", "D", "E"].includes(l.agent))
-      .reduce((s: number, l: { api_cost_usd: number }) => s + (l.api_cost_usd || 0), 0);
-
-    // 이상 로그
-    const { data: errorLogs } = await sb.from("pipeline_logs")
-      .select("agent, message").eq("status", "failed").gte("created_at", weekAgo);
-
-    weeklyReport = [
-      `[주간 리포트] 발굴 ${weekBuyers || 0}개 (T1:${t1} T2:${t2})`,
-      `이메일 통과율 ${emailPassRate}% (${validEmails}/${totalEmails})`,
-      `스팸 pass:${spamPass} rewrite:${spamRewrite} flag:${spamFlag}`,
-      `Clay ${clayCreds}크레딧 / Claude $${claudeCost.toFixed(2)}`,
-      errorLogs && errorLogs.length > 0 ? `이상로그 ${errorLogs.length}건` : "이상로그 없음",
-    ].join(" | ");
+  if (stale && stale.length > 0) {
+    warnings.push(`${stale.length}개 파이프라인 8시간+ 미완료`);
   }
 
-  // 결과 기록
-  const parts: string[] = [];
-  if (warnings.length > 0) parts.push(`경고 ${warnings.length}건: ${warnings.join(" | ")}`);
-  else parts.push("시스템 정상: 모든 API 상태 양호");
-  if (weeklyReport) parts.push(weeklyReport);
-
-  await log(sb, jobId, "F", "completed", parts.join("\n"));
+  // === 결과 기록 ===
+  // 포맷: "경고 N건: msg1 | msg2"  (Pipeline.tsx:345 파서 호환)
+  if (warnings.length === 0) {
+    await log(sb, jobId, "F", "completed", "시스템 정상: 모든 직원 정상 완료");
+  } else {
+    await log(sb, jobId, "F", "completed",
+      `경고 ${warnings.length}건: ${warnings.join(" | ")}`);
+  }
 }
 
 // ============================================
