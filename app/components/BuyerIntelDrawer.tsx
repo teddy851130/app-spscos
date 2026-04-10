@@ -30,8 +30,20 @@ interface BuyerIntelDrawerProps {
   onEmailClick?: () => void;
 }
 
+interface BuyerBaseInfo {
+  annual_revenue: string | null;
+  employee_count: number | null;
+  team: string | null;
+}
+
+interface DraftDrafts {
+  subject: string;
+  body: string;
+}
+
 export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick }: BuyerIntelDrawerProps) {
   const [intel, setIntel] = useState<any>(null);
+  const [baseInfo, setBaseInfo] = useState<BuyerBaseInfo | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(false);
   const [contactsLoading, setContactsLoading] = useState(false);
@@ -39,17 +51,34 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
   const [newContact, setNewContact] = useState({ contact_name: '', contact_title: '', contact_email: '', contact_linkedin: '' });
   const [savingContact, setSavingContact] = useState(false);
 
+  // 국문 초안 → 영문 번역 플로우 (#6)
+  const [draftKo, setDraftKo] = useState<DraftDrafts | null>(null);
+  const [generatingKo, setGeneratingKo] = useState(false);
+  const [translating, setTranslating] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [draftSaved, setDraftSaved] = useState(false);
+
   useEffect(() => {
     if (!isOpen || !buyer) return;
 
-    // Load intel from buyers.recent_news (JSON from pipeline Agent C)
+    // Reset draft flow state on open
+    setDraftKo(null);
+    setDraftError(null);
+    setDraftSaved(false);
+
+    // Load intel + base info from buyers (Agent C 분석 결과 + 기본 정보)
     setLoading(true);
     supabase
       .from('buyers')
-      .select('recent_news')
+      .select('recent_news, annual_revenue, employee_count, team')
       .eq('id', buyer.id)
       .single()
       .then(({ data }) => {
+        setBaseInfo({
+          annual_revenue: data?.annual_revenue ?? null,
+          employee_count: data?.employee_count ?? null,
+          team: data?.team ?? null,
+        });
         const raw = data?.recent_news;
         if (raw && typeof raw === 'object') {
           setIntel({
@@ -65,6 +94,7 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
             personalization_hooks: raw.personalization_hooks || [],
             website_insights: raw.website_insights || '',
             tier_note: raw.proposal_angle || raw.tier_note || '',
+            raw,
           });
         } else {
           setIntel(null);
@@ -127,6 +157,77 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
       alert('담당자 추가 중 오류가 발생했습니다.');
     } finally {
       setSavingContact(false);
+    }
+  };
+
+  // 국문 초안 생성 — generate-draft Edge Function 호출 (action=generate_ko)
+  const handleGenerateKo = async () => {
+    if (!intel || contacts.length === 0) return;
+    setGeneratingKo(true);
+    setDraftError(null);
+    setDraftKo(null);
+    setDraftSaved(false);
+    try {
+      const primaryContact = contacts.find((c) => c.is_primary) || contacts[0];
+      const { data, error } = await supabase.functions.invoke('generate-draft', {
+        body: {
+          action: 'generate_ko',
+          buyer: {
+            id: buyer.id,
+            company_name: buyer.company,
+            region: buyer.region,
+            tier: buyer.tier,
+            website: buyer.website,
+            annual_revenue: baseInfo?.annual_revenue,
+            employee_count: baseInfo?.employee_count,
+          },
+          contact: {
+            contact_name: primaryContact.contact_name,
+            contact_title: primaryContact.contact_title,
+            contact_email: primaryContact.contact_email,
+          },
+          intel: intel.raw || {},
+        },
+      });
+      if (error) throw new Error(error.message || 'Edge Function 호출 실패');
+      if (!data?.ko_subject || !data?.ko_body) throw new Error('국문 초안 응답 형식 오류');
+      setDraftKo({ subject: data.ko_subject, body: data.ko_body });
+    } catch (e) {
+      setDraftError(e instanceof Error ? e.message : '국문 초안 생성 실패');
+    } finally {
+      setGeneratingKo(false);
+    }
+  };
+
+  // 영문 번역 + email_drafts INSERT — generate-draft Edge Function 호출 (action=translate_save)
+  const handleTranslateSave = async () => {
+    if (!draftKo || contacts.length === 0) return;
+    setTranslating(true);
+    setDraftError(null);
+    try {
+      const primaryContact = contacts.find((c) => c.is_primary) || contacts[0];
+      const { data, error } = await supabase.functions.invoke('generate-draft', {
+        body: {
+          action: 'translate_save',
+          buyer: {
+            id: buyer.id,
+            company_name: buyer.company,
+            tier: buyer.tier,
+          },
+          contact: {
+            id: primaryContact.id,
+            contact_name: primaryContact.contact_name,
+          },
+          ko_draft: draftKo,
+        },
+      });
+      if (error) throw new Error(error.message || 'Edge Function 호출 실패');
+      if (!data?.success) throw new Error(data?.message || '번역/저장 실패');
+      setDraftSaved(true);
+    } catch (e) {
+      setDraftError(e instanceof Error ? e.message : '영문 번역/저장 실패');
+    } finally {
+      setTranslating(false);
     }
   };
 
@@ -313,6 +414,33 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
             )}
           </div>
 
+          {/* Base Info Section — 항상 표시 (#5) */}
+          <div className="px-6 py-5 border-b border-[#334155]">
+            <div className="text-sm font-semibold text-[#f1f5f9] mb-3">📋 기본 정보</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-[#1e293b] border border-[#334155] rounded-lg px-3 py-2">
+                <div className="text-xs text-[#64748b] mb-0.5">Tier</div>
+                <div className="text-xs font-semibold text-[#f1f5f9]">{buyer.tier || '—'}</div>
+              </div>
+              <div className="bg-[#1e293b] border border-[#334155] rounded-lg px-3 py-2">
+                <div className="text-xs text-[#64748b] mb-0.5">팀</div>
+                <div className="text-xs font-semibold text-[#f1f5f9]">{baseInfo?.team || buyer.region || '—'}</div>
+              </div>
+              <div className="bg-[#1e293b] border border-[#334155] rounded-lg px-3 py-2">
+                <div className="text-xs text-[#64748b] mb-0.5">매출 규모</div>
+                <div className="text-xs font-semibold text-[#f1f5f9]">{baseInfo?.annual_revenue || '—'}</div>
+              </div>
+              <div className="bg-[#1e293b] border border-[#334155] rounded-lg px-3 py-2">
+                <div className="text-xs text-[#64748b] mb-0.5">직원 수</div>
+                <div className="text-xs font-semibold text-[#f1f5f9]">{baseInfo?.employee_count ? baseInfo.employee_count.toLocaleString() : '—'}</div>
+              </div>
+              <div className="bg-[#1e293b] border border-[#334155] rounded-lg px-3 py-2 col-span-2">
+                <div className="text-xs text-[#64748b] mb-0.5">도메인</div>
+                <div className="text-xs font-semibold text-[#f1f5f9] truncate">{buyer.website?.replace(/^https?:\/\//, '') || '—'}</div>
+              </div>
+            </div>
+          </div>
+
           {/* Intel Section */}
           <div className="px-6 py-5">
             <div className="flex items-center justify-between mb-4">
@@ -393,6 +521,57 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
                   <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4">
                     <div className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wide mb-2">📋 영업 전략 노트</div>
                     <p className="text-xs text-[#94a3b8] leading-relaxed">{intel.tier_note}</p>
+                  </div>
+                )}
+
+                {/* "이 인텔로 이메일 생성" 버튼 (#6) */}
+                <div className="pt-2">
+                  <button
+                    onClick={handleGenerateKo}
+                    disabled={generatingKo || contacts.length === 0 || draftKo !== null}
+                    className="w-full text-xs bg-[#3b82f6] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2563eb] disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  >
+                    {generatingKo ? '국문 초안 생성 중...' : draftKo ? '국문 초안 생성됨 ↓' : '✉ 이 인텔로 이메일 생성'}
+                  </button>
+                  {contacts.length === 0 && (
+                    <div className="text-xs text-[#f59e0b] mt-2 text-center">담당자 정보가 먼저 필요합니다</div>
+                  )}
+                </div>
+
+                {/* 국문 초안 확인 화면 */}
+                {draftKo && (
+                  <div className="bg-[#0f172a] border border-[#3b82f6]/40 rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-semibold text-[#60a5fa]">📝 국문 초안 확인</div>
+                      {draftSaved && (
+                        <span className="text-xs bg-[#22c55e]/20 text-[#22c55e] px-2 py-0.5 rounded">✓ 영문 저장 완료</span>
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-xs text-[#64748b] mb-1">제목</div>
+                      <div className="text-xs text-[#e2e8f0] bg-[#1e293b] border border-[#334155] rounded px-3 py-2">{draftKo.subject}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-[#64748b] mb-1">본문</div>
+                      <div className="text-xs text-[#e2e8f0] bg-[#1e293b] border border-[#334155] rounded px-3 py-2 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto">
+                        {draftKo.body}
+                      </div>
+                    </div>
+                    {!draftSaved && (
+                      <button
+                        onClick={handleTranslateSave}
+                        disabled={translating}
+                        className="w-full text-xs bg-[#22c55e] text-white py-2 rounded font-semibold hover:bg-[#16a34a] disabled:opacity-50 transition"
+                      >
+                        {translating ? '영문 번역 중...' : '영문에 반영 (email_drafts 저장)'}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {draftError && (
+                  <div className="bg-[#ef4444]/10 border border-[#ef4444]/40 rounded-lg p-3">
+                    <div className="text-xs text-[#fca5a5]">오류: {draftError}</div>
                   </div>
                 )}
               </div>

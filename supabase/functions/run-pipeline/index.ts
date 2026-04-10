@@ -14,10 +14,12 @@ const corsHeaders = {
 type SB = ReturnType<typeof createClient>;
 
 function getSupabase(): SB {
-  return createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-  );
+  // RLS bypass 필요 — service role key 사용
+  // 사용자 커스텀 secret(SERVICE_ROLE_KEY) 우선, 없으면 Supabase 기본 주입 변수 폴백
+  // (Supabase CLI는 SUPABASE_ 프리픽스 커스텀 secret 금지 → SERVICE_ROLE_KEY 네이밍)
+  const serviceKey = Deno.env.get("SERVICE_ROLE_KEY")
+    ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  return createClient(Deno.env.get("SUPABASE_URL")!, serviceKey!);
 }
 
 // ============================================
@@ -141,9 +143,10 @@ async function agentC(sb: SB, jobId: string, _team: string) {
   const API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
   if (!API_KEY) { await log(sb, jobId, "C", "failed", "ANTHROPIC_API_KEY 없음"); return; }
 
-  // valid 또는 catch-all-pass 이메일의 기업만
+  // 이메일 유효성과 기업 분석은 별개 작업 — risky도 포함
+  // (invalid/hard_bounce/catch-all-fail은 bounce 확정이라 분석 무의미하므로 제외)
   const { data: validContacts } = await sb.from("buyer_contacts")
-    .select("buyer_id").in("email_status", ["valid", "catch-all-pass"]);
+    .select("buyer_id").in("email_status", ["valid", "catch-all-pass", "risky"]);
 
   if (!validContacts || validContacts.length === 0) {
     await log(sb, jobId, "C", "completed", "분석할 기업 없음"); return;
@@ -272,14 +275,9 @@ async function agentD(sb: SB, jobId: string, _team: string) {
     const tier = buyer.tier as string;
     const analysis = buyer.recent_news as Record<string, unknown> | null;
 
-    // 인텔 데이터 없으면 pending_intel로 저장하고 건너뜀
+    // recent_news NULL 이면 이메일 작성 건너뜀 (row 만들지 않음)
+    // 나중에 C가 recent_news 채우면 다음 D 실행에서 자연스럽게 처리됨
     if (!analysis || !analysis.company_status) {
-      await sb.from("email_drafts").insert({
-        buyer_contact_id: c.id,
-        subject_line_1: "", subject_line_2: "", subject_line_3: "",
-        body_first: "", body_followup: "",
-        tier, spam_status: "pending_intel" as any,
-      });
       pendingIntel++;
       continue;
     }

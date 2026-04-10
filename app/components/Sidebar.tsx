@@ -13,10 +13,12 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
 
   useEffect(() => {
     async function loadCount() {
+      // 이메일 로그 = 발송 완료된 이메일 수 (is_sent=true)
+      // 배지 렌더는 이미 badgeCount > 0 조건이라 0이면 자동 숨김 (Sidebar.tsx:74)
       const { count } = await supabase
         .from('email_drafts')
         .select('id', { count: 'exact', head: true })
-        .eq('is_sent', false);
+        .eq('is_sent', true);
       setDraftCount(count || 0);
     }
     loadCount();
