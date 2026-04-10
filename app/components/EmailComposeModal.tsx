@@ -100,26 +100,27 @@ export default function EmailComposeModal({ isOpen, onClose, buyer }: EmailCompo
     const kbeautyInterest = intel.kbeauty_interest || intel.why_kbeauty || '';
     const formula = Array.isArray(intel.recommended_formula)
       ? intel.recommended_formula.join(', ')
-      : (intel.recommended_formula || 'skincare, cosmetics OEM/ODM');
+      : (intel.recommended_formula || '스킨케어, 화장품 OEM/ODM');
     const angle = intel.proposal_angle || '';
 
-    const personalizedBody = `Dear ${firstName},
+    // 국문 탭에만 반영 — 영문 탭(emailBody/subject)은 절대 건드리지 않음
+    const koBody = `안녕하세요 ${firstName}님,
 
-I hope this message finds you well. My name is Teddy Shin, CEO of SPS Cosmetics — a Korean OEM/ODM specialist.
+SPS Cosmetics(spscos.com) CEO 신동환입니다. 저희는 한국의 OEM/ODM 화장품 전문 제조사입니다.
 
-${companyStatus ? `I've been following ${buyer.company}'s recent developments — ${companyStatus}. ` : ''}${kbeautyInterest ? `Given your ${kbeautyInterest}, ` : ''}I believe there's a strong fit for us to collaborate on ${formula}.
+${companyStatus ? `${buyer.company}의 최근 동향을 주목하고 있습니다 — ${companyStatus} ` : ''}${kbeautyInterest ? `귀사의 ${kbeautyInterest}를 감안할 때, ` : ''}${formula} 분야에서의 협력이 적합할 것으로 판단됩니다.
 
-${angle || `We specialize in K-beauty formulations with a 3,000 unit MOQ, perfect for testing new product lines in the ${buyer.region} market.`}
+${angle || `저희는 K-beauty 포뮬라를 전문으로 하며 MOQ 3,000개부터 가능합니다. ${buyer.region} 시장에 새로운 제품 라인을 도입하기에 적합합니다.`}
 
-Would you be open to a brief call to explore this further?
+간단한 통화로 더 자세히 논의해볼 수 있을까요?
 
-Best regards,
-Teddy Shin | CEO
+감사합니다.
+신동환 | CEO
 SPS Cosmetics | spscos.com`;
 
-    setEmailBody(personalizedBody);
-    setSubject(`${buyer.company} x K-Beauty ${formula.split(',')[0] || 'Partnership'} — SPS Cosmetics`);
-    setCurrentTab('en');
+    setKoreanBody(koBody);
+    setCurrentTab('ko');
+    // NOTE: setEmailBody / setSubject 호출 금지 — 영문 발송본 보호
   };
 
   useEffect(() => {
@@ -228,8 +229,39 @@ SPS Cosmetics | spscos.com`;
   };
 
   const applyKoToEn = () => {
+    if (!intel) {
+      // 인텔 없으면 기본 영문 템플릿 폴백
+      const firstName = buyer.contact.split(' ')[0];
+      setEmailBody(englishEmailTemplate(firstName, buyer.company, buyer.region));
+      setCurrentTab('en');
+      return;
+    }
     const firstName = buyer.contact.split(' ')[0];
-    setEmailBody(`Dear ${firstName},\n\n[국문 내용 번역 반영됨]\n\n${koreanBody.substring(0, 200)}...\n\nBest regards,\nDonghwan Shin | CEO\nSPS International | spscos.com`);
+    const companyStatus = intel.company_status || intel.overview || '';
+    const kbeautyInterest = intel.kbeauty_interest || intel.why_kbeauty || '';
+    const formula = Array.isArray(intel.recommended_formula)
+      ? intel.recommended_formula.join(', ')
+      : (intel.recommended_formula || 'skincare, cosmetics OEM/ODM');
+    const angle = intel.proposal_angle || '';
+
+    // 인텔 기반 영문 템플릿 interpolation — 사용자가 명시적으로 "영문에 반영" 버튼을 누른 경우에만 영문 탭 업데이트
+    // 주의: 실제 Claude 번역이 아님. 인텔 raw 값이 한국어이면 영문 템플릿에 한국어가 섞일 수 있음.
+    const enBody = `Dear ${firstName},
+
+I hope this message finds you well. My name is Teddy Shin, CEO of SPS Cosmetics — a Korean OEM/ODM specialist.
+
+${companyStatus ? `I've been following ${buyer.company}'s recent developments — ${companyStatus}. ` : ''}${kbeautyInterest ? `Given your ${kbeautyInterest}, ` : ''}I believe there's a strong fit for us to collaborate on ${formula}.
+
+${angle || `We specialize in K-beauty formulations with a 3,000 unit MOQ, perfect for testing new product lines in the ${buyer.region} market.`}
+
+Would you be open to a brief call to explore this further?
+
+Best regards,
+Teddy Shin | CEO
+SPS Cosmetics | spscos.com`;
+
+    setEmailBody(enBody);
+    setSubject(`${buyer.company} x K-Beauty ${formula.split(',')[0] || 'Partnership'} — SPS Cosmetics`);
     setCurrentTab('en');
   };
 
