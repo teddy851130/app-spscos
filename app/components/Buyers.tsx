@@ -171,11 +171,16 @@ export default function Buyers() {
 
   const handleAddBuyer = async (buyerData: any) => {
     try {
+      // tier 정규화: 공백 제거 후 DB enum과 일치시킴
+      const normalizeTier = (t: string) => {
+        const cleaned = (t || '').replace(/\s+/g, '');
+        return ['Tier1', 'Tier2', 'Tier3'].includes(cleaned) ? cleaned : 'Tier3';
+      };
       const insertData = {
         company_name: buyerData.company,
         website: buyerData.website || '',
         region: buyerData.region || 'GCC',
-        tier: buyerData.tier || 'Tier 3',
+        tier: normalizeTier(buyerData.tier),
         contact_name: buyerData.contact,
         contact_title: buyerData.title,
         contact_email: buyerData.email,

@@ -60,11 +60,16 @@ export default function CSVUploadModal({ isOpen, onClose, onImport }: CSVUploadM
       const text = await file.text();
       const rows = parseCSV(text);
 
+      // tier 정규화: 공백 제거 후 DB enum과 일치시킴 (사용자 CSV에 "Tier 2" 같은 공백 포함 값 허용)
+      const normalizeTier = (t: string) => {
+        const cleaned = (t || '').replace(/\s+/g, '');
+        return ['Tier1', 'Tier2', 'Tier3'].includes(cleaned) ? cleaned : 'Tier3';
+      };
       const insertData = rows.map((row) => ({
         company_name: row.company || row.company_name || row['회사'] || '',
         website: row.website || row['웹사이트'] || '',
         region: row.region || row['리전'] || 'GCC',
-        tier: row.tier || row['티어'] || 'Tier 3',
+        tier: normalizeTier(row.tier || row['티어'] || ''),
         contact_name: row.contact || row.contact_name || row['담당자'] || '',
         contact_title: row.title || row.contact_title || row['직책'] || '',
         contact_email: row.email || row.contact_email || row['이메일'] || '',

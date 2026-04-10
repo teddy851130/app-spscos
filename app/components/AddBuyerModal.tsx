@@ -9,11 +9,13 @@ interface AddBuyerModalProps {
 }
 
 export default function AddBuyerModal({ isOpen, onClose, onAdd }: AddBuyerModalProps) {
+  // tier는 DB enum에 맞춰 공백 없는 값으로 저장 ('Tier1'/'Tier2'/'Tier3')
+  // 화면 표시는 Buyers.tsx의 displayTier 함수가 공백 넣어서 보여줌
   const [form, setForm] = useState({
     company: '',
     website: '',
     region: 'GCC',
-    tier: 'Tier 2',
+    tier: 'Tier2',
     contact: '',
     title: '',
     email: '',
@@ -31,7 +33,7 @@ export default function AddBuyerModal({ isOpen, onClose, onAdd }: AddBuyerModalP
     setSaving(true);
     try {
       await onAdd(form);
-      setForm({ company: '', website: '', region: 'GCC', tier: 'Tier 2', contact: '', title: '', email: '' });
+      setForm({ company: '', website: '', region: 'GCC', tier: 'Tier2', contact: '', title: '', email: '' });
       onClose();
     } finally {
       setSaving(false);
@@ -78,9 +80,9 @@ export default function AddBuyerModal({ isOpen, onClose, onAdd }: AddBuyerModalP
                 onChange={(e) => handleChange('tier', e.target.value)}
                 className="w-full bg-[#0f172a] border border-[#334155] text-[#e2e8f0] px-3 py-2 rounded text-xs"
               >
-                <option value="Tier 1">Tier 1</option>
-                <option value="Tier 2">Tier 2</option>
-                <option value="Tier 3">Tier 3</option>
+                <option value="Tier1">Tier 1</option>
+                <option value="Tier2">Tier 2</option>
+                <option value="Tier3">Tier 3</option>
               </select>
             </div>
           </div>
