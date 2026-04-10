@@ -215,12 +215,17 @@ export default function Pipeline() {
       }
 
       setUploadResult({ added, skipped, total: rows.length, byTeam });
-      setCsvUploaded(added > 0);
-      if (added > 0) setUploadedFile({ name: file.name, size: file.size });
+      // CSV 파싱이 성공했으면 파일명은 항상 표시 (added=0이어도)
+      setUploadedFile({ name: file.name, size: file.size });
+      // 실행 버튼 활성화: 이번에 추가됐거나, 이미 buyers에 데이터가 있으면 true
+      const hasExistingBuyers = existingDomains.size > 0;
+      setCsvUploaded(added > 0 || hasExistingBuyers);
       if (firstError) {
         setSuccessMessage(`CSV 부분 오류: ${added}개 추가 / ${skipped}개 실패. 첫 오류 — ${firstError}`);
       } else if (added > 0) {
         setSuccessMessage(`CSV 업로드 완료: ${added}개 기업 추가, ${skipped}개 건너뜀`);
+      } else if (hasExistingBuyers) {
+        setSuccessMessage(`새로운 기업 없음 (${skipped}개 모두 중복). 기존 buyers ${existingDomains.size}개로 파이프라인 실행 가능`);
       } else {
         setSuccessMessage(`CSV 업로드: 새로운 기업이 없습니다 (${skipped}개 모두 중복)`);
       }
