@@ -196,6 +196,7 @@ export default function Pipeline() {
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    console.log('dragEnter');
     dragCounter.current++;
     setIsDragging(true);
   };
@@ -203,6 +204,7 @@ export default function Pipeline() {
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    console.log('dragLeave');
     dragCounter.current--;
     if (dragCounter.current === 0) setIsDragging(false);
   };
@@ -210,15 +212,17 @@ export default function Pipeline() {
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    console.log('dragOver');
     e.dataTransfer.dropEffect = 'copy';
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    const file = e.dataTransfer.files[0];
+    console.log('drop', file);
     dragCounter.current = 0;
     setIsDragging(false);
-    const file = e.dataTransfer.files[0];
     if (file && file.name.endsWith('.csv')) {
       processCSVFile(file);
     } else {
