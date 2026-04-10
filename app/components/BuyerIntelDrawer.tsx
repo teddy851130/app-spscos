@@ -3,6 +3,48 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
+// recent_news JSON → UI 표준 형태({overview, products, why_kbeauty, tier_note})
+// agentC가 가끔 `{raw: "```json {...} ```"}` 형태로 저장하므로 클라이언트에서 재파싱
+export function parseIntelJson(raw: any): any | null {
+  if (!raw) return null;
+
+  // 1) raw가 string이면 먼저 JSON.parse 시도
+  let obj: any = raw;
+  if (typeof raw === 'string') {
+    try { obj = JSON.parse(raw); } catch { obj = { raw }; }
+  }
+
+  // 2) {raw: "..."} 형태면 내부 raw를 한 번 더 파싱 (```json 블록 포함)
+  if (obj && typeof obj === 'object' && !obj.company_status && typeof obj.raw === 'string') {
+    const text = obj.raw as string;
+    const codeMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    const candidate = codeMatch ? codeMatch[1] : text;
+    const braceMatch = candidate.match(/\{[\s\S]*\}/);
+    if (braceMatch) {
+      try { obj = JSON.parse(braceMatch[0]); } catch { /* keep as-is */ }
+    }
+  }
+
+  if (!obj || typeof obj !== 'object') return null;
+
+  // company_status 가 여전히 없으면 분석 실패로 간주
+  if (!obj.company_status && !obj.overview) return null;
+
+  return {
+    overview: obj.company_status || obj.overview || '',
+    products: obj.recommended_formula
+      ? (typeof obj.recommended_formula === 'string'
+        ? obj.recommended_formula.split(',').map((s: string) => s.trim()).filter(Boolean)
+        : Array.isArray(obj.recommended_formula) ? obj.recommended_formula : [])
+      : (typeof obj.products === 'string'
+        ? obj.products.split(',').map((s: string) => s.trim()).filter(Boolean)
+        : (obj.products || [])),
+    why_kbeauty: obj.kbeauty_interest || obj.why_kbeauty || '',
+    tier_note: obj.proposal_angle || obj.tier_note || '',
+    raw: obj,
+  };
+}
+
 interface Contact {
   id?: string;
   contact_name: string;
@@ -79,26 +121,8 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
           employee_count: data?.employee_count ?? null,
           team: data?.team ?? null,
         });
-        const raw = data?.recent_news;
-        if (raw && typeof raw === 'object') {
-          setIntel({
-            overview: raw.company_status || raw.overview || '',
-            products: raw.recommended_formula
-              ? (typeof raw.recommended_formula === 'string'
-                ? raw.recommended_formula.split(',').map((s: string) => s.trim()).filter(Boolean)
-                : Array.isArray(raw.recommended_formula) ? raw.recommended_formula : [])
-              : (typeof raw.products === 'string'
-                ? raw.products.split(',').map((s: string) => s.trim()).filter(Boolean)
-                : (raw.products || [])),
-            why_kbeauty: raw.kbeauty_interest || raw.why_kbeauty || '',
-            personalization_hooks: raw.personalization_hooks || [],
-            website_insights: raw.website_insights || '',
-            tier_note: raw.proposal_angle || raw.tier_note || '',
-            raw,
-          });
-        } else {
-          setIntel(null);
-        }
+        const parsed = parseIntelJson(data?.recent_news);
+        setIntel(parsed);
         setLoading(false);
       });
 

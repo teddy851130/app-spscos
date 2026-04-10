@@ -210,10 +210,13 @@ async function agentC(sb: SB, jobId: string, _team: string) {
       const cost = (inTok * 0.0000008) + (outTok * 0.000004);
       totalCost += cost;
 
-      let json;
+      // Claude가 ```json ... ``` 마크다운 코드블록으로 감쌀 수 있음 — 내부만 추출 후 파싱
+      let json: Record<string, unknown>;
       try {
-        const m = text.match(/\{[\s\S]*\}/);
-        json = m ? JSON.parse(m[0]) : { raw: text };
+        const codeMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+        const candidate = codeMatch ? codeMatch[1] : text;
+        const braceMatch = candidate.match(/\{[\s\S]*\}/);
+        json = braceMatch ? JSON.parse(braceMatch[0]) : { raw: text };
       } catch { json = { raw: text }; }
 
       await sb.from("buyers").update({ recent_news: json }).eq("id", b.id);
