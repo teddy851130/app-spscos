@@ -228,41 +228,35 @@ SPS Cosmetics | spscos.com`;
     setCurrentTab('en');
   };
 
-  const applyKoToEn = () => {
-    if (!intel) {
-      // 인텔 없으면 기본 영문 템플릿 폴백
-      const firstName = buyer.contact.split(' ')[0];
-      setEmailBody(englishEmailTemplate(firstName, buyer.company, buyer.region));
-      setCurrentTab('en');
+  const applyKoToEn = async () => {
+    if (!koreanBody.trim()) {
+      alert('국문 탭 내용이 비어 있습니다.');
       return;
     }
-    const firstName = buyer.contact.split(' ')[0];
-    const companyStatus = intel.company_status || intel.overview || '';
-    const kbeautyInterest = intel.kbeauty_interest || intel.why_kbeauty || '';
-    const formula = Array.isArray(intel.recommended_formula)
-      ? intel.recommended_formula.join(', ')
-      : (intel.recommended_formula || 'skincare, cosmetics OEM/ODM');
-    const angle = intel.proposal_angle || '';
+    setIsLoading(true);
+    try {
+      // generate-draft Edge Function의 translate_only 액션 호출 (DB 저장 없음)
+      const { data, error } = await supabase.functions.invoke('generate-draft', {
+        body: {
+          action: 'translate_only',
+          ko_subject: subject,
+          ko_body: koreanBody,
+        },
+      });
 
-    // 인텔 기반 영문 템플릿 interpolation — 사용자가 명시적으로 "영문에 반영" 버튼을 누른 경우에만 영문 탭 업데이트
-    // 주의: 실제 Claude 번역이 아님. 인텔 raw 값이 한국어이면 영문 템플릿에 한국어가 섞일 수 있음.
-    const enBody = `Dear ${firstName},
+      if (error) throw new Error(error.message || 'Edge Function 호출 실패');
+      if (!data?.en_subject || !data?.en_body) {
+        throw new Error(data?.error || '번역 응답 형식 오류');
+      }
 
-I hope this message finds you well. My name is Teddy Shin, CEO of SPS Cosmetics — a Korean OEM/ODM specialist.
-
-${companyStatus ? `I've been following ${buyer.company}'s recent developments — ${companyStatus}. ` : ''}${kbeautyInterest ? `Given your ${kbeautyInterest}, ` : ''}I believe there's a strong fit for us to collaborate on ${formula}.
-
-${angle || `We specialize in K-beauty formulations with a 3,000 unit MOQ, perfect for testing new product lines in the ${buyer.region} market.`}
-
-Would you be open to a brief call to explore this further?
-
-Best regards,
-Teddy Shin | CEO
-SPS Cosmetics | spscos.com`;
-
-    setEmailBody(enBody);
-    setSubject(`${buyer.company} x K-Beauty ${formula.split(',')[0] || 'Partnership'} — SPS Cosmetics`);
-    setCurrentTab('en');
+      setSubject(data.en_subject);
+      setEmailBody(data.en_body);
+      setCurrentTab('en');
+    } catch (e) {
+      alert('영문 번역 실패: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (!isOpen && !showToast) return null;

@@ -45,11 +45,18 @@ async function callClaude(apiKey: string, prompt: string, maxTokens: number): Pr
 }
 
 function parseJsonFromText(text: string): Record<string, unknown> | null {
+  // Claude가 ```json ... ``` 마크다운으로 감쌀 수 있음 — 마커 제거 후 파싱
   try {
-    const m = text.match(/\{[\s\S]*\}/);
-    return m ? JSON.parse(m[0]) : null;
+    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    return JSON.parse(cleaned);
   } catch {
-    return null;
+    // 폴백: 첫 { ... 마지막 } 추출 시도
+    try {
+      const m = text.match(/\{[\s\S]*\}/);
+      return m ? JSON.parse(m[0]) : null;
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -193,6 +200,54 @@ Return ONLY a JSON object (no markdown):
           success: true,
           draft_id: inserted?.id,
           en_subject: json.en_subject,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ==================================================
+    // action: translate_only — 국문 → 영문 번역만 수행 (DB 저장 없음)
+    // ==================================================
+    if (action === "translate_only") {
+      const { ko_subject, ko_body } = body;
+      if (!ko_subject || !ko_body) {
+        return new Response(
+          JSON.stringify({ error: "ko_subject/ko_body 필요" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const prompt = `Translate the following Korean B2B cold email into natural, professional English.
+Preserve the business tone, all specific details (product categories, company references, CTAs),
+numerical facts (MOQ, timelines, pricing), and sign-off structure.
+Do not add or remove information — translate faithfully.
+The sender is Teddy Shin, CEO of SPS Cosmetics (spscos.com). MOQ is 3,000 units.
+
+Korean Subject:
+${ko_subject}
+
+Korean Body:
+${ko_body}
+
+Return ONLY a JSON object (no markdown, no code fences):
+{
+  "en_subject": "Translated English subject (concise, professional)",
+  "en_body": "Translated English body — natural professional B2B tone, preserve paragraph structure and sign-off"
+}`;
+
+      const text = await callClaude(apiKey, prompt, 1500);
+      const json = parseJsonFromText(text);
+      if (!json || !json.en_subject || !json.en_body) {
+        return new Response(
+          JSON.stringify({ error: "번역 응답 파싱 실패", raw: text.slice(0, 300) }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          en_subject: json.en_subject,
+          en_body: json.en_body,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
