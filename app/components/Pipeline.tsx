@@ -191,24 +191,37 @@ export default function Pipeline() {
     if (file) processCSVFile(file);
   }
 
+  // 드래그 카운터 (자식 요소 진입/이탈 시 깜박임 방지)
+  const dragCounter = useRef(0);
+
+  function handleDragEnter(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  }
+
   function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     e.stopPropagation();
-    if (!isDragging) setIsDragging(true);
+    e.dataTransfer.dropEffect = 'copy';
   }
 
   function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     e.stopPropagation();
-    // Only deactivate if leaving the dropzone itself (not children)
-    if (e.currentTarget === e.target) setIsDragging(false);
+    dragCounter.current--;
+    if (dragCounter.current === 0) setIsDragging(false);
   }
 
   function handleDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    if (isUploading || isRunning) return;
+    dragCounter.current = 0;
+    if (isUploading) return;
     const file = e.dataTransfer.files?.[0];
     if (file) processCSVFile(file);
   }
@@ -434,31 +447,32 @@ export default function Pipeline() {
             </div>
           </div>
 
-          {/* CSV Drag & Drop Zone */}
-          {!csvUploaded && !isRunning && (
+          {/* CSV Drag & Drop Zone (항상 표시) */}
+          {!isRunning && (
             <div
+              onDragEnter={handleDragEnter}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
               onClick={() => !isUploading && fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-lg p-6 mb-4 text-center cursor-pointer transition-all ${
+              className={`border-2 border-dashed rounded-lg p-6 mb-4 text-center cursor-pointer transition-all select-none ${
                 isDragging
-                  ? 'border-[#3b82f6] bg-[#3b82f6]/10 scale-[1.01]'
-                  : 'border-[#334155] bg-[#0f172a] hover:border-[#475569] hover:bg-[#0f172a]/80'
-              } ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  ? 'border-[#3b82f6] bg-[#3b82f6]/15 scale-[1.01] shadow-lg shadow-[#3b82f6]/20'
+                  : 'border-[#475569] bg-[#0f172a] hover:border-[#3b82f6]/60 hover:bg-[#0f172a]/80'
+              } ${isUploading ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
             >
-              <div className="text-3xl mb-2">{isDragging ? '⬇️' : '📄'}</div>
-              <div className={`text-sm font-semibold mb-1 ${isDragging ? 'text-[#3b82f6]' : 'text-[#f1f5f9]'}`}>
+              <div className="text-4xl mb-2 pointer-events-none">{isDragging ? '⬇️' : '📄'}</div>
+              <div className={`text-sm font-semibold mb-1 pointer-events-none ${isDragging ? 'text-[#3b82f6]' : 'text-[#f1f5f9]'}`}>
                 {isUploading
                   ? '업로드 중...'
                   : isDragging
-                    ? '여기에 파일을 놓으세요'
-                    : 'CSV 파일을 드래그하거나 클릭하여 선택'}
+                    ? '여기에 CSV 파일을 놓으세요'
+                    : '여기에 CSV 파일을 드래그하거나 클릭해서 업로드'}
               </div>
-              <div className="text-xs text-[#64748b] mb-3">
+              <div className="text-xs text-[#64748b] mb-3 pointer-events-none">
                 .csv 파일만 지원
               </div>
-              <div className="text-xs text-[#475569] font-mono break-all max-w-2xl mx-auto">
+              <div className="text-xs text-[#475569] font-mono break-all max-w-2xl mx-auto pointer-events-none">
                 컬럼: {CSV_COLUMNS.join(', ')}
               </div>
             </div>

@@ -64,31 +64,37 @@ export default function Buyers() {
         setLoading(true);
         const { data, error, count } = await supabase
           .from('buyers')
-          .select('*', { count: 'exact' })
+          .select('*, buyer_contacts(linkedin_url, contact_name, contact_email, contact_title, is_primary)', { count: 'exact' })
           .order('created_at', { ascending: false });
 
         if (error) {
           console.error('Buyers fetch error:', error);
         } else if (data) {
-          const mapped = data.map((row: any) => ({
-            id: row.id,
-            company: row.company_name || '',
-            domain: row.domain || '',
-            region: row.region || '',
-            team: row.team || row.region || '',
-            tier: row.tier || 'Tier2',
-            tierDisplay: displayTier(row.tier || 'Tier2'),
-            contact: row.contact_name || '',
-            title: row.contact_title || '',
-            email: row.contact_email || '',
-            website: row.website || '',
-            linkedin_url: row.linkedin_url || '',
-            lastSent: row.last_sent_at ? new Date(row.last_sent_at).toLocaleDateString('ko-KR') : '미발송',
-            status: mapStatus(row.status),
-            is_blacklisted: row.is_blacklisted || false,
-            annual_revenue: row.annual_revenue,
-            discovered_at: row.discovered_at,
-          }));
+          const mapped = data.map((row: any) => {
+            // primary contact 우선, 없으면 첫번째 contact 사용
+            const contacts = (row.buyer_contacts || []) as any[];
+            const primary = contacts.find((c) => c.is_primary) || contacts[0];
+
+            return {
+              id: row.id,
+              company: row.company_name || '',
+              domain: row.domain || '',
+              region: row.region || '',
+              team: row.team || row.region || '',
+              tier: row.tier || 'Tier2',
+              tierDisplay: displayTier(row.tier || 'Tier2'),
+              contact: primary?.contact_name || row.contact_name || '',
+              title: primary?.contact_title || row.contact_title || '',
+              email: primary?.contact_email || row.contact_email || '',
+              website: row.website || '',
+              linkedin_url: primary?.linkedin_url || row.linkedin_url || '',
+              lastSent: row.last_sent_at ? new Date(row.last_sent_at).toLocaleDateString('ko-KR') : '미발송',
+              status: mapStatus(row.status),
+              is_blacklisted: row.is_blacklisted || false,
+              annual_revenue: row.annual_revenue,
+              discovered_at: row.discovered_at,
+            };
+          });
           setBuyers(mapped);
           setTotalCount(count || data.length);
 
@@ -412,10 +418,11 @@ export default function Buyers() {
                       <td className="px-2 py-3 text-center">
                         {buyer.domain ? (
                           <a
-                            href={`http://${buyer.domain}`}
+                            href={`https://${buyer.domain}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            title={buyer.domain}
+                            title={`https://${buyer.domain}`}
+                            onClick={(e) => e.stopPropagation()}
                             className="inline-flex items-center justify-center w-7 h-7 rounded bg-[#3b82f6]/10 text-[#3b82f6] hover:bg-[#3b82f6]/20 transition"
                           >
                             🌐
@@ -435,6 +442,7 @@ export default function Buyers() {
                               target="_blank"
                               rel="noopener noreferrer"
                               title="LinkedIn 프로필"
+                              onClick={(e) => e.stopPropagation()}
                               className="inline-flex items-center justify-center w-5 h-5 rounded bg-[#0a66c2]/20 text-[#0a66c2] hover:bg-[#0a66c2]/30 transition text-xs font-bold"
                             >
                               in
