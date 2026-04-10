@@ -210,17 +210,18 @@ async function agentC(sb: SB, jobId: string, _team: string) {
       const cost = (inTok * 0.0000008) + (outTok * 0.000004);
       totalCost += cost;
 
-      // Claude가 ```json ... ``` 마크다운 코드블록으로 감쌀 수 있음 — 내부만 추출 후 파싱
-      let json: Record<string, unknown>;
+      // Claude가 ```json ... ``` 마크다운으로 감쌀 수 있음 — 마커만 제거 후 JSON.parse
+      // 파싱 실패 시 null 저장 (raw 텍스트 저장 금지 — DB 오염 방지)
+      let json: Record<string, unknown> | null;
       try {
-        const codeMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-        const candidate = codeMatch ? codeMatch[1] : text;
-        const braceMatch = candidate.match(/\{[\s\S]*\}/);
-        json = braceMatch ? JSON.parse(braceMatch[0]) : { raw: text };
-      } catch { json = { raw: text }; }
+        const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        json = JSON.parse(cleaned);
+      } catch {
+        json = null;
+      }
 
       await sb.from("buyers").update({ recent_news: json }).eq("id", b.id);
-      analyzed++;
+      if (json !== null) analyzed++;
     } catch (e) {
       httpErrorCount++;
       if (!sampleHttpError) sampleHttpError = `fetch 실패: ${e instanceof Error ? e.message : String(e)}`;
