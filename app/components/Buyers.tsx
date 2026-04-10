@@ -377,6 +377,7 @@ export default function Buyers() {
                   <th className="text-left px-4 py-3 font-semibold text-[#64748b]">리전</th>
                   <th className="text-left px-4 py-3 font-semibold text-[#64748b]">Tier</th>
                   <th className="text-left px-4 py-3 font-semibold text-[#64748b]">담당자</th>
+                  <th className="text-center px-2 py-3 font-semibold text-[#64748b]">LinkedIn</th>
                   <th className="text-left px-4 py-3 font-semibold text-[#64748b]">직책</th>
                   <th className="text-left px-4 py-3 font-semibold text-[#64748b]">이메일</th>
                   <th className="text-left px-4 py-3 font-semibold text-[#64748b]">마지막 발송</th>
@@ -433,22 +434,22 @@ export default function Buyers() {
                       </td>
                       <td className="px-4 py-3 text-[#94a3b8]">{buyer.region}</td>
                       <td className="px-4 py-3 text-[#94a3b8]">{buyer.tierDisplay || buyer.tier}</td>
-                      <td className="px-4 py-3 text-[#94a3b8]">
-                        <div className="flex items-center gap-2">
-                          <span>{buyer.contact}</span>
-                          {buyer.linkedin_url && (
-                            <a
-                              href={buyer.linkedin_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="LinkedIn 프로필"
-                              onClick={(e) => e.stopPropagation()}
-                              className="inline-flex items-center justify-center w-5 h-5 rounded bg-[#0a66c2]/20 text-[#0a66c2] hover:bg-[#0a66c2]/30 transition text-xs font-bold"
-                            >
-                              in
-                            </a>
-                          )}
-                        </div>
+                      <td className="px-4 py-3 text-[#94a3b8]">{buyer.contact}</td>
+                      <td className="px-2 py-3 text-center">
+                        {buyer.linkedin_url ? (
+                          <a
+                            href={buyer.linkedin_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="LinkedIn 프로필 열기"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center justify-center w-7 h-7 rounded bg-[#0a66c2]/15 text-[#0a66c2] hover:bg-[#0a66c2]/25 transition text-xs font-bold"
+                          >
+                            in
+                          </a>
+                        ) : (
+                          <span className="text-[#475569]">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-[#94a3b8]">{buyer.title}</td>
                       <td className="px-4 py-3 text-[#94a3b8]">{buyer.email}</td>

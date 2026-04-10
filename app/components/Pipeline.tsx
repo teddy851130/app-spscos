@@ -191,38 +191,29 @@ export default function Pipeline() {
     if (file) processCSVFile(file);
   }
 
-  // 드래그 카운터 (자식 요소 진입/이탈 시 깜박임 방지)
-  const dragCounter = useRef(0);
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }
 
   function handleDragEnter(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     e.stopPropagation();
-    dragCounter.current++;
-    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
-      setIsDragging(true);
-    }
-  }
-
-  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = 'copy';
+    setIsDragging(true);
   }
 
   function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     e.stopPropagation();
-    dragCounter.current--;
-    if (dragCounter.current === 0) setIsDragging(false);
+    setIsDragging(false);
   }
 
   function handleDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    dragCounter.current = 0;
-    if (isUploading) return;
-    const file = e.dataTransfer.files?.[0];
+    const file = e.dataTransfer.files[0];
     if (file) processCSVFile(file);
   }
 
