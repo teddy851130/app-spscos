@@ -168,17 +168,20 @@ async function agentC(sb: SB, jobId: string, _team: string) {
 
   for (const b of buyers) {
     try {
-      const prompt = `You are a B2B analyst for SPS Cosmetics (spscos.com), a Korean OEM/ODM manufacturer.
-Company: ${b.company_name} | Domain: ${b.domain || b.website}
-Region: ${b.region} | Tier: ${b.tier} | Revenue: $${b.annual_revenue || "Unknown"}
-Employees: ${b.employee_count || "Unknown"} | Open Jobs: ${b.open_jobs_signal ? "Yes" : "No"}
+      const prompt = `당신은 한국 OEM/ODM 화장품 제조사 SPS Cosmetics(spscos.com)의 B2B 애널리스트입니다.
+아래 바이어 기업을 분석해주세요.
 
-Analyze and return ONLY a JSON object (no markdown):
+기업명: ${b.company_name}
+도메인: ${b.domain || b.website}
+지역: ${b.region} | Tier: ${b.tier} | 매출: $${b.annual_revenue || "미상"}
+직원 수: ${b.employee_count || "미상"} | 채용 공고: ${b.open_jobs_signal ? "있음" : "없음"}
+
+모든 필드 값을 **한국어로** 작성하세요. JSON 형식으로만 응답 (마크다운 금지):
 {
-  "company_status": "1-2 sentence summary of recent products, campaigns, or partnerships",
-  "kbeauty_interest": "Korean beauty brand history and interest level (low/medium/high with reasoning)",
-  "recommended_formula": "Match to spscos.com categories: skincare→serums/creams, bodycare→lotions/oils, color→lip/eye, haircare→shampoo/treatment. List 3-5 specific products.",
-  "proposal_angle": "One-line pitch angle for approaching this company"
+  "company_status": "최근 제품·캠페인·파트너십 등 기업 현황 1~2문장 요약 (한국어)",
+  "kbeauty_interest": "한국 화장품 브랜드 이력 및 K-beauty 관심도 — 낮음/중간/높음 중 하나를 판단 근거와 함께 (한국어)",
+  "recommended_formula": "SPS 카테고리 매칭 — 스킨케어(세럼/크림), 바디케어(로션/오일), 컬러(립/아이), 헤어케어(샴푸/트리트먼트) 중 3~5개 제품 구체 추천 (한국어, 쉼표 구분)",
+  "proposal_angle": "이 기업에 접근할 한 줄 영업 제안 각도 (한국어)"
 }`;
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {

@@ -467,62 +467,45 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
               </div>
             ) : intel ? (
               <div className="space-y-4">
-                {/* Overview */}
+                {/* 회사 현황 (company_status) */}
                 <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4">
-                  <div className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wide mb-2">회사 개요</div>
-                  <p className="text-xs text-[#e2e8f0] leading-relaxed">{intel.overview}</p>
+                  <div className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wide mb-2">🏢 회사 현황</div>
+                  <p className="text-xs text-[#e2e8f0] leading-relaxed whitespace-pre-wrap">
+                    {intel.overview || '정보 없음'}
+                  </p>
                 </div>
 
-                {/* Products */}
-                {intel.products && intel.products.length > 0 && (
-                  <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4">
-                    <div className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wide mb-2">주요 제품 카테고리</div>
+                {/* K-beauty 관심도 (kbeauty_interest) */}
+                <div className="bg-[#1e3a5f30] border border-[#3b82f640] rounded-lg p-4">
+                  <div className="text-xs font-semibold text-[#60a5fa] uppercase tracking-wide mb-2">💡 K-beauty 관심도</div>
+                  <p className="text-xs text-[#93c5fd] leading-relaxed whitespace-pre-wrap">
+                    {intel.why_kbeauty || '정보 없음'}
+                  </p>
+                </div>
+
+                {/* 추천 포뮬라 (recommended_formula) */}
+                <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4">
+                  <div className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wide mb-2">🧪 추천 포뮬라</div>
+                  {intel.products && intel.products.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {intel.products.map((p: string, i: number) => (
-                        <span key={i} className="text-xs bg-[#334155] text-[#94a3b8] px-2 py-1 rounded">
+                        <span key={i} className="text-xs bg-[#334155] text-[#e2e8f0] px-2 py-1 rounded">
                           {p}
                         </span>
                       ))}
                     </div>
-                  </div>
-                )}
-
-                {/* Why K-Beauty */}
-                <div className="bg-[#1e3a5f30] border border-[#3b82f640] rounded-lg p-4">
-                  <div className="text-xs font-semibold text-[#60a5fa] uppercase tracking-wide mb-2">💡 K-Beauty OEM 기회</div>
-                  <p className="text-xs text-[#93c5fd] leading-relaxed">{intel.why_kbeauty}</p>
+                  ) : (
+                    <p className="text-xs text-[#64748b]">정보 없음</p>
+                  )}
                 </div>
 
-                {/* Personalization Hooks */}
-                {intel.personalization_hooks && intel.personalization_hooks.length > 0 && (
-                  <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4">
-                    <div className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wide mb-2">✉ 이메일 개인화 포인트</div>
-                    <ul className="space-y-2">
-                      {intel.personalization_hooks.map((hook: string, i: number) => (
-                        <li key={i} className="flex items-start gap-2 text-xs text-[#e2e8f0]">
-                          <span className="text-[#22c55e] font-bold flex-shrink-0 mt-0.5">{i + 1}.</span>
-                          <span className="leading-relaxed">{hook}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Website Insights */}
-                {intel.website_insights && (
-                  <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4">
-                    <div className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wide mb-2">🌐 웹사이트 인사이트</div>
-                    <p className="text-xs text-[#94a3b8] leading-relaxed">{intel.website_insights}</p>
-                  </div>
-                )}
-
-                {/* Tier Note */}
-                {intel.tier_note && (
-                  <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4">
-                    <div className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wide mb-2">📋 영업 전략 노트</div>
-                    <p className="text-xs text-[#94a3b8] leading-relaxed">{intel.tier_note}</p>
-                  </div>
-                )}
+                {/* 제안 앵글 (proposal_angle) */}
+                <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4">
+                  <div className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wide mb-2">🎯 제안 앵글</div>
+                  <p className="text-xs text-[#e2e8f0] leading-relaxed whitespace-pre-wrap">
+                    {intel.tier_note || '정보 없음'}
+                  </p>
+                </div>
 
                 {/* "이 인텔로 이메일 생성" 버튼 (#6) */}
                 <div className="pt-2">

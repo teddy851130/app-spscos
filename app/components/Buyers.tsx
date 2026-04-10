@@ -70,12 +70,11 @@ export default function Buyers() {
         if (error) {
           console.error('Buyers fetch error:', error);
         } else if (data) {
-          const mapped = data.map((row: any) => {
-            // primary contact 우선, 없으면 첫번째 contact 사용
+          // 담당자별로 행을 펼침 — 같은 기업 담당자 N명이면 N행으로 표시
+          // 기업 정보(회사/사이트/리전/Tier)는 각 행에 모두 반복 표시 (옵션 B)
+          const mapped = (data as any[]).flatMap((row: any) => {
             const contacts = (row.buyer_contacts || []) as any[];
-            const primary = contacts.find((c) => c.is_primary) || contacts[0];
-
-            return {
+            const base = {
               id: row.id,
               company: row.company_name || '',
               domain: row.domain || '',
@@ -83,17 +82,45 @@ export default function Buyers() {
               team: row.team || row.region || '',
               tier: row.tier || 'Tier2',
               tierDisplay: displayTier(row.tier || 'Tier2'),
-              contact: primary?.contact_name || row.contact_name || '',
-              title: primary?.contact_title || row.contact_title || '',
-              email: primary?.contact_email || row.contact_email || '',
               website: row.website || '',
-              linkedin_url: primary?.linkedin_url || row.linkedin_url || '',
               lastSent: row.last_sent_at ? new Date(row.last_sent_at).toLocaleDateString('ko-KR') : '미발송',
               status: mapStatus(row.status),
               is_blacklisted: row.is_blacklisted || false,
               annual_revenue: row.annual_revenue,
               discovered_at: row.discovered_at,
             };
+
+            // 담당자가 없으면 buyers 테이블의 레거시 contact 필드로 1행 생성
+            if (contacts.length === 0) {
+              return [{
+                ...base,
+                rowKey: `${row.id}-none`,
+                contactId: null,
+                contact: row.contact_name || '',
+                title: row.contact_title || '',
+                email: row.contact_email || '',
+                linkedin_url: row.linkedin_url || '',
+                isPrimaryContact: true,
+              }];
+            }
+
+            // primary 담당자 먼저 정렬 후 각 담당자별로 1행씩
+            const sorted = [...contacts].sort((a, b) => {
+              if (a.is_primary && !b.is_primary) return -1;
+              if (!a.is_primary && b.is_primary) return 1;
+              return 0;
+            });
+
+            return sorted.map((c, idx) => ({
+              ...base,
+              rowKey: `${row.id}-${c.contact_email || idx}`,
+              contactId: c.id ?? null,
+              contact: c.contact_name || '',
+              title: c.contact_title || '',
+              email: c.contact_email || '',
+              linkedin_url: c.linkedin_url || '',
+              isPrimaryContact: !!c.is_primary,
+            }));
           });
           setBuyers(mapped);
           setTotalCount(count || data.length);
@@ -395,7 +422,7 @@ export default function Buyers() {
                     : 'bg-[#3b82f6]/20 text-[#3b82f6]';
 
                   return (
-                    <tr key={buyer.id} className="border-b border-[#334155] hover:bg-[#273549]">
+                    <tr key={buyer.rowKey || buyer.id} className="border-b border-[#334155] hover:bg-[#273549]">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div
