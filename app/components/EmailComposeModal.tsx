@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { parseIntelJson } from './BuyerIntelDrawer';
 
@@ -125,36 +125,14 @@ SPS Cosmetics | spscos.com`;
 
   useEffect(() => {
     if (isOpen) {
+      // 기본값: 영문/국문 템플릿. Claude 초개인화는 "바이어 인텔" 탭의
+      // "이 인텔로 이메일 재생성" 버튼에서 별도 트리거됨 (모달 자동 호출 X).
       const firstName = buyer.contact.split(' ')[0];
       setEmailBody(englishEmailTemplate(firstName, buyer.company, buyer.region));
       setKoreanBody(koreanEmailTemplate(firstName, buyer.company, buyer.region));
       setIntel(null);
       setIntelLoaded(false);
       document.body.style.overflow = 'hidden';
-
-      // Call AI draft API
-      (async () => {
-        try {
-          const res = await fetch('/api/draft-email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              buyer_name: buyer.contact,
-              company: buyer.company,
-              region: buyer.region,
-              tier: buyer.tier,
-              products: 'skincare, cosmetics OEM/ODM',
-            }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.body) setEmailBody(data.body);
-            if (data.subject) setSubject(data.subject);
-          }
-        } catch {
-          // Keep template fallback
-        }
-      })();
     } else {
       document.body.style.overflow = 'unset';
     }
@@ -170,41 +148,47 @@ SPS Cosmetics | spscos.com`;
     }
   }, [currentTab, isOpen]);
 
-  const getMailButtonLabel = () => {
-    if (buyer.status === '회신받음') return '팔로업';
-    if (buyer.status === '발송완료') return '재발송';
-    return '첫 발송';
-  };
-
   const handleSend = async () => {
     if (!buyer.email) {
       alert('이메일 주소가 없습니다. 바이어 DB를 확인해주세요.');
       return;
     }
+    if (!subject.trim() || !emailBody.trim()) {
+      alert('제목과 본문을 모두 입력해주세요.');
+      return;
+    }
     setIsLoading(true);
     try {
-      const res = await fetch('/api/email/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      // Supabase Edge Function 'send-email' 호출 (Gmail SMTP 발송 + email_logs 기록)
+      const { data, error } = await supabase.functions.invoke('send-email', {
+        body: {
           to: buyer.email,
           toName: buyer.contact,
-          company: buyer.company,
           subject,
           body: emailBody,
-          buyerId: (buyer as any).id || null,
-        }),
+          buyerId: buyer.id || null,
+        },
       });
-      const data = await res.json();
-      if (data.success) {
-        setShowToast(true);
-        onClose();
-        setTimeout(() => setShowToast(false), 5000);
-      } else {
-        alert(data.message || '발송 실패: ' + (data.error || '알 수 없는 오류'));
+
+      if (error) {
+        // Edge Function 호출 자체 실패 (네트워크, 함수 미배포 등)
+        throw new Error(error.message || 'Edge Function 호출 실패');
       }
-    } catch (err: any) {
-      alert('발송 오류: ' + err.message);
+      if (!data?.success) {
+        // Edge Function은 응답했지만 발송 실패
+        throw new Error(data?.error || '알 수 없는 발송 오류');
+      }
+
+      // 발송 성공 — 로그 기록 경고가 있으면 콘솔에만 남기고 사용자에겐 성공 알림
+      if (data.warning) {
+        console.warn('[send-email]', data.warning);
+      }
+      setShowToast(true);
+      onClose();
+      setTimeout(() => setShowToast(false), 5000);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert('발송 실패: ' + msg);
     } finally {
       setIsLoading(false);
     }
