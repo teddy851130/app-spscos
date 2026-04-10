@@ -44,6 +44,7 @@ export default function Pipeline() {
   const [csvUploaded, setCsvUploaded] = useState(false);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Pipeline state
@@ -96,9 +97,11 @@ export default function Pipeline() {
     return rows;
   }
 
-  async function handleCSVUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function processCSVFile(file: File) {
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      setSuccessMessage('오류: CSV 파일만 업로드 가능합니다.');
+      return;
+    }
 
     setIsUploading(true);
     setUploadResult(null);
@@ -181,6 +184,33 @@ export default function Pipeline() {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  }
+
+  function handleFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) processCSVFile(file);
+  }
+
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragging) setIsDragging(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only deactivate if leaving the dropzone itself (not children)
+    if (e.currentTarget === e.target) setIsDragging(false);
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (isUploading || isRunning) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) processCSVFile(file);
   }
 
   // ─── Pipeline Execution (3 teams parallel) ───
@@ -372,7 +402,7 @@ export default function Pipeline() {
                 ref={fileInputRef}
                 type="file"
                 accept=".csv"
-                onChange={handleCSVUpload}
+                onChange={handleFileInputChange}
                 className="hidden"
               />
               <button
@@ -404,12 +434,32 @@ export default function Pipeline() {
             </div>
           </div>
 
-          {/* CSV 컬럼 가이드 */}
+          {/* CSV Drag & Drop Zone */}
           {!csvUploaded && !isRunning && (
-            <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-3 mb-4">
-              <div className="text-xs font-semibold text-[#94a3b8] mb-1">CSV 컬럼 형식</div>
-              <div className="text-xs text-[#64748b] font-mono break-all">
-                {CSV_COLUMNS.join(', ')}
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => !isUploading && fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-lg p-6 mb-4 text-center cursor-pointer transition-all ${
+                isDragging
+                  ? 'border-[#3b82f6] bg-[#3b82f6]/10 scale-[1.01]'
+                  : 'border-[#334155] bg-[#0f172a] hover:border-[#475569] hover:bg-[#0f172a]/80'
+              } ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <div className="text-3xl mb-2">{isDragging ? '⬇️' : '📄'}</div>
+              <div className={`text-sm font-semibold mb-1 ${isDragging ? 'text-[#3b82f6]' : 'text-[#f1f5f9]'}`}>
+                {isUploading
+                  ? '업로드 중...'
+                  : isDragging
+                    ? '여기에 파일을 놓으세요'
+                    : 'CSV 파일을 드래그하거나 클릭하여 선택'}
+              </div>
+              <div className="text-xs text-[#64748b] mb-3">
+                .csv 파일만 지원
+              </div>
+              <div className="text-xs text-[#475569] font-mono break-all max-w-2xl mx-auto">
+                컬럼: {CSV_COLUMNS.join(', ')}
               </div>
             </div>
           )}
