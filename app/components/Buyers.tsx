@@ -85,7 +85,7 @@ export default function Buyers() {
         setLoading(true);
         const { data, error, count } = await supabase
           .from('buyers')
-          .select('*, buyer_contacts(linkedin_url, contact_name, contact_email, contact_title, is_primary)', { count: 'exact' })
+          .select('*, buyer_contacts(id, linkedin_url, contact_name, contact_email, contact_title, is_primary, contact_status)', { count: 'exact' })
           .order('created_at', { ascending: false });
 
         if (error) {
@@ -142,6 +142,8 @@ export default function Buyers() {
               email: c.contact_email || '',
               linkedin_url: c.linkedin_url || '',
               isPrimaryContact: !!c.is_primary,
+              // 담당자별 독립 상태: contact_status가 있으면 우선, 없으면 buyers.status 상속
+              status: mapStatus(c.contact_status || row.status),
             }));
           });
           setBuyers(mapped);
@@ -251,10 +253,12 @@ export default function Buyers() {
     );
   };
 
-  // 상태 변경 드롭다운 핸들러 — DB 영어 enum으로 UPDATE + 로컬 한국어로 반영
-  const handleStatusChange = async (buyerId: string, newStatus: string) => {
+  // 상태 변경 드롭다운 핸들러 — 담당자별 독립 상태 관리
+  // contactId 있으면 → buyer_contacts.contact_status UPDATE (담당자 단위)
+  // contactId 없으면 → buyers.status UPDATE (레거시, 담당자 없는 바이어)
+  const handleStatusChange = async (buyerId: string, contactId: string | null, newStatus: string) => {
     // 특정 상태 전환 시 메모 입력 (MVP: window.prompt)
-    // TODO: 나중에 모달로 개선
+    // TODO: Step 4에서 buyer_activities 도입 시 정식 이력 관리로 전환
     let note = '';
     if (newStatus === 'Lost') {
       const reason = window.prompt('탈락 사유를 입력하세요 (무응답/경쟁사/예산/기타):');
@@ -270,41 +274,59 @@ export default function Buyers() {
       if (memo) note = `[${newStatus}] ${memo}`;
     }
 
-    // DB UPDATE
-    const timestamp = new Date().toLocaleDateString('ko-KR');
-    const buyer = buyers.find((b) => b.id === buyerId);
-    const updateData: Record<string, unknown> = {
-      status: newStatus,
-      updated_at: new Date().toISOString(),
-    };
-    if (note && buyer) {
-      const existing = (buyer as any).notes || '';
-      updateData.notes = existing
-        ? `${existing}\n[${timestamp}] ${note}`
+    // DB UPDATE — contactId 유무로 분기
+    if (contactId) {
+      // 담당자별 독립 상태 변경
+      const { error } = await supabase
+        .from('buyer_contacts')
+        .update({ contact_status: newStatus })
+        .eq('id', contactId);
+
+      if (error) {
+        alert('상태 변경 실패: ' + error.message);
+        return;
+      }
+    } else {
+      // 레거시 (담당자 없는 바이어) — buyers.status 변경
+      const { error } = await supabase
+        .from('buyers')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', buyerId);
+
+      if (error) {
+        alert('상태 변경 실패: ' + error.message);
+        return;
+      }
+    }
+
+    // 메모가 있으면 buyers.notes에 append (담당자 이름 포함)
+    if (note) {
+      const timestamp = new Date().toLocaleDateString('ko-KR');
+      const buyer = buyers.find((b) => b.id === buyerId && ((b as any).contactId === contactId || !contactId));
+      const contactName = (buyer as any)?.contact || '';
+      const existing = (buyer as any)?.notes || '';
+      const fullNote = contactId
+        ? `[${timestamp}] [${contactName}] ${note}`
         : `[${timestamp}] ${note}`;
+      const newNotes = existing ? `${existing}\n${fullNote}` : fullNote;
+
+      await supabase
+        .from('buyers')
+        .update({ notes: newNotes })
+        .eq('id', buyerId);
     }
 
-    const { error } = await supabase
-      .from('buyers')
-      .update(updateData)
-      .eq('id', buyerId);
-
-    if (error) {
-      alert('상태 변경 실패: ' + error.message);
-      return;
-    }
-
-    // 로컬 state 업데이트 (화면 즉시 반영)
+    // 로컬 state — contactId가 있으면 해당 행만, 없으면 buyerId 행만 업데이트
     setBuyers((prev) =>
-      prev.map((b) =>
-        b.id === buyerId
-          ? {
-              ...b,
-              status: mapStatus(newStatus),
-              ...(updateData.notes ? { notes: updateData.notes as string } : {}),
-            }
-          : b
-      )
+      prev.map((b) => {
+        if (contactId && (b as any).contactId === contactId) {
+          return { ...b, status: mapStatus(newStatus) };
+        }
+        if (!contactId && b.id === buyerId && !(b as any).contactId) {
+          return { ...b, status: mapStatus(newStatus) };
+        }
+        return b;
+      })
     );
   };
 
@@ -570,7 +592,7 @@ export default function Buyers() {
                       <td className="px-4 py-3">
                         <select
                           value={reverseMapStatus(buyer.status)}
-                          onChange={(e) => handleStatusChange(buyer.id, e.target.value)}
+                          onChange={(e) => handleStatusChange(buyer.id, (buyer as any).contactId, e.target.value)}
                           onClick={(e) => e.stopPropagation()}
                           className={`text-xs px-2 py-1 rounded border-0 cursor-pointer outline-none ${statusColorClass(buyer.status)}`}
                         >
