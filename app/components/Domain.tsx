@@ -31,8 +31,8 @@ export default function Domain() {
         const sent = buyers.filter((b) => !isUnsent(b.status));
         setEmailStats({
           total: sent.length,
-          bounced: buyers.filter((b) => b.status === '반송됨' || b.status === 'Bounced').length,
-          replied: buyers.filter((b) => b.status === '회신받음' || b.status === 'Replied').length,
+          bounced: buyers.filter((b) => b.status === 'Bounced').length,
+          replied: buyers.filter((b) => b.status === 'Replied').length,
         });
       }
     }

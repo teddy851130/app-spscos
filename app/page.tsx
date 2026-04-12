@@ -61,10 +61,11 @@ export default function Home() {
       const notifs: Notification[] = [];
 
       // 1. 회신받음 buyers → reply 알람
+      // DB는 영어 enum만 허용 — 'Replied'로 쿼리해야 실제 데이터 반환
       const { data: replied } = await supabase
         .from('buyers')
         .select('id, company_name, updated_at, last_sent_at')
-        .eq('status', '회신받음')
+        .eq('status', 'Replied')
         .order('updated_at', { ascending: false })
         .limit(5);
 
@@ -85,7 +86,7 @@ export default function Home() {
       const { data: bounced } = await supabase
         .from('buyers')
         .select('id, company_name, updated_at')
-        .eq('status', '반송됨')
+        .eq('status', 'Bounced')
         .order('updated_at', { ascending: false })
         .limit(3);
 

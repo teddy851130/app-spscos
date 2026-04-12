@@ -91,15 +91,16 @@ export default function Dashboard() {
         const thisWeekSent = buyers.filter(
           (b) => b.last_sent_at && new Date(b.last_sent_at) >= oneWeekAgo
         );
-        const totalSent = buyers.filter((b) => b.status !== '미발송');
-        const totalReplied = buyers.filter((b) => b.status === '회신받음');
+        // DB status는 영어 enum — 'Cold'가 미발송 상태
+        const totalSent = buyers.filter((b) => b.status && b.status !== 'Cold');
+        const totalReplied = buyers.filter((b) => b.status === 'Replied');
 
         const replyRate = totalSent.length > 0
           ? Math.round((totalReplied.length / totalSent.length) * 100 * 10) / 10
           : 0;
 
         // 전달율: 실제 반송 기반 계산
-        const totalBounced = buyers.filter((b) => b.status === '반송됨');
+        const totalBounced = buyers.filter((b) => b.status === 'Bounced');
         const deliveryRate = totalSent.length > 0
           ? Math.round(((totalSent.length - totalBounced.length) / totalSent.length) * 1000) / 10
           : 0;
@@ -122,8 +123,8 @@ export default function Dashboard() {
 
         const stats: TeamStat[] = regions.map(({ key, flag }) => {
           const regionBuyers = buyers.filter((b) => b.region === key);
-          const regionSent = regionBuyers.filter((b) => b.status !== '미발송');
-          const regionReplied = regionBuyers.filter((b) => b.status === '회신받음');
+          const regionSent = regionBuyers.filter((b) => b.status && b.status !== 'Cold');
+          const regionReplied = regionBuyers.filter((b) => b.status === 'Replied');
           const rate = regionSent.length > 0
             ? Math.round((regionReplied.length / regionSent.length) * 100 * 10) / 10
             : 0;
@@ -160,7 +161,7 @@ export default function Dashboard() {
 
         // Recent replies
         const replied = buyers
-          .filter((b) => b.status === '회신받음')
+          .filter((b) => b.status === 'Replied')
           .slice(0, 4)
           .map((b) => ({
             from: b.contact_name || '담당자',

@@ -47,10 +47,12 @@ export default function Emails() {
           setUsingFallback(false);
         } else {
           // 2차: buyers 테이블에서 발송 기록이 있는 바이어 조회
+          // 2차 폴백: buyers 테이블에서 발송 기록 있는 바이어
+          // DB status는 영어 enum → email_logs.status 형식('sent'/'replied'/'bounced')으로 매핑
           const { data: buyers } = await supabase
             .from('buyers')
             .select('id, region, company_name, contact_email, contact_name, status, last_sent_at')
-            .not('status', 'eq', '미발송')
+            .not('status', 'eq', 'Cold')
             .order('last_sent_at', { ascending: false });
 
           if (buyers && buyers.length > 0) {
@@ -61,7 +63,10 @@ export default function Emails() {
               company: b.company_name || '',
               region: b.region || '',
               subject: 'K-Beauty OEM Partnership Opportunity — SPS International',
-              status: b.status || '발송완료',
+              // buyers.status → email_logs.status 형식 매핑
+              status: b.status === 'Replied' ? 'replied'
+                    : b.status === 'Bounced' ? 'bounced'
+                    : 'sent',
               sent_at: b.last_sent_at || new Date().toISOString(),
               buyer_id: b.id,
             }));
@@ -85,19 +90,18 @@ export default function Emails() {
 
   const filtered = emails.filter((e) => {
     if (teamFilter && e.region !== teamFilter) return false;
-    if (statusFilter) {
-      const map: Record<string, string> = { sent: '발송완료', replied: '회신받음', bounced: '반송됨' };
-      if (e.status !== map[statusFilter]) return false;
-    }
+    // email_logs.status와 buyers 매핑 모두 영어 (sent/replied/bounced)
+    if (statusFilter && e.status !== statusFilter) return false;
     if (dateFrom && e.sent_at && e.sent_at < dateFrom) return false;
     if (dateTo && e.sent_at && e.sent_at > dateTo + 'T23:59:59Z') return false;
     return true;
   });
 
   // Count by status for the legend
-  const repliedCount = filtered.filter((e) => e.status === '회신받음').length;
-  const sentCount = filtered.filter((e) => e.status === '발송완료').length;
-  const bouncedCount = filtered.filter((e) => e.status === '반송됨').length;
+  // email_logs.status 영어 기준 카운트
+  const repliedCount = filtered.filter((e) => e.status === 'replied').length;
+  const sentCount = filtered.filter((e) => e.status === 'sent' || e.status === 'opened').length;
+  const bouncedCount = filtered.filter((e) => e.status === 'bounced').length;
 
   return (
     <div className="flex-1 overflow-y-auto h-full">
@@ -222,14 +226,14 @@ export default function Emails() {
                       <td className="px-4 py-3">
                         <span
                           className={`text-xs px-2 py-1 rounded ${
-                            email.status === '회신받음'
+                            email.status === 'replied'
                               ? 'bg-[#22c55e]/20 text-[#22c55e]'
-                              : email.status === '발송완료'
-                              ? 'bg-[#f59e0b]/20 text-[#f59e0b]'
-                              : 'bg-[#ef4444]/20 text-[#ef4444]'
+                              : email.status === 'bounced'
+                              ? 'bg-[#ef4444]/20 text-[#ef4444]'
+                              : 'bg-[#f59e0b]/20 text-[#f59e0b]'
                           }`}
                         >
-                          {email.status === '회신받음' ? '✓ 회신받음' : email.status === '발송완료' ? '📬 발송완료' : '⚠ 반송됨'}
+                          {email.status === 'replied' ? '✓ 회신받음' : email.status === 'bounced' ? '⚠ 반송됨' : '📬 발송완료'}
                         </span>
                       </td>
                     </tr>

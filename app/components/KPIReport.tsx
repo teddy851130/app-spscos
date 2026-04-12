@@ -24,10 +24,10 @@ const TEAM_REGIONS = [
   { team: 'Europe', region: 'Europe', flag: '🇬🇧' },
 ];
 
-// DB stores both English ('Cold','Contacted','Replied','Bounced') and Korean status values
-const isUnsent = (s: string) => !s || s === 'Cold' || s === '미발송';
-const isReplied = (s: string) => s === 'Replied' || s === '회신받음';
-const isBounced = (s: string) => s === 'Bounced' || s === '반송됨';
+// DB는 영어 enum만 저장 — 영어만으로 비교
+const isUnsent = (s: string) => !s || s === 'Cold';
+const isReplied = (s: string) => s === 'Replied';
+const isBounced = (s: string) => s === 'Bounced';
 
 export default function KPIReport() {
   const [activeTab, setActiveTab] = useState('주간');
