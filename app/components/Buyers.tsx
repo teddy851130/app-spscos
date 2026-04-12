@@ -58,6 +58,27 @@ export default function Buyers() {
     return t;
   };
 
+  // 화면 한국어 status → DB 영어 enum 역매핑
+  const reverseMapStatus = (displayStatus: string): string => {
+    if (displayStatus === '미발송') return 'Cold';
+    if (displayStatus === '발송완료') return 'Contacted';
+    if (displayStatus === '회신받음') return 'Replied';
+    if (displayStatus === '반송됨') return 'Bounced';
+    return displayStatus; // Interested, Sample, Deal, Lost는 영어 그대로
+  };
+
+  // 상태별 드롭다운 배경색
+  const statusColorClass = (s: string) => {
+    if (s === '회신받음' || s === 'Replied') return 'bg-[#22c55e]/20 text-[#22c55e]';
+    if (s === '발송완료' || s === 'Contacted') return 'bg-[#f59e0b]/20 text-[#f59e0b]';
+    if (s === '반송됨' || s === 'Bounced') return 'bg-[#ef4444]/20 text-[#ef4444]';
+    if (s === 'Interested') return 'bg-[#3b82f6]/20 text-[#3b82f6]';
+    if (s === 'Sample') return 'bg-[#a855f7]/20 text-[#a855f7]';
+    if (s === 'Deal') return 'bg-[#22c55e]/20 text-[#22c55e]';
+    if (s === 'Lost') return 'bg-[#64748b]/20 text-[#64748b]';
+    return 'bg-[#334155]/50 text-[#94a3b8]'; // Cold/미발송
+  };
+
   useEffect(() => {
     async function fetchBuyers() {
       try {
@@ -85,6 +106,7 @@ export default function Buyers() {
               website: row.website || '',
               lastSent: row.last_sent_at ? new Date(row.last_sent_at).toLocaleDateString('ko-KR') : '미발송',
               status: mapStatus(row.status),
+              notes: row.notes || '',
               is_blacklisted: row.is_blacklisted || false,
               annual_revenue: row.annual_revenue,
               discovered_at: row.discovered_at,
@@ -224,6 +246,63 @@ export default function Buyers() {
       prev.map((b) =>
         b.id === buyerId
           ? { ...b, status: '발송완료', lastSent: new Date().toLocaleDateString('ko-KR') }
+          : b
+      )
+    );
+  };
+
+  // 상태 변경 드롭다운 핸들러 — DB 영어 enum으로 UPDATE + 로컬 한국어로 반영
+  const handleStatusChange = async (buyerId: string, newStatus: string) => {
+    // 특정 상태 전환 시 메모 입력 (MVP: window.prompt)
+    // TODO: 나중에 모달로 개선
+    let note = '';
+    if (newStatus === 'Lost') {
+      const reason = window.prompt('탈락 사유를 입력하세요 (무응답/경쟁사/예산/기타):');
+      if (reason === null) return; // 취소 시 상태 변경 중단
+      note = `[탈락] ${reason}`;
+    } else if (['Interested', 'Sample', 'Deal'].includes(newStatus)) {
+      const labels: Record<string, string> = {
+        Interested: '관심 내용',
+        Sample: '요청 샘플 종류',
+        Deal: '계약 메모',
+      };
+      const memo = window.prompt(`${labels[newStatus]}을(를) 입력하세요 (선택, 빈칸 가능):`) || '';
+      if (memo) note = `[${newStatus}] ${memo}`;
+    }
+
+    // DB UPDATE
+    const timestamp = new Date().toLocaleDateString('ko-KR');
+    const buyer = buyers.find((b) => b.id === buyerId);
+    const updateData: Record<string, unknown> = {
+      status: newStatus,
+      updated_at: new Date().toISOString(),
+    };
+    if (note && buyer) {
+      const existing = (buyer as any).notes || '';
+      updateData.notes = existing
+        ? `${existing}\n[${timestamp}] ${note}`
+        : `[${timestamp}] ${note}`;
+    }
+
+    const { error } = await supabase
+      .from('buyers')
+      .update(updateData)
+      .eq('id', buyerId);
+
+    if (error) {
+      alert('상태 변경 실패: ' + error.message);
+      return;
+    }
+
+    // 로컬 state 업데이트 (화면 즉시 반영)
+    setBuyers((prev) =>
+      prev.map((b) =>
+        b.id === buyerId
+          ? {
+              ...b,
+              status: mapStatus(newStatus),
+              ...(updateData.notes ? { notes: updateData.notes as string } : {}),
+            }
           : b
       )
     );
@@ -489,17 +568,21 @@ export default function Buyers() {
                       <td className="px-4 py-3 text-[#94a3b8]">{buyer.email}</td>
                       <td className="px-4 py-3 text-[#64748b]">{buyer.lastSent}</td>
                       <td className="px-4 py-3">
-                        <span
-                          className={`text-xs px-2 py-1 rounded ${
-                            buyer.status === '회신받음'
-                              ? 'bg-[#22c55e]/20 text-[#22c55e]'
-                              : buyer.status === '발송완료'
-                              ? 'bg-[#f59e0b]/20 text-[#f59e0b]'
-                              : 'bg-[#334155]/50 text-[#94a3b8]'
-                          }`}
+                        <select
+                          value={reverseMapStatus(buyer.status)}
+                          onChange={(e) => handleStatusChange(buyer.id, e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          className={`text-xs px-2 py-1 rounded border-0 cursor-pointer outline-none ${statusColorClass(buyer.status)}`}
                         >
-                          {buyer.status === '회신받음' ? '✓ 회신받음' : buyer.status === '발송완료' ? '📬 발송완료' : '미발송'}
-                        </span>
+                          <option value="Cold">미발송</option>
+                          <option value="Contacted">발송완료</option>
+                          <option value="Replied">회신받음</option>
+                          <option value="Bounced">반송됨</option>
+                          <option value="Interested">관심</option>
+                          <option value="Sample">샘플</option>
+                          <option value="Deal">딜</option>
+                          <option value="Lost">탈락</option>
+                        </select>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <button

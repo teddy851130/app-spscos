@@ -164,6 +164,12 @@ Deno.serve(async (req: Request) => {
 
       if (error) throw error;
       logId = data?.id;
+
+      // buyers.last_sent_at도 갱신 (Dashboard/Emails 정렬 + 팔로업 타이밍 계산용)
+      await sb
+        .from("buyers")
+        .update({ last_sent_at: new Date().toISOString() })
+        .eq("id", buyerId);
     } catch (logErr) {
       const msg = logErr instanceof Error ? logErr.message : String(logErr);
       console.warn(`[send-email] email_logs 기록 실패: ${msg}`);
