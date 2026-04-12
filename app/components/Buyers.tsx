@@ -574,14 +574,20 @@ export default function Buyers() {
                           onClick={(e) => e.stopPropagation()}
                           className={`text-xs px-2 py-1 rounded border-0 cursor-pointer outline-none ${statusColorClass(buyer.status)}`}
                         >
-                          <option value="Cold">미발송</option>
-                          <option value="Contacted">발송완료</option>
-                          <option value="Replied">회신받음</option>
-                          <option value="Bounced">반송됨</option>
-                          <option value="Interested">관심</option>
-                          <option value="Sample">샘플</option>
-                          <option value="Deal">딜</option>
-                          <option value="Lost">탈락</option>
+                          {[
+                            { value: 'Cold', label: '미발송' },
+                            { value: 'Contacted', label: '발송완료' },
+                            { value: 'Replied', label: '회신받음' },
+                            { value: 'Bounced', label: '반송됨' },
+                            { value: 'Interested', label: '관심' },
+                            { value: 'Sample', label: '샘플' },
+                            { value: 'Deal', label: '딜' },
+                            { value: 'Lost', label: '탈락' },
+                          ].map((opt) => (
+                            <option key={opt.value} value={opt.value} style={{ background: '#1e293b', color: '#e2e8f0' }}>
+                              {opt.label}
+                            </option>
+                          ))}
                         </select>
                       </td>
                       <td className="px-4 py-3 text-center">
