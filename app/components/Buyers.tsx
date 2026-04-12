@@ -316,6 +316,27 @@ export default function Buyers() {
         .eq('id', buyerId);
     }
 
+    // buyers.status를 "가장 진행된 담당자 상태"로 동기화 (Dashboard/KPIReport 반영용)
+    if (contactId) {
+      const statusPriority: Record<string, number> = {
+        Deal: 7, Sample: 6, Interested: 5, Replied: 4, Contacted: 3, Bounced: 2, Cold: 1, Lost: 0,
+      };
+      const { data: siblings } = await supabase
+        .from('buyer_contacts')
+        .select('contact_status')
+        .eq('buyer_id', buyerId);
+
+      const bestStatus = (siblings || [])
+        .map((s: { contact_status: string | null }) => s.contact_status)
+        .filter(Boolean)
+        .sort((a, b) => (statusPriority[b!] || 0) - (statusPriority[a!] || 0))[0] || newStatus;
+
+      await supabase
+        .from('buyers')
+        .update({ status: bestStatus, updated_at: new Date().toISOString() })
+        .eq('id', buyerId);
+    }
+
     // 로컬 state — contactId가 있으면 해당 행만, 없으면 buyerId 행만 업데이트
     setBuyers((prev) =>
       prev.map((b) => {

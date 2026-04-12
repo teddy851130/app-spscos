@@ -59,6 +59,8 @@ export default function Home() {
   useEffect(() => {
     async function loadNotifications() {
       const notifs: Notification[] = [];
+      // localStorage에서 읽은 알림 ID 목록 로드 (새로고침 후에도 유지)
+      const readIds: string[] = JSON.parse(localStorage.getItem('sps_read_notifications') || '[]');
 
       // 1. 회신받음 buyers → reply 알람
       // DB는 영어 enum만 허용 — 'Replied'로 쿼리해야 실제 데이터 반환
@@ -77,7 +79,7 @@ export default function Home() {
             title: '회신 수신',
             body: `${b.company_name}에서 회신이 도착했습니다. 팔로업 이메일을 보내세요.`,
             time: timeAgo(b.updated_at || b.last_sent_at || new Date().toISOString()),
-            read: false,
+            read: readIds.includes(`reply-${b.id}`),
           });
         });
       }
@@ -98,7 +100,7 @@ export default function Home() {
             title: '반송 경고',
             body: `${b.company_name} 이메일이 반송되었습니다. 이메일 주소를 확인해주세요.`,
             time: timeAgo(b.updated_at || new Date().toISOString()),
-            read: false,
+            read: readIds.includes(`bounce-${b.id}`),
           });
         });
       }
@@ -147,10 +149,18 @@ export default function Home() {
   }, [notifOpen]);
 
   const markAllRead = () => {
+    const allIds = notifications.map((n) => n.id);
+    const existing: string[] = JSON.parse(localStorage.getItem('sps_read_notifications') || '[]');
+    const merged = [...new Set([...existing, ...allIds])];
+    localStorage.setItem('sps_read_notifications', JSON.stringify(merged));
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
   const markRead = (id: string) => {
+    const existing: string[] = JSON.parse(localStorage.getItem('sps_read_notifications') || '[]');
+    if (!existing.includes(id)) {
+      localStorage.setItem('sps_read_notifications', JSON.stringify([...existing, id]));
+    }
     setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
   };
 
