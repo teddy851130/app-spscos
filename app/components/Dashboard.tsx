@@ -13,6 +13,7 @@ interface BuyerRow {
   contact_name: string;
   contact_email: string;
   last_sent_at: string | null;
+  updated_at: string;
   created_at: string;
   is_blacklisted?: boolean;
   team?: string;
@@ -60,6 +61,11 @@ export default function Dashboard() {
   const [recentReplies, setRecentReplies] = useState<RecentReply[]>([]);
   const [loading, setLoading] = useState(true);
   const [alertDismissed, setAlertDismissed] = useState(false);
+  // North Star Metric: 이번 주 긍정 회신 (Interested/Sample/Deal)
+  const [northStar, setNorthStar] = useState(0);
+  // 바운스율 경고 (> 5% 시 활성)
+  const [bounceAlert, setBounceAlert] = useState(false);
+  const [bounceRate, setBounceRate] = useState(0);
   const [alertTeam, setAlertTeam] = useState<string | null>(null);
   const [todayStats, setTodayStats] = useState({ companies: 0, contacts: 0, tier1: 0, tier2: 0, tier3: 0 });
   const [emailDrafts, setEmailDrafts] = useState<(EmailDraft & { contact_name?: string; company_name?: string })[]>([]);
@@ -76,7 +82,7 @@ export default function Dashboard() {
         // Fetch all buyers
         const { data: buyers, error } = await supabase
           .from('buyers')
-          .select('id, company_name, region, tier, status, contact_name, contact_email, last_sent_at, created_at')
+          .select('id, company_name, region, tier, status, contact_name, contact_email, last_sent_at, updated_at, created_at')
           .order('last_sent_at', { ascending: false });
 
         if (error || !buyers) {
@@ -113,6 +119,24 @@ export default function Dashboard() {
           openRate: 0, // 실제 추적 미설정
           replyRate,
         });
+
+        // North Star Metric: 이번 주 긍정 회신 (Interested/Sample/Deal)
+        const thisMonday = new Date(now);
+        thisMonday.setDate(thisMonday.getDate() - ((thisMonday.getDay() + 6) % 7)); // 이번 주 월요일
+        thisMonday.setHours(0, 0, 0, 0);
+        const positiveStatuses = ['Interested', 'Sample', 'Deal'];
+        const weekPositive = buyers.filter(
+          (b) => positiveStatuses.includes(b.status)
+            && b.updated_at && new Date(b.updated_at) >= thisMonday
+        );
+        setNorthStar(weekPositive.length);
+
+        // 바운스율 경고
+        const bRate = totalSent.length > 0
+          ? Math.round((totalBounced.length / totalSent.length) * 1000) / 10
+          : 0;
+        setBounceRate(bRate);
+        setBounceAlert(bRate > 5);
 
         // Team stats
         const regions = [
@@ -315,6 +339,38 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+
+        {/* Bounce Alert — 바운스율 5% 초과 시 */}
+        {bounceAlert && (
+          <div className="bg-[#7f1d1d]/20 border border-[#ef4444]/25 rounded-xl p-4 flex items-start gap-3">
+            <span className="text-xl flex-shrink-0">🚨</span>
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-[#fca5a5] text-sm">바운스율 경고: {bounceRate}%</div>
+              <p className="text-xs text-[#fca5a5] mt-1">
+                바운스율이 5%를 초과했습니다. 이메일 리스트 점검이 필요합니다. 잘못된 이메일 주소가 있는지 바이어 DB를 확인하세요.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* North Star Metric — 이번 주 긍정 회신 (가장 중요한 단일 지표) */}
+        <div className="bg-gradient-to-r from-[#1e3a5f] to-[#1e293b] border border-[#3b82f6]/30 rounded-xl p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-xs text-[#60a5fa] font-semibold uppercase tracking-wide">North Star — 이번 주 긍정 회신</div>
+              <div className="text-4xl font-bold text-[#f1f5f9] mt-2">{northStar}<span className="text-lg text-[#64748b] ml-1">건</span></div>
+              <div className="text-xs text-[#64748b] mt-2">목표: 주 2건 이상 (Interested / Sample / Deal)</div>
+            </div>
+            <div className={`text-5xl ${northStar >= 2 ? '' : 'opacity-30'}`}>
+              {northStar >= 2 ? '🎯' : '🎯'}
+            </div>
+          </div>
+          {northStar >= 2 ? (
+            <div className="text-xs text-[#22c55e] mt-3 font-semibold">✓ 이번 주 목표 달성!</div>
+          ) : (
+            <div className="text-xs text-[#f59e0b] mt-3">목표까지 {Math.max(2 - northStar, 0)}건 남음</div>
+          )}
+        </div>
 
         {/* KPI Cards */}
         {kpi && (
