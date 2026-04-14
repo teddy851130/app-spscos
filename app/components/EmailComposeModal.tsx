@@ -16,6 +16,8 @@ interface EmailComposeModalProps {
     tier: string;
     status: string;
     website?: string;
+    email_count?: number;   // 발송 횟수 — emailType 자동 결정에 사용
+    contact_id?: string;    // 담당자 UUID — buyer_activities 연결용
   };
 }
 
@@ -160,6 +162,14 @@ SPS Cosmetics | spscos.com`;
     setIsLoading(true);
     try {
       // Supabase Edge Function 'send-email' 호출 (Gmail SMTP 발송 + email_logs 기록)
+      // emailType 자동 결정: 발송 횟수 기반
+      // 0회 → initial, 1회 → followup1, 2회 → followup2, 3회+ → breakup
+      const count = buyer.email_count ?? 0;
+      const autoEmailType = count === 0 ? 'initial'
+        : count === 1 ? 'followup1'
+        : count === 2 ? 'followup2'
+        : 'breakup';
+
       const { data, error } = await supabase.functions.invoke('send-email', {
         body: {
           to: buyer.email,
@@ -167,6 +177,8 @@ SPS Cosmetics | spscos.com`;
           subject,
           body: emailBody,
           buyerId: buyer.id || null,
+          contactId: buyer.contact_id || null,
+          emailType: autoEmailType,
         },
       });
 

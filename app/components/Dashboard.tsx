@@ -18,6 +18,21 @@ interface BuyerRow {
   is_blacklisted?: boolean;
   team?: string;
   discovered_at?: string;
+  next_followup_at?: string | null;
+}
+
+// 팔로업 대기 목록용 인터페이스
+interface FollowupBuyer {
+  id: string;
+  company_name: string;
+  contact_name: string;
+  tier: string;
+  last_sent_at: string | null;
+  next_followup_at: string;
+  contact_email: string;
+  region: string;
+  status: string;
+  badge: 'overdue' | 'today' | 'tomorrow'; // 긴급/오늘/내일 구분
 }
 
 interface KPI {
@@ -73,6 +88,8 @@ export default function Dashboard() {
   const [pendingIntelDrafts, setPendingIntelDrafts] = useState<(EmailDraft & { contact_name?: string; company_name?: string })[]>([]);
   const [systemWarnings, setSystemWarnings] = useState<string[]>([]);
   const [previewDraft, setPreviewDraft] = useState<(EmailDraft & { contact_name?: string; company_name?: string }) | null>(null);
+  // 팔로업 대기 목록
+  const [followupBuyers, setFollowupBuyers] = useState<FollowupBuyer[]>([]);
 
   useEffect(() => {
     async function loadDashboard() {
@@ -286,6 +303,62 @@ export default function Dashboard() {
           setSystemWarnings(warningParts);
         }
 
+        // 팔로업 대기 목록 조회
+        // KST 기준으로 오늘 시작/끝, 내일 끝 계산
+        const kstOffset = 9 * 60 * 60 * 1000; // UTC+9
+        const nowUtc = new Date();
+        const kstNow = new Date(nowUtc.getTime() + kstOffset);
+        const kstTodayStart = new Date(kstNow);
+        kstTodayStart.setHours(0, 0, 0, 0);
+        const kstTodayEnd = new Date(kstNow);
+        kstTodayEnd.setHours(23, 59, 59, 999);
+        const kstTomorrowEnd = new Date(kstTodayEnd.getTime() + 24 * 60 * 60 * 1000);
+
+        // UTC로 변환하여 Supabase 쿼리에 사용
+        const todayStartUtc = new Date(kstTodayStart.getTime() - kstOffset).toISOString();
+        const todayEndUtc = new Date(kstTodayEnd.getTime() - kstOffset).toISOString();
+        const tomorrowEndUtc = new Date(kstTomorrowEnd.getTime() - kstOffset).toISOString();
+
+        const excludeStatuses = ['Lost', 'Deal', 'Bounced'];
+        const { data: followups } = await supabase
+          .from('buyers')
+          .select('id, company_name, contact_name, tier, last_sent_at, next_followup_at, contact_email, region, status')
+          .not('next_followup_at', 'is', null)
+          .lte('next_followup_at', tomorrowEndUtc)
+          .not('status', 'in', `(${excludeStatuses.join(',')})`)
+          .order('next_followup_at', { ascending: true });
+
+        if (followups && followups.length > 0) {
+          const mapped: FollowupBuyer[] = followups.map((b) => {
+            const followupTime = new Date(b.next_followup_at).getTime();
+            const todayStartTime = new Date(todayStartUtc).getTime();
+            const todayEndTime = new Date(todayEndUtc).getTime();
+
+            let badge: 'overdue' | 'today' | 'tomorrow';
+            if (followupTime < todayStartTime) {
+              badge = 'overdue';
+            } else if (followupTime <= todayEndTime) {
+              badge = 'today';
+            } else {
+              badge = 'tomorrow';
+            }
+
+            return {
+              id: b.id,
+              company_name: b.company_name || '',
+              contact_name: b.contact_name || '담당자',
+              tier: b.tier || '',
+              last_sent_at: b.last_sent_at,
+              next_followup_at: b.next_followup_at,
+              contact_email: b.contact_email || '',
+              region: b.region || '',
+              status: b.status || '',
+              badge,
+            };
+          });
+          setFollowupBuyers(mapped);
+        }
+
       } catch (err) {
         console.error('Dashboard error:', err);
       } finally {
@@ -430,6 +503,100 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* 팔로업 대기 목록 — 건수가 0이면 안 보임 */}
+        {followupBuyers.length > 0 ? (
+          <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-lg">📋</span>
+              <div className="text-sm font-semibold text-[#f1f5f9]">
+                팔로업 필요 ({followupBuyers.length}건)
+              </div>
+            </div>
+            <div className="space-y-2 max-h-[320px] overflow-y-auto">
+              {followupBuyers.map((buyer) => {
+                // 배지 스타일 결정
+                const badgeConfig = {
+                  overdue: { label: '긴급', className: 'bg-[#ef4444]/20 text-[#ef4444]' },
+                  today: { label: '오늘', className: 'bg-[#f59e0b]/20 text-[#f59e0b]' },
+                  tomorrow: { label: '내일', className: 'bg-[#64748b]/20 text-[#94a3b8]' },
+                }[buyer.badge];
+
+                // 날짜 포맷: M/D
+                const formatDate = (dateStr: string | null) => {
+                  if (!dateStr) return '—';
+                  const d = new Date(dateStr);
+                  return `${d.getMonth() + 1}/${d.getDate()}`;
+                };
+
+                // Tier 배지 색상
+                const tierColor = buyer.tier === 'Tier1'
+                  ? 'bg-[#22c55e]/20 text-[#22c55e]'
+                  : buyer.tier === 'Tier2'
+                    ? 'bg-[#f59e0b]/20 text-[#f59e0b]'
+                    : 'bg-[#64748b]/20 text-[#94a3b8]';
+
+                return (
+                  <div
+                    key={buyer.id}
+                    className="flex items-center gap-3 p-3 bg-[#0f172a] rounded-lg border border-[#334155] hover:border-[#3b82f6]/50 transition"
+                  >
+                    {/* 긴급/오늘/내일 배지 */}
+                    <span className={`text-xs px-2 py-0.5 rounded font-semibold whitespace-nowrap flex-shrink-0 ${badgeConfig.className}`}>
+                      {badgeConfig.label}
+                    </span>
+
+                    {/* 회사명 */}
+                    <span className="text-xs font-semibold text-[#f1f5f9] truncate min-w-0 max-w-[140px]">
+                      {buyer.company_name}
+                    </span>
+
+                    {/* 구분선 */}
+                    <span className="text-[#334155]">|</span>
+
+                    {/* 담당자명 */}
+                    <span className="text-xs text-[#94a3b8] truncate min-w-0 max-w-[80px]">
+                      {buyer.contact_name}
+                    </span>
+
+                    {/* Tier 배지 */}
+                    <span className={`text-xs px-1.5 py-0.5 rounded font-semibold whitespace-nowrap flex-shrink-0 ${tierColor}`}>
+                      {buyer.tier}
+                    </span>
+
+                    {/* 마지막 발송 / 팔로업 예정 */}
+                    <span className="text-xs text-[#64748b] whitespace-nowrap flex-shrink-0">
+                      마지막 발송: {formatDate(buyer.last_sent_at)}
+                    </span>
+                    <span className="text-xs text-[#64748b] whitespace-nowrap flex-shrink-0">
+                      팔로업 예정: {formatDate(buyer.next_followup_at)}
+                    </span>
+
+                    {/* 메일 작성 버튼 */}
+                    {/* TODO: EmailComposeModal 연결 — Dashboard에 모달 상태 추가 후 onEmailClick(buyer) 구현 필요 */}
+                    <button
+                      onClick={() => {
+                        // TODO: EmailComposeModal 열기 (buyer 정보 전달)
+                        // setEmailTarget({ id: buyer.id, company: buyer.company_name, contact: buyer.contact_name, email: buyer.contact_email, region: buyer.region, tier: buyer.tier, status: buyer.status });
+                        console.log('팔로업 메일 작성:', buyer.company_name, buyer.contact_name);
+                      }}
+                      className="ml-auto text-xs px-3 py-1.5 bg-[#3b82f6]/20 text-[#3b82f6] rounded hover:bg-[#3b82f6]/30 transition whitespace-nowrap flex-shrink-0 font-semibold"
+                    >
+                      메일 작성
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          !loading && (
+            <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4 flex items-center gap-2">
+              <span className="text-sm">✅</span>
+              <span className="text-xs text-[#64748b]">팔로업 대기 없음</span>
+            </div>
+          )
         )}
 
         {/* Charts Section */}

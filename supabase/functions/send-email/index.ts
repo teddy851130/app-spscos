@@ -12,6 +12,8 @@
 //   subject: string      // 제목 (필수)
 //   body: string         // 본문 plain text (필수)
 //   buyerId?: string     // 바이어 UUID — 있으면 email_logs에 기록
+//   contactId?: string   // 담당자 UUID — buyer_activities에 연결 (선택)
+//   emailType?: string   // initial | followup1 | followup2 | breakup (기본값: initial)
 // }
 //
 // 출력 성공: { success: true, message: "발송 완료", logId?: string }
@@ -85,6 +87,8 @@ Deno.serve(async (req: Request) => {
     subject?: string;
     body?: string;
     buyerId?: string;
+    contactId?: string;
+    emailType?: string;
   };
   try {
     payload = await req.json();
@@ -92,7 +96,10 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ success: false, error: "요청 본문 JSON 파싱 실패" }, 400);
   }
 
-  const { to, toName, subject, body: emailBody, buyerId } = payload;
+  const { to, toName, subject, body: emailBody, buyerId, contactId, emailType } = payload;
+  // emailType 유효성 검사 — 허용된 값만 사용
+  const validEmailTypes = ["initial", "followup1", "followup2", "breakup"];
+  const resolvedEmailType = validEmailTypes.includes(emailType ?? "") ? emailType! : "initial";
 
   // 입력 검증
   if (!to || !subject || !emailBody) {
@@ -142,21 +149,24 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  // email_logs 기록 (buyerId가 있을 때만)
+  // email_logs 기록 + buyer_activities + 팔로업 스케줄링 (buyerId가 있을 때만)
   // 발송은 이미 성공했으므로, 로그 실패는 warning으로만 반환하고 success=true 유지
   let logId: string | undefined;
   if (buyerId) {
     try {
       const sb = getSupabase();
+      const now = new Date().toISOString();
+
+      // 1) email_logs에 기록
       const { data, error } = await sb
         .from("email_logs")
         .insert({
           buyer_id: buyerId,
-          email_type: "initial", // TODO: 팔로업 구분은 Step 2에서 처리
+          email_type: resolvedEmailType,
           subject,
           body_en: emailBody,
           status: "sent",
-          sent_at: new Date().toISOString(),
+          sent_at: now,
           pipedrive_bcc_sent: false,
         })
         .select("id")
@@ -165,18 +175,67 @@ Deno.serve(async (req: Request) => {
       if (error) throw error;
       logId = data?.id;
 
-      // buyers.last_sent_at도 갱신 (Dashboard/Emails 정렬 + 팔로업 타이밍 계산용)
+      // 2) buyers.last_sent_at 갱신 + email_count 증가
+      // email_count는 RPC 없이 raw SQL을 쓸 수 없으므로, 현재 값 조회 후 +1
+      const { data: buyerData } = await sb
+        .from("buyers")
+        .select("email_count, tier")
+        .eq("id", buyerId)
+        .single();
+
+      const currentCount = buyerData?.email_count ?? 0;
+      const tier = buyerData?.tier ?? "Tier2";
+
+      // 팔로업 날짜 계산: Tier1은 5일 후, Tier2는 7일 후
+      // breakup 메일이면 팔로업 예약하지 않음
+      let nextFollowup: string | null = null;
+      if (resolvedEmailType !== "breakup") {
+        const followupDays = tier === "Tier1" ? 5 : 7;
+        const followupDate = new Date();
+        followupDate.setDate(followupDate.getDate() + followupDays);
+        nextFollowup = followupDate.toISOString();
+      }
+
       await sb
         .from("buyers")
-        .update({ last_sent_at: new Date().toISOString() })
+        .update({
+          last_sent_at: now,
+          email_count: currentCount + 1,
+          next_followup_at: nextFollowup,
+        })
         .eq("id", buyerId);
+
+      // 3) buyer_activities에 활동 기록
+      const emailTypeLabel: Record<string, string> = {
+        initial: "초기 메일",
+        followup1: "1차 팔로업",
+        followup2: "2차 팔로업",
+        breakup: "마지막 메일",
+      };
+      await sb
+        .from("buyer_activities")
+        .insert({
+          buyer_id: buyerId,
+          contact_id: contactId || null,
+          activity_type: "email_sent",
+          description: `${emailTypeLabel[resolvedEmailType] ?? resolvedEmailType} 발송: ${subject}`,
+          metadata: {
+            email_log_id: logId,
+            email_type: resolvedEmailType,
+            to,
+            subject,
+          },
+          created_by: "system",
+        });
+
+      console.log(`[send-email] 활동 기록 완료: type=${resolvedEmailType}, followup=${nextFollowup}`);
     } catch (logErr) {
       const msg = logErr instanceof Error ? logErr.message : String(logErr);
-      console.warn(`[send-email] email_logs 기록 실패: ${msg}`);
+      console.warn(`[send-email] email_logs/activity 기록 실패: ${msg}`);
       return jsonResponse(
         {
           success: true,
-          warning: `발송은 성공했으나 email_logs 기록 실패: ${msg}`,
+          warning: `발송은 성공했으나 기록 실패: ${msg}`,
           message: "발송 완료 (로그 기록 실패)",
         },
         200,
