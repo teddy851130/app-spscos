@@ -421,25 +421,21 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
 
         {/* No alert if all good */}
         {!alertTeam && !loading && (
-          <div className="bg-[#14532d]/20 border border-[#16a34a]/25 rounded-xl p-4 flex items-start gap-3">
-            <CheckCircle size={20} className="text-[#22c55e] flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="font-semibold text-[#4ade80] text-sm">모든 팀 KPI 정상</div>
-              <p className="text-xs text-[#4ade80] mt-1">현재 등록된 회신 데이터 기준으로 모든 지표가 목표 범위 내에 있습니다.</p>
-            </div>
+          <div className="bg-[#635BFF10] border border-[#635BFF40] rounded-lg p-3 flex items-center gap-3">
+            <CheckCircle size={16} className="text-[#635BFF] flex-shrink-0" />
+            <span className="text-xs text-[#635BFF]">
+              <strong>모든 팀 KPI 정상</strong> — 현재 등록된 회신 데이터 기준으로 모든 지표가 목표 범위 내에 있습니다.
+            </span>
           </div>
         )}
 
         {/* Bounce Alert — 바운스율 5% 초과 시 */}
         {bounceAlert && (
-          <div className="bg-[#7f1d1d]/20 border border-[#ef4444]/25 rounded-xl p-4 flex items-start gap-3">
-            <span className="text-xl flex-shrink-0">🚨</span>
-            <div className="flex-1 min-w-0">
-              <div className="font-semibold text-[#fca5a5] text-sm">바운스율 경고: {bounceRate}%</div>
-              <p className="text-xs text-[#fca5a5] mt-1">
-                바운스율이 5%를 초과했습니다. 이메일 리스트 점검이 필요합니다. 잘못된 이메일 주소가 있는지 바이어 DB를 확인하세요.
-              </p>
-            </div>
+          <div className="bg-[#ef444410] border border-[#ef444440] rounded-lg p-3 flex items-center gap-3">
+            <AlertTriangle size={16} className="text-[#ef4444] flex-shrink-0" />
+            <span className="text-xs text-[#ef4444]">
+              <strong>바운스율 경고: {bounceRate}%</strong> — 이메일 리스트 점검이 필요합니다. 바이어 DB에서 잘못된 이메일 주소를 확인하세요.
+            </span>
           </div>
         )}
 
@@ -699,11 +695,14 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
 
         {/* 시스템 경고 배너 (직원 F) */}
         {systemWarnings.length > 0 && (
-          <div className="p-4 rounded-lg border bg-[#f59e0b]/10 border-[#f59e0b]/30">
-            <div className="text-sm font-semibold text-[#f59e0b] mb-2"><AlertTriangle size={16} className="inline text-[#f59e0b]" /> 시스템 경고 (직원 F)</div>
-            {systemWarnings.map((w, i) => (
-              <div key={i} className="text-xs text-[#fbbf24] mt-1">• {w}</div>
-            ))}
+          <div className="bg-[#f59e0b10] border border-[#f59e0b40] rounded-lg p-3 flex items-start gap-3">
+            <AlertTriangle size={16} className="text-[#f59e0b] flex-shrink-0 mt-0.5" />
+            <div>
+              <span className="text-xs font-semibold text-[#f59e0b]">시스템 경고 (직원 F)</span>
+              {systemWarnings.map((w, i) => (
+                <div key={i} className="text-xs text-[#f59e0b] mt-1">• {w}</div>
+              ))}
+            </div>
           </div>
         )}
 

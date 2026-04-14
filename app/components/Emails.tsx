@@ -174,9 +174,10 @@ export default function Emails() {
 
         {/* Data source note */}
         {usingFallback && (
-          <div className="bg-[#1e3a5f30] border border-[#635BFF40] rounded-lg p-3 mb-4 flex items-center gap-2">
-            <span className="text-xs text-[#93c5fd] flex items-center gap-1">
-              <Info size={16} className="inline text-[#697386]" /> 아직 이메일 발송 기록이 없습니다. 바이어 DB에서 이메일을 발송하면 여기에 표시됩니다.
+          <div className="bg-[#635BFF10] border border-[#635BFF40] rounded-lg p-3 mb-4 flex items-center gap-3">
+            <Info size={16} className="text-[#635BFF] flex-shrink-0" />
+            <span className="text-xs text-[#635BFF]">
+              아직 이메일 발송 기록이 없습니다. <strong>바이어 DB</strong>에서 이메일을 발송하면 여기에 표시됩니다.
             </span>
           </div>
         )}

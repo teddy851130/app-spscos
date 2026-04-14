@@ -51,8 +51,8 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
     <div className="w-[220px] bg-white border-r border-[#e3e8ee] flex flex-col h-screen">
       {/* Logo */}
       <div className="p-6 border-b border-[#e3e8ee]">
-        <div className="font-bold text-base text-[#1a1f36]">SPS International</div>
-        <div className="text-xs text-[#697386] mt-1">Buyer Platform v1.0</div>
+        <div className="font-bold text-base text-[#1a1f36]">Buyer Searching Platform</div>
+        <div className="text-xs text-[#8792a2] mt-1">by SPSCOS</div>
       </div>
 
       {/* Navigation */}

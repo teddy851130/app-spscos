@@ -3,8 +3,8 @@ import "./globals.css";
 import GlobalDragGuard from "./components/GlobalDragGuard";
 
 export const metadata: Metadata = {
-  title: "SPS International - 바이어 발굴 플랫폼",
-  description: "SPS International 바이어 발굴 자동화 플랫폼",
+  title: "Buyer Searching Platform by SPSCOS",
+  description: "Buyer Searching Platform — 바이어 발굴 자동화 플랫폼 by SPSCOS",
 };
 
 export default function RootLayout({

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import EmailComposeModal from './EmailComposeModal';
-import { Mail, Clock, AlertCircle, FileText, ChevronDown, ChevronUp, Send, Eye } from 'lucide-react';
+import { Mail, Clock, AlertCircle, FileText, ChevronDown, ChevronUp, Send, Eye, CheckCircle } from 'lucide-react';
 
 // ── 타입 정의 ──
 
@@ -296,7 +296,7 @@ export default function MailQueue() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#635BFF]" />
         <span className="ml-3 text-[#697386]">메일 큐 로딩 중...</span>
       </div>
     );
@@ -306,7 +306,7 @@ export default function MailQueue() {
   if (totalCount === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-[#697386]">
-        <div className="text-4xl mb-3">&#x2705;</div>
+        <CheckCircle size={40} className="text-[#22c55e] mb-3" />
         <p className="text-lg">오늘 보낼 메일이 없습니다</p>
       </div>
     );
@@ -317,7 +317,7 @@ export default function MailQueue() {
     <div className="p-6 space-y-6">
       {/* 헤더 */}
       <div className="flex items-center gap-3">
-        <Mail className="w-6 h-6 text-blue-400" />
+        <Mail className="w-6 h-6 text-[#635BFF]" />
         <h2 className="text-xl font-bold text-[#1a1f36]">
           오늘 보낼 메일 ({totalCount}건)
         </h2>
@@ -341,7 +341,7 @@ export default function MailQueue() {
               return (
                 <div
                   key={buyer.id}
-                  className="flex items-center justify-between px-4 py-3 hover:bg-[#1a2332] transition-colors"
+                  className="flex items-center justify-between px-4 py-3 hover:bg-[#f6f8fa] transition-colors"
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     {/* 배지: overdue / today */}
@@ -374,7 +374,7 @@ export default function MailQueue() {
                     <span className={`text-xs px-2 py-0.5 rounded shrink-0 ${
                       emailType === '마지막 메일'
                         ? 'bg-red-500/20 text-red-400'
-                        : 'bg-blue-500/20 text-blue-400'
+                        : 'bg-blue-500/20 text-[#635BFF]'
                     }`}>
                       {emailType}
                     </span>
@@ -388,7 +388,7 @@ export default function MailQueue() {
                   {/* 메일 작성 버튼 */}
                   <button
                     onClick={() => handleEmailClick(buyer)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors shrink-0 ml-3"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#635BFF] hover:bg-[#5851DB] text-white text-sm rounded-lg transition-colors shrink-0 ml-3"
                   >
                     <Send className="w-3.5 h-3.5" />
                     메일 작성
@@ -402,7 +402,7 @@ export default function MailQueue() {
           {followups.length > DISPLAY_LIMIT && (
             <button
               onClick={() => setShowAllFollowups(!showAllFollowups)}
-              className="w-full px-4 py-2 text-sm text-blue-400 hover:text-blue-300 hover:bg-[#1a2332] transition-colors flex items-center justify-center gap-1 border-t border-[#e3e8ee]"
+              className="w-full px-4 py-2 text-sm text-[#635BFF] hover:text-[#5851DB] hover:bg-[#f6f8fa] transition-colors flex items-center justify-center gap-1 border-t border-[#e3e8ee]"
             >
               {showAllFollowups ? (
                 <>접기 <ChevronUp className="w-4 h-4" /></>
@@ -418,7 +418,7 @@ export default function MailQueue() {
       {drafts.length > 0 && (
         <div className="bg-[#ffffff] rounded-xl border border-[#e3e8ee] overflow-hidden">
           <div className="px-4 py-3 border-b border-[#e3e8ee] flex items-center gap-2">
-            <FileText className="w-4 h-4 text-purple-400" />
+            <FileText className="w-4 h-4 text-[#635BFF]" />
             <h3 className="text-sm font-semibold text-[#1a1f36]">
               미발송 초안 ({drafts.length}건)
             </h3>
@@ -428,7 +428,7 @@ export default function MailQueue() {
             {displayedDrafts.map((draft) => (
               <div key={draft.id}>
                 <div
-                  className="flex items-center justify-between px-4 py-3 hover:bg-[#1a2332] transition-colors cursor-pointer"
+                  className="flex items-center justify-between px-4 py-3 hover:bg-[#f6f8fa] transition-colors cursor-pointer"
                   onClick={() => setPreviewDraft(previewDraft?.id === draft.id ? null : draft)}
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -480,7 +480,7 @@ export default function MailQueue() {
                             type="text"
                             value={editSubject}
                             onChange={(e) => setEditSubject(e.target.value)}
-                            className="w-full bg-[#ffffff] border border-[#8792a2] rounded px-3 py-2 text-sm text-[#1a1f36] focus:border-blue-500 focus:outline-none"
+                            className="w-full bg-[#ffffff] border border-[#8792a2] rounded px-3 py-2 text-sm text-[#1a1f36] focus:border-[#635BFF] focus:outline-none"
                             placeholder="제목"
                           />
                           {/* 본문 수정 */}
@@ -491,7 +491,7 @@ export default function MailQueue() {
                               // 타이핑할 때마다 스팸 재확인
                               setSpamResult(checkSpamClient(e.target.value));
                             }}
-                            className="w-full bg-[#ffffff] border border-[#8792a2] rounded px-3 py-2 text-sm text-[#1a1f36] focus:border-blue-500 focus:outline-none min-h-[200px] max-h-[400px] resize-y"
+                            className="w-full bg-[#ffffff] border border-[#8792a2] rounded px-3 py-2 text-sm text-[#1a1f36] focus:border-[#635BFF] focus:outline-none min-h-[200px] max-h-[400px] resize-y"
                             placeholder="본문"
                           />
 
@@ -572,7 +572,7 @@ export default function MailQueue() {
                                 }
                                 setSaving(false);
                               }}
-                              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition disabled:opacity-50"
+                              className="px-4 py-1.5 bg-[#635BFF] hover:bg-[#5851DB] text-white text-sm rounded-lg transition disabled:opacity-50"
                             >
                               {saving ? '저장 중...' : '저장'}
                             </button>
@@ -613,7 +613,7 @@ export default function MailQueue() {
           {drafts.length > DISPLAY_LIMIT && (
             <button
               onClick={() => setShowAllDrafts(!showAllDrafts)}
-              className="w-full px-4 py-2 text-sm text-purple-400 hover:text-purple-300 hover:bg-[#1a2332] transition-colors flex items-center justify-center gap-1 border-t border-[#e3e8ee]"
+              className="w-full px-4 py-2 text-sm text-[#635BFF] hover:text-[#5851DB] hover:bg-[#f6f8fa] transition-colors flex items-center justify-center gap-1 border-t border-[#e3e8ee]"
             >
               {showAllDrafts ? (
                 <>접기 <ChevronUp className="w-4 h-4" /></>
