@@ -1,0 +1,21 @@
+# 매일 KPI 스냅샷 자동 수집
+# 한국 시간 오후 11시 (UTC 14:00)에 실행 — 하루 마감 데이터 기록
+name: Daily KPI Snapshot
+
+on:
+  schedule:
+    - cron: '0 14 * * *'  # UTC 14:00 = KST 23:00
+  workflow_dispatch: # 수동 실행도 가능
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: snapshot-kpi Edge Function 호출
+        run: |
+          curl -s -X POST \
+            "${{ secrets.SUPABASE_URL }}/functions/v1/snapshot-kpi" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json" \
+            --max-time 30
+          echo "KPI snapshot completed"
