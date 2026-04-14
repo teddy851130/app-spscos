@@ -12,6 +12,7 @@ import MailQueue from './components/MailQueue';
 import PipelineRunModal from './components/PipelineRunModal';
 import CSVUploadModal from './components/CSVUploadModal';
 import { supabase } from './lib/supabase';
+import AuthGuard from './components/AuthGuard';
 
 const pageConfig: Record<string, { title: string; subtitle: string }> = {
   dashboard: { title: '대시보드', subtitle: '오늘 현황 · ' + new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }) },
@@ -174,6 +175,7 @@ export default function Home() {
   };
 
   return (
+    <AuthGuard>
     <div className="flex h-screen bg-[#0f172a] text-[#f1f5f9]">
       <Sidebar currentPage={currentPage} setCurrentPage={setCurrentPage} />
       <main className="flex-1 flex flex-col overflow-hidden">
@@ -313,5 +315,6 @@ export default function Home() {
         />
       </main>
     </div>
+    </AuthGuard>
   );
 }
