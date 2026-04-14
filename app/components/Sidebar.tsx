@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import {
-  BarChart3, Inbox, Zap, Building2, Mail, TrendingUp, Shield,
+  BarChart3, Inbox, Zap, Building2, Mail, TrendingUp, Shield, LogOut,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { signOut } from './AuthGuard';
 
 interface SidebarProps {
   currentPage: string;
@@ -96,10 +97,17 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
           <div className="w-10 h-10 bg-[#635BFF] rounded-full flex items-center justify-center font-bold text-white">
             신
           </div>
-          <div className="text-sm">
+          <div className="text-sm flex-1">
             <div className="font-semibold text-[#1a1f36]">신동환 CEO</div>
             <div className="text-xs text-[#697386]">teddy@spscos.com</div>
           </div>
+          <button
+            onClick={() => signOut()}
+            className="p-1.5 rounded-lg text-[#8792a2] hover:text-[#ef4444] hover:bg-[#f6f8fa] transition"
+            title="로그아웃"
+          >
+            <LogOut size={16} />
+          </button>
         </div>
       </div>
     </div>
