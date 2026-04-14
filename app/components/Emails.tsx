@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { Check, Inbox, AlertTriangle, Info } from 'lucide-react';
 
 interface EmailLog {
   id: string;
@@ -111,15 +112,15 @@ export default function Emails() {
         <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4 mb-4 flex items-center gap-6">
           <div className="text-xs font-semibold text-[#8792a2] mr-2">상태 아이콘 설명:</div>
           <div className="flex items-center gap-2">
-            <span className="text-xs bg-[#22c55e]/20 text-[#22c55e] px-2 py-1 rounded">✓ 회신받음</span>
+            <span className="text-xs bg-[#22c55e]/20 text-[#22c55e] px-2 py-1 rounded flex items-center gap-1"><Check size={14} className="inline" /> 회신받음</span>
             <span className="text-xs text-[#8792a2]">바이어가 답장을 보낸 상태</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs bg-[#f59e0b]/20 text-[#f59e0b] px-2 py-1 rounded">📬 발송완료</span>
+            <span className="text-xs bg-[#f59e0b]/20 text-[#f59e0b] px-2 py-1 rounded flex items-center gap-1"><Inbox size={16} className="inline" /> 발송완료</span>
             <span className="text-xs text-[#8792a2]">이메일 발송됨, 회신 대기 중</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs bg-[#ef4444]/20 text-[#ef4444] px-2 py-1 rounded">⚠ 반송됨</span>
+            <span className="text-xs bg-[#ef4444]/20 text-[#ef4444] px-2 py-1 rounded flex items-center gap-1"><AlertTriangle size={14} className="inline" /> 반송됨</span>
             <span className="text-xs text-[#8792a2]">이메일 주소 오류 또는 수신 거부</span>
           </div>
         </div>
@@ -162,10 +163,10 @@ export default function Emails() {
           <div className="flex-1" />
           {/* Count badges */}
           <div className="flex items-center gap-2">
-            <span className="text-xs bg-[#22c55e]/20 text-[#22c55e] px-2 py-1 rounded">✓ {repliedCount}</span>
-            <span className="text-xs bg-[#f59e0b]/20 text-[#f59e0b] px-2 py-1 rounded">📬 {sentCount}</span>
+            <span className="text-xs bg-[#22c55e]/20 text-[#22c55e] px-2 py-1 rounded flex items-center gap-1"><Check size={14} className="inline" /> {repliedCount}</span>
+            <span className="text-xs bg-[#f59e0b]/20 text-[#f59e0b] px-2 py-1 rounded flex items-center gap-1"><Inbox size={16} className="inline" /> {sentCount}</span>
             {bouncedCount > 0 && (
-              <span className="text-xs bg-[#ef4444]/20 text-[#ef4444] px-2 py-1 rounded">⚠ {bouncedCount}</span>
+              <span className="text-xs bg-[#ef4444]/20 text-[#ef4444] px-2 py-1 rounded flex items-center gap-1"><AlertTriangle size={14} className="inline" /> {bouncedCount}</span>
             )}
             <span className="text-xs text-[#8792a2]">총 {filtered.length}건</span>
           </div>
@@ -174,8 +175,8 @@ export default function Emails() {
         {/* Data source note */}
         {usingFallback && (
           <div className="bg-[#1e3a5f30] border border-[#635BFF40] rounded-lg p-3 mb-4 flex items-center gap-2">
-            <span className="text-xs text-[#93c5fd]">
-              ℹ️ 아직 이메일 발송 기록이 없습니다. 바이어 DB에서 이메일을 발송하면 여기에 표시됩니다.
+            <span className="text-xs text-[#93c5fd] flex items-center gap-1">
+              <Info size={16} className="inline text-[#697386]" /> 아직 이메일 발송 기록이 없습니다. 바이어 DB에서 이메일을 발송하면 여기에 표시됩니다.
             </span>
           </div>
         )}
@@ -233,7 +234,7 @@ export default function Emails() {
                               : 'bg-[#f59e0b]/20 text-[#f59e0b]'
                           }`}
                         >
-                          {email.status === 'replied' ? '✓ 회신받음' : email.status === 'bounced' ? '⚠ 반송됨' : '📬 발송완료'}
+                          {email.status === 'replied' ? <><Check size={14} className="inline" /> 회신받음</> : email.status === 'bounced' ? <><AlertTriangle size={14} className="inline" /> 반송됨</> : <><Inbox size={16} className="inline" /> 발송완료</>}
                         </span>
                       </td>
                     </tr>

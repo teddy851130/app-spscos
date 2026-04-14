@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Check, X, Send, Search, Bot, Building2, Lightbulb, FlaskConical, Target, Pencil, Sparkles, RefreshCw, Paperclip, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { parseIntelJson } from './BuyerIntelDrawer';
 
@@ -276,17 +277,17 @@ SPS Cosmetics | spscos.com`;
                 <div className="text-base font-bold text-[#1a1f36]">발송 전 최종 검토</div>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="bg-[#22c55e]/20 text-[#22c55e] text-xs px-2 py-0.5 rounded">
-                    ✓ 스팸 점수 85/100 — 안전
+                    <Check size={14} className="inline" /> 스팸 점수 85/100 — 안전
                   </span>
                   {intel && (
                     <span className="bg-[#635BFF]/20 text-[#7A73FF] text-xs px-2 py-0.5 rounded">
-                      🔍 인텔 로드됨
+                      <Search size={14} className="inline" /> 인텔 로드됨
                     </span>
                   )}
                 </div>
               </div>
               <button onClick={onClose} className="text-[#697386] hover:text-[#1a1f36] text-xl font-bold">
-                ✕
+                <X size={18} />
               </button>
             </div>
 
@@ -362,7 +363,7 @@ SPS Cosmetics | spscos.com`;
                         : 'text-[#8792a2] border-transparent hover:text-[#697386]'
                     }`}
                   >
-                    🔍 바이어 인텔
+                    <Search size={14} className="inline" /> 바이어 인텔
                     {intel && !intelLoading && (
                       <span className="absolute top-2 right-3 w-1.5 h-1.5 bg-[#22c55e] rounded-full" />
                     )}
@@ -384,7 +385,7 @@ SPS Cosmetics | spscos.com`;
                           disabled={isLoading}
                           className="text-xs bg-[#635BFF]/20 text-[#7A73FF] px-3 py-1.5 rounded font-semibold hover:bg-[#635BFF]/30 transition disabled:opacity-50"
                         >
-                          ✨ 바이어 인텔로 메일 재생성
+                          <Sparkles size={14} className="inline" /> 바이어 인텔로 메일 재생성
                         </button>
                       )}
                     </div>
@@ -415,27 +416,27 @@ SPS Cosmetics | spscos.com`;
                             </div>
                           ))}
                           <p className="text-xs text-[#8792a2] text-center">
-                            🤖 Claude AI가 {buyer.company} 분석 중...
+                            <Bot size={16} className="inline text-[#635BFF]" /> Claude AI가 {buyer.company} 분석 중...
                           </p>
                         </div>
                       ) : intel ? (
                         <>
-                          {/* 🏢 회사 현황 (company_status) — BuyerIntelDrawer와 통일 */}
+                          {/* 회사 현황 (company_status) — BuyerIntelDrawer와 통일 */}
                           <div className="bg-[#f6f8fa] border border-[#e3e8ee] rounded-lg p-4">
-                            <div className="text-xs font-semibold text-[#697386] uppercase tracking-wide mb-2">🏢 회사 현황</div>
+                            <div className="text-xs font-semibold text-[#697386] uppercase tracking-wide mb-2"><Building2 size={14} className="inline" /> 회사 현황</div>
                             <div className="text-xs font-bold text-[#1a1f36] mb-2">{buyer.company} · {buyer.region} · {buyer.tier}</div>
                             <p className="text-xs text-[#1a1f36] leading-relaxed whitespace-pre-wrap">{intel.overview || '정보 없음'}</p>
                           </div>
 
-                          {/* 💡 K-beauty 관심도 (kbeauty_interest) */}
+                          {/* K-beauty 관심도 (kbeauty_interest) */}
                           <div className="bg-[#f0f0ff30] border border-[#635BFF40] rounded-lg p-4">
-                            <div className="text-xs font-semibold text-[#7A73FF] uppercase tracking-wide mb-2">💡 K-beauty 관심도</div>
+                            <div className="text-xs font-semibold text-[#7A73FF] uppercase tracking-wide mb-2"><Lightbulb size={14} className="inline text-[#f59e0b]" /> K-beauty 관심도</div>
                             <p className="text-xs text-[#93c5fd] leading-relaxed whitespace-pre-wrap">{intel.why_kbeauty || '정보 없음'}</p>
                           </div>
 
-                          {/* 🧪 추천 포뮬라 (recommended_formula) */}
+                          {/* 추천 포뮬라 (recommended_formula) */}
                           <div className="bg-[#f6f8fa] border border-[#e3e8ee] rounded-lg p-4">
-                            <div className="text-xs font-semibold text-[#697386] uppercase tracking-wide mb-2">🧪 추천 포뮬라</div>
+                            <div className="text-xs font-semibold text-[#697386] uppercase tracking-wide mb-2"><FlaskConical size={14} className="inline" /> 추천 포뮬라</div>
                             {intel.products && intel.products.length > 0 ? (
                               <div className="flex flex-wrap gap-1.5">
                                 {intel.products.map((p: string, i: number) => (
@@ -449,9 +450,9 @@ SPS Cosmetics | spscos.com`;
                             )}
                           </div>
 
-                          {/* 🎯 제안 앵글 (proposal_angle) */}
+                          {/* 제안 앵글 (proposal_angle) */}
                           <div className="bg-[#f6f8fa] border border-[#e3e8ee] rounded-lg p-4">
-                            <div className="text-xs font-semibold text-[#697386] uppercase tracking-wide mb-2">🎯 제안 앵글</div>
+                            <div className="text-xs font-semibold text-[#697386] uppercase tracking-wide mb-2"><Target size={14} className="inline text-[#635BFF]" /> 제안 앵글</div>
                             <p className="text-xs text-[#1a1f36] leading-relaxed whitespace-pre-wrap">{intel.tier_note || '정보 없음'}</p>
                           </div>
 
@@ -462,14 +463,14 @@ SPS Cosmetics | spscos.com`;
                               disabled={isLoading}
                               className="flex-1 text-xs bg-[#635BFF] text-white py-2 rounded-lg font-semibold hover:bg-[#5851DB] transition disabled:opacity-50"
                             >
-                              {isLoading ? '생성 중...' : '✨ 이 인텔로 이메일 재생성'}
+                              {isLoading ? '생성 중...' : <><Sparkles size={14} className="inline" /> 이 인텔로 이메일 재생성</>}
                             </button>
                             <button
                               onClick={() => { setIntelLoaded(false); setIntel(null); fetchIntel(); }}
                               disabled={intelLoading}
                               className="text-xs border border-[#e3e8ee] text-[#8792a2] px-3 py-2 rounded-lg hover:bg-[#e3e8ee] transition"
                             >
-                              🔄
+                              <RefreshCw size={14} />
                             </button>
                           </div>
                         </>
@@ -492,7 +493,7 @@ SPS Cosmetics | spscos.com`;
                     onClick={() => setShowAIPrompts(!showAIPrompts)}
                     className="text-xs text-[#635BFF] hover:text-[#7A73FF] font-semibold"
                   >
-                    ✨ AI 수정 요청
+                    <Sparkles size={14} className="inline" /> AI 수정 요청
                   </button>
 
                   {showAIPrompts && (
@@ -528,7 +529,7 @@ SPS Cosmetics | spscos.com`;
 
                 {/* Edit Notice */}
                 <div className="px-6 py-3 bg-[#f6f8fa] text-xs text-[#8792a2] border-t border-[#e3e8ee] flex-shrink-0">
-                  ✏️ 영문·국문 모두 직접 수정 가능 · 🔍 바이어 인텔 탭에서 개인화 포인트 확인 가능
+                  <Pencil size={14} className="inline" /> 영문·국문 모두 직접 수정 가능 · <Search size={14} className="inline" /> 바이어 인텔 탭에서 개인화 포인트 확인 가능
                 </div>
               </div>
 
@@ -552,7 +553,7 @@ SPS Cosmetics | spscos.com`;
                             <div className="text-xs text-[#8792a2]">2.4MB</div>
                           </div>
                         </div>
-                        {attachPDF1 && <span className="text-xs text-[#22c55e]">✓ 첨부됨</span>}
+                        {attachPDF1 && <span className="text-xs text-[#22c55e]"><Check size={14} className="inline" /> 첨부됨</span>}
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -567,11 +568,11 @@ SPS Cosmetics | spscos.com`;
                             <div className="text-xs text-[#8792a2]">5.1MB</div>
                           </div>
                         </div>
-                        {attachPDF2 && <span className="text-xs text-[#22c55e]">✓ 첨부됨</span>}
+                        {attachPDF2 && <span className="text-xs text-[#22c55e]"><Check size={14} className="inline" /> 첨부됨</span>}
                       </div>
                     </div>
                     <div className="mt-3 border-2 border-dashed border-[#e3e8ee] rounded-lg p-4 text-center cursor-pointer hover:border-[#635BFF] transition">
-                      <div className="text-lg mb-1">📎</div>
+                      <div className="text-lg mb-1"><Paperclip size={18} className="inline" /></div>
                       <div className="text-xs text-[#8792a2]">파일을 드래그하거나 클릭</div>
                     </div>
                   </div>
@@ -581,10 +582,10 @@ SPS Cosmetics | spscos.com`;
                     <div className="bg-[#14532d20] border border-[#16a34a30] rounded-lg p-3">
                       <div className="text-xs font-semibold text-[#22c55e] mb-2">발송 전 체크</div>
                       <div className="space-y-2 text-xs text-[#4ade80]">
-                        <div className="flex items-center gap-2"><span>✓</span><span>스팸점수 85/100</span></div>
-                        <div className="flex items-center gap-2"><span>✓</span><span>Gmail인박스율 100%</span></div>
-                        <div className="flex items-center gap-2"><span>✓</span><span>도메인평판 HIGH</span></div>
-                        <div className="flex items-center gap-2"><span>✓</span><span>SPF/DKIM</span></div>
+                        <div className="flex items-center gap-2"><Check size={14} /><span>스팸점수 85/100</span></div>
+                        <div className="flex items-center gap-2"><Check size={14} /><span>Gmail인박스율 100%</span></div>
+                        <div className="flex items-center gap-2"><Check size={14} /><span>도메인평판 HIGH</span></div>
+                        <div className="flex items-center gap-2"><Check size={14} /><span>SPF/DKIM</span></div>
                       </div>
                     </div>
                   </div>
@@ -634,7 +635,7 @@ SPS Cosmetics | spscos.com`;
                       발송 중...
                     </span>
                   ) : (
-                    '📤 발송하기'
+                    <><Send size={14} className="inline" /> 발송하기</>
                   )}
                 </button>
               </div>
@@ -646,7 +647,7 @@ SPS Cosmetics | spscos.com`;
       {/* Toast */}
       {showToast && (
         <div className="fixed bottom-6 right-6 bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4 z-50 shadow-lg max-w-sm">
-          <div className="text-sm font-semibold text-[#22c55e] mb-1">✅ 이메일 발송 완료</div>
+          <div className="text-sm font-semibold text-[#22c55e] mb-1"><CheckCircle size={16} className="inline" /> 이메일 발송 완료</div>
           <div className="text-xs text-[#1a1f36] mb-2">
             {buyer.contact} ({buyer.company})에게 발송되었습니다.
           </div>

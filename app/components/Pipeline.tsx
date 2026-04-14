@@ -3,13 +3,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import type { PipelineJob, PipelineLog } from '../lib/types';
+import { MailOpen, BarChart3, Shield, ClipboardList, AlertTriangle, Play, Check, X, PenTool, FileText, Download } from 'lucide-react';
 
 const PIPELINE_STEPS = [
-  { key: 'B', icon: '✉️', name: '직원 B — 이메일 검증', desc: 'ZeroBounce API 이메일 유효성 검증' },
-  { key: 'C', icon: '📊', name: '직원 C — 기업 분석', desc: 'Claude API 기업 분석 및 K-beauty 매칭' },
-  { key: 'D', icon: '✍️', name: '직원 D — 이메일 초안', desc: 'Claude API 개인화 이메일 초안 생성' },
-  { key: 'E', icon: '🛡️', name: '직원 E — 스팸 테스트', desc: 'Claude API 규칙 기반 스팸 검사 및 자동 수정' },
-  { key: 'F', icon: '📋', name: '직원 F — 시스템 모니터링', desc: 'API 상태 체크 및 경고' },
+  { key: 'B', icon: <MailOpen size={16} className="inline" />, name: '직원 B — 이메일 검증', desc: 'ZeroBounce API 이메일 유효성 검증' },
+  { key: 'C', icon: <BarChart3 size={16} className="inline text-[#697386]" />, name: '직원 C — 기업 분석', desc: 'Claude API 기업 분석 및 K-beauty 매칭' },
+  { key: 'D', icon: <PenTool size={16} className="inline" />, name: '직원 D — 이메일 초안', desc: 'Claude API 개인화 이메일 초안 생성' },
+  { key: 'E', icon: <Shield size={16} className="inline" />, name: '직원 E — 스팸 테스트', desc: 'Claude API 규칙 기반 스팸 검사 및 자동 수정' },
+  { key: 'F', icon: <ClipboardList size={16} className="inline text-[#697386]" />, name: '직원 F — 시스템 모니터링', desc: 'API 상태 체크 및 경고' },
 ];
 
 const TEAMS = [
@@ -513,7 +514,7 @@ export default function Pipeline() {
         {/* 경고 배너 */}
         {warnings.length > 0 && (
           <div className="p-4 rounded-lg border bg-[#f59e0b]/10 border-[#f59e0b]/30">
-            <div className="text-sm font-semibold text-[#f59e0b] mb-2">⚠️ 시스템 경고</div>
+            <div className="text-sm font-semibold text-[#f59e0b] mb-2"><AlertTriangle size={16} className="inline text-[#f59e0b]" /> 시스템 경고</div>
             {warnings.map((w, i) => (
               <div key={i} className="text-xs text-[#fbbf24] mt-1">• {w}</div>
             ))}
@@ -551,7 +552,7 @@ export default function Pipeline() {
                 {isUploading ? (
                   <><span className="animate-spin inline-block">⟳</span> 업로드 중...</>
                 ) : (
-                  '📄 CSV 업로드'
+                  'CSV 업로드'
                 )}
               </button>
 
@@ -566,7 +567,7 @@ export default function Pipeline() {
                 ) : isRunning ? (
                   <><span className="animate-spin inline-block">⟳</span> 실행 중...</>
                 ) : (
-                  '▶ 파이프라인 실행'
+                  <><Play size={12} className="inline" /> 파이프라인 실행</>
                 )}
               </button>
             </div>
@@ -591,7 +592,7 @@ export default function Pipeline() {
               {uploadedFile && !isDragging && !isUploading ? (
                 // 업로드 성공 상태 — 파일 카드 + X 버튼
                 <div className="flex items-center justify-center gap-3">
-                  <div className="text-3xl" style={{ pointerEvents: 'none' }}>📄</div>
+                  <div className="text-3xl" style={{ pointerEvents: 'none' }}><FileText size={28} className="text-[#22c55e]" /></div>
                   <div className="text-left" style={{ pointerEvents: 'none' }}>
                     <div className="text-sm font-semibold text-[#22c55e] break-all">
                       {uploadedFile.name}
@@ -612,13 +613,13 @@ export default function Pipeline() {
                     aria-label="업로드된 파일 제거"
                     className="ml-2 w-7 h-7 flex items-center justify-center rounded-full bg-[#ffffff] hover:bg-[#ef4444] text-[#697386] hover:text-white transition-colors text-sm font-bold"
                   >
-                    ✕
+                    <X size={14} className="inline" />
                   </button>
                 </div>
               ) : (
                 <>
                   <div className="text-4xl mb-2" style={{ pointerEvents: 'none' }}>
-                    {isDragging ? '⬇️' : '📄'}
+                    {isDragging ? <Download size={32} className="text-[#635BFF]" /> : <FileText size={32} className="text-[#697386]" />}
                   </div>
                   <div
                     className={`text-sm font-semibold mb-1 ${isDragging ? 'text-[#635BFF]' : 'text-[#1a1f36]'}`}
@@ -727,7 +728,7 @@ export default function Pipeline() {
                       return (
                         <div key={step.key} className="flex items-center gap-2 py-1">
                           <div className={`w-5 h-5 rounded-full ${display.color} flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${display.pulse ? 'animate-pulse' : ''}`}>
-                            {display.label === '완료' ? '✓' : display.label === '오류' ? '✕' : step.key}
+                            {display.label === '완료' ? <Check size={14} className="inline" /> : display.label === '오류' ? <X size={14} className="inline" /> : step.key}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="text-xs text-[#697386] truncate">{step.name.split('—')[1]?.trim() || step.name}</div>

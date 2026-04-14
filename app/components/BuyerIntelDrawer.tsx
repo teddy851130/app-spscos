@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Check, X, Search, Bot, Building2, Lightbulb, FlaskConical, Target, MailOpen, ClipboardList, FileText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 // recent_news JSON → UI 표준 형태({overview, products, why_kbeauty, tier_note})
@@ -313,14 +314,14 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
                 onClick={() => { onClose(); setTimeout(onEmailClick, 100); }}
                 className="text-xs bg-[#635BFF] text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-[#5851DB] transition"
               >
-                ✉ 메일 작성
+                <MailOpen size={14} className="inline" /> 메일 작성
               </button>
             )}
             <button
               onClick={onClose}
               className="text-[#8792a2] hover:text-[#1a1f36] text-xl font-bold leading-none"
             >
-              ✕
+              <X size={18} />
             </button>
           </div>
         </div>
@@ -380,7 +381,7 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
                       className="text-[#8792a2] hover:text-[#ef4444] text-xs transition"
                       title="삭제"
                     >
-                      ✕
+                      <X size={14} />
                     </button>
                   </div>
                 ))}
@@ -440,7 +441,7 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
 
           {/* Base Info Section — 항상 표시 (#5) */}
           <div className="px-6 py-5 border-b border-[#e3e8ee]">
-            <div className="text-sm font-semibold text-[#1a1f36] mb-3">📋 기본 정보</div>
+            <div className="text-sm font-semibold text-[#1a1f36] mb-3"><ClipboardList size={16} className="inline" /> 기본 정보</div>
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg px-3 py-2">
                 <div className="text-xs text-[#8792a2] mb-0.5">Tier</div>
@@ -468,7 +469,7 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
           {/* Intel Section */}
           <div className="px-6 py-5">
             <div className="flex items-center justify-between mb-4">
-              <div className="text-sm font-semibold text-[#1a1f36]">🔍 바이어 인텔</div>
+              <div className="text-sm font-semibold text-[#1a1f36]"><Search size={16} className="inline" /> 바이어 인텔</div>
               {!loading && (
                 <span className="text-xs text-[#8792a2]">
                   파이프라인 직원C 분석 결과
@@ -486,14 +487,14 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
                   </div>
                 ))}
                 <div className="text-xs text-[#8792a2] text-center mt-2">
-                  🤖 Claude AI가 {buyer.company} 분석 중...
+                  <Bot size={16} className="inline text-[#635BFF]" /> Claude AI가 {buyer.company} 분석 중...
                 </div>
               </div>
             ) : intel ? (
               <div className="space-y-4">
                 {/* 회사 현황 (company_status) */}
                 <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4">
-                  <div className="text-xs font-semibold text-[#697386] uppercase tracking-wide mb-2">🏢 회사 현황</div>
+                  <div className="text-xs font-semibold text-[#697386] uppercase tracking-wide mb-2"><Building2 size={14} className="inline" /> 회사 현황</div>
                   <p className="text-xs text-[#1a1f36] leading-relaxed whitespace-pre-wrap">
                     {intel.overview || '정보 없음'}
                   </p>
@@ -501,7 +502,7 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
 
                 {/* K-beauty 관심도 (kbeauty_interest) */}
                 <div className="bg-[#f0f0ff30] border border-[#635BFF40] rounded-lg p-4">
-                  <div className="text-xs font-semibold text-[#7A73FF] uppercase tracking-wide mb-2">💡 K-beauty 관심도</div>
+                  <div className="text-xs font-semibold text-[#7A73FF] uppercase tracking-wide mb-2"><Lightbulb size={14} className="inline text-[#f59e0b]" /> K-beauty 관심도</div>
                   <p className="text-xs text-[#93c5fd] leading-relaxed whitespace-pre-wrap">
                     {intel.why_kbeauty || '정보 없음'}
                   </p>
@@ -509,7 +510,7 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
 
                 {/* 추천 포뮬라 (recommended_formula) */}
                 <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4">
-                  <div className="text-xs font-semibold text-[#697386] uppercase tracking-wide mb-2">🧪 추천 포뮬라</div>
+                  <div className="text-xs font-semibold text-[#697386] uppercase tracking-wide mb-2"><FlaskConical size={14} className="inline" /> 추천 포뮬라</div>
                   {intel.products && intel.products.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {intel.products.map((p: string, i: number) => (
@@ -525,7 +526,7 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
 
                 {/* 제안 앵글 (proposal_angle) */}
                 <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4">
-                  <div className="text-xs font-semibold text-[#697386] uppercase tracking-wide mb-2">🎯 제안 앵글</div>
+                  <div className="text-xs font-semibold text-[#697386] uppercase tracking-wide mb-2"><Target size={14} className="inline text-[#635BFF]" /> 제안 앵글</div>
                   <p className="text-xs text-[#1a1f36] leading-relaxed whitespace-pre-wrap">
                     {intel.tier_note || '정보 없음'}
                   </p>
@@ -538,7 +539,7 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
                     disabled={generatingKo || contacts.length === 0 || draftKo !== null}
                     className="w-full text-xs bg-[#635BFF] text-white py-2.5 rounded-lg font-semibold hover:bg-[#5851DB] disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
-                    {generatingKo ? '국문 초안 생성 중...' : draftKo ? '국문 초안 생성됨 ↓' : '✉ 이 인텔로 이메일 생성'}
+                    {generatingKo ? '국문 초안 생성 중...' : draftKo ? '국문 초안 생성됨 ↓' : <><MailOpen size={14} className="inline" /> 이 인텔로 이메일 생성</>}
                   </button>
                   {contacts.length === 0 && (
                     <div className="text-xs text-[#f59e0b] mt-2 text-center">담당자 정보가 먼저 필요합니다</div>
@@ -549,9 +550,9 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
                 {draftKo && (
                   <div className="bg-[#f6f8fa] border border-[#635BFF]/40 rounded-lg p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                      <div className="text-xs font-semibold text-[#7A73FF]">📝 국문 초안 확인</div>
+                      <div className="text-xs font-semibold text-[#7A73FF]"><FileText size={14} className="inline" /> 국문 초안 확인</div>
                       {draftSaved && (
-                        <span className="text-xs bg-[#22c55e]/20 text-[#22c55e] px-2 py-0.5 rounded">✓ 영문 저장 완료</span>
+                        <span className="text-xs bg-[#22c55e]/20 text-[#22c55e] px-2 py-0.5 rounded"><Check size={14} className="inline" /> 영문 저장 완료</span>
                       )}
                     </div>
                     <div>

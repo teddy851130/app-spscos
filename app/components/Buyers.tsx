@@ -5,6 +5,7 @@ import EmailComposeModal from './EmailComposeModal';
 import AddBuyerModal from './AddBuyerModal';
 import BuyerIntelDrawer from './BuyerIntelDrawer';
 import { supabase } from '../lib/supabase';
+import { Lightbulb, Search, X, MailOpen, Download, Globe } from 'lucide-react';
 
 const gradients = [
   'from-[#3b82f6] to-[#7c3aed]',
@@ -400,10 +401,10 @@ export default function Buyers() {
 
         {/* Info Banner */}
         <div className="bg-[#635BFF10] border border-[#635BFF40] rounded-lg p-3 flex items-center gap-3">
-          <span className="text-lg flex-shrink-0">💡</span>
+          <span className="text-lg flex-shrink-0"><Lightbulb size={16} className="inline text-[#f59e0b]" /></span>
           <span className="text-xs text-[#635BFF]">
             {viewMode === 'all'
-              ? <><strong>회사명 클릭</strong>으로 바이어 인텔 확인 · <strong>✉ 메일 버튼</strong>으로 AI 초안 생성 후 발송</>
+              ? <><strong>회사명 클릭</strong>으로 바이어 인텔 확인 · <strong><MailOpen size={14} className="inline" /> 메일 버튼</strong>으로 AI 초안 생성 후 발송</>
               : <>이메일 검증 실패 또는 Tier2 catch-all 도메인 목록입니다. 파이프라인에서 자동 제외됩니다.</>
             }
           </span>
@@ -454,7 +455,7 @@ export default function Buyers() {
         {viewMode === 'all' && <><div className="flex flex-wrap gap-2 items-center">
           <input
             type="text"
-            placeholder="🔍  회사명 또는 담당자 검색..."
+            placeholder="회사명 또는 담당자 검색..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-[260px] bg-[#ffffff] border border-[#e3e8ee] text-[#1a1f36] px-3 py-2 rounded-lg text-xs placeholder-[#8792a2]"
@@ -507,13 +508,13 @@ export default function Buyers() {
             onClick={() => { setSearch(''); setRegion(''); setTier(''); setStatus(''); setDate(''); }}
             className="bg-transparent border border-[#e3e8ee] text-[#8792a2] px-3 py-2 rounded-lg text-xs hover:text-[#1a1f36] transition"
           >
-            ✕ 초기화
+            <X size={14} className="inline" /> 초기화
           </button>
           <button
             onClick={downloadCSV}
             className="bg-transparent border border-[#e3e8ee] text-[#697386] px-3 py-2 rounded-lg text-xs hover:bg-[#f0f0ff]"
           >
-            📥 CSV
+            <Download size={14} className="inline mr-1" />CSV
           </button>
           <button
             onClick={() => setAddBuyerModalOpen(true)}
@@ -585,7 +586,7 @@ export default function Buyers() {
                             onClick={(e) => e.stopPropagation()}
                             className="inline-flex items-center justify-center w-7 h-7 rounded bg-[#635BFF]/10 text-[#635BFF] hover:bg-[#635BFF]/20 transition"
                           >
-                            🌐
+                            <Globe size={14} />
                           </a>
                         ) : (
                           <span className="text-[#8792a2]">—</span>
@@ -641,7 +642,7 @@ export default function Buyers() {
                           onClick={() => handleEmailClick(buyer)}
                           className={`text-xs px-2 py-1 rounded font-semibold hover:opacity-80 transition ${mailButtonColor}`}
                         >
-                          ✉ {mailButtonLabel}
+                          <MailOpen size={14} className="inline" /> {mailButtonLabel}
                         </button>
                       </td>
                     </tr>

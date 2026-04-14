@@ -13,6 +13,7 @@ import PipelineRunModal from './components/PipelineRunModal';
 import CSVUploadModal from './components/CSVUploadModal';
 import { supabase } from './lib/supabase';
 import AuthGuard from './components/AuthGuard';
+import { Bell, MailOpen, AlertTriangle, Info, Play } from 'lucide-react';
 
 const pageConfig: Record<string, { title: string; subtitle: string }> = {
   dashboard: { title: '대시보드', subtitle: '오늘 현황 · ' + new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }) },
@@ -190,7 +191,7 @@ export default function Home() {
               onClick={() => setPipelineModalOpen(true)}
               className="px-3 py-1.5 bg-transparent border border-[#e3e8ee] text-[#697386] rounded-lg text-xs font-semibold hover:bg-[#f0f0ff] hover:text-[#1a1f36] transition"
             >
-              ▶ 파이프라인 실행
+              <Play size={12} className="inline mr-1" />파이프라인 실행
             </button>
             <button
               onClick={() => setCsvUploadModalOpen(true)}
@@ -206,7 +207,7 @@ export default function Home() {
                 className="relative text-lg hover:opacity-80 transition p-1 rounded hover:bg-[#f0f0ff]"
                 title="알림"
               >
-                🔔
+                <Bell size={18} />
                 {unreadCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#ef4444] rounded-full text-white text-[10px] flex items-center justify-center font-bold leading-none">
                     {unreadCount}
@@ -253,9 +254,9 @@ export default function Home() {
                           }`}
                         >
                           <div className="flex-shrink-0 mt-0.5">
-                            {notif.type === 'reply' && <span className="text-base">✉️</span>}
-                            {notif.type === 'bounce' && <span className="text-base">⚠️</span>}
-                            {notif.type === 'info' && <span className="text-base">ℹ️</span>}
+                            {notif.type === 'reply' && <MailOpen size={16} className="text-[#635BFF]" />}
+                            {notif.type === 'bounce' && <AlertTriangle size={16} className="text-[#ef4444]" />}
+                            {notif.type === 'info' && <Info size={16} className="text-[#697386]" />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2">

@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { Check, Lightbulb } from 'lucide-react';
 
 function getMonday(d: Date): Date {
   const day = d.getDay();
@@ -86,15 +87,15 @@ export default function Domain() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-[#8792a2]">SPF 레코드</span>
-              <span className="text-xs font-semibold text-[#22c55e]">✓ 설정됨</span>
+              <span className="text-xs font-semibold text-[#22c55e]"><Check size={14} className="inline" /> 설정됨</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-[#8792a2]">DKIM 레코드</span>
-              <span className="text-xs font-semibold text-[#22c55e]">✓ 설정됨</span>
+              <span className="text-xs font-semibold text-[#22c55e]"><Check size={14} className="inline" /> 설정됨</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-[#8792a2]">DMARC 레코드</span>
-              <span className="text-xs font-semibold text-[#22c55e]">✓ 설정됨</span>
+              <span className="text-xs font-semibold text-[#22c55e]"><Check size={14} className="inline" /> 설정됨</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-[#8792a2]">반송율 (실제)</span>
@@ -124,7 +125,7 @@ export default function Domain() {
             </div>
           </div>
           <div className="mt-4 p-3 bg-[#635BFF]/10 border border-[#635BFF]/20 rounded text-xs text-[#93c5fd]">
-            💡 권장: <a href="https://www.mail-tester.com" target="_blank" rel="noopener noreferrer" className="underline">mail-tester.com</a>에서 테스트 이메일 발송 후 점수를 확인하세요.
+            <Lightbulb size={16} className="inline text-[#f59e0b]" /> 권장: <a href="https://www.mail-tester.com" target="_blank" rel="noopener noreferrer" className="underline">mail-tester.com</a>에서 테스트 이메일 발송 후 점수를 확인하세요.
           </div>
         </div>
 

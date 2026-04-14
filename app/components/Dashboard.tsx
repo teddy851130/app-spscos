@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import type { EmailDraft, PipelineLog } from '../lib/types';
+import { AlertTriangle, Target, Check, ClipboardList, CheckCircle } from 'lucide-react';
 
 interface BuyerRow {
   id: string;
@@ -186,13 +187,13 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
             ? Math.round((regionReplied.length / regionSent.length) * 100 * 10) / 10
             : 0;
 
-          let statusLabel = '✓ 정상';
+          let statusLabel = '정상';
           let statusColor = 'bg-[#22c55e]/20 text-[#22c55e]';
           if (rate < 5 && regionSent.length > 0) {
-            statusLabel = '⚠ 경고';
+            statusLabel = '경고';
             statusColor = 'bg-[#ef4444]/20 text-[#ef4444]';
           } else if (rate < 10 && regionSent.length > 0) {
-            statusLabel = '△ 주의';
+            statusLabel = '주의';
             statusColor = 'bg-[#f59e0b]/20 text-[#f59e0b]';
           }
 
@@ -212,7 +213,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
 
         // Alert: check if any team has low reply rate
         const lowTeam = stats.find(
-          (s) => s.status === '⚠ 경고' || (s.sent > 0 && parseFloat(s.replyRate) < 10)
+          (s) => s.status === '경고' || (s.sent > 0 && parseFloat(s.replyRate) < 10)
         );
         if (lowTeam) setAlertTeam(lowTeam.region);
 
@@ -402,7 +403,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
         {/* Alert Banner — only if low reply rate team exists and not dismissed */}
         {alertTeam && !alertDismissed && (
           <div className="bg-[#7f1d1d]/20 border border-[#ef4444]/25 rounded-xl p-4 flex items-start gap-3">
-            <span className="text-xl flex-shrink-0">⚠️</span>
+            <span className="text-xl flex-shrink-0"><AlertTriangle size={16} className="inline text-[#f59e0b]" /></span>
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-[#fca5a5] text-sm">KPI 경고: {alertTeam} 팀 회신율 저조</div>
               <p className="text-xs text-[#fca5a5] mt-1">
@@ -421,7 +422,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
         {/* No alert if all good */}
         {!alertTeam && !loading && (
           <div className="bg-[#14532d]/20 border border-[#16a34a]/25 rounded-xl p-4 flex items-start gap-3">
-            <span className="text-xl flex-shrink-0">✅</span>
+            <CheckCircle size={20} className="text-[#22c55e] flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-[#4ade80] text-sm">모든 팀 KPI 정상</div>
               <p className="text-xs text-[#4ade80] mt-1">현재 등록된 회신 데이터 기준으로 모든 지표가 목표 범위 내에 있습니다.</p>
@@ -450,12 +451,12 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
               <div className="text-4xl font-bold text-[#1a1f36] mt-2">{northStar}<span className="text-lg text-[#8792a2] ml-1">건</span></div>
               <div className="text-xs text-[#8792a2] mt-2">목표: 주 2건 이상 (Interested / Sample / Deal)</div>
             </div>
-            <div className={`text-5xl ${northStar >= 2 ? '' : 'opacity-30'}`}>
-              {northStar >= 2 ? '🎯' : '🎯'}
+            <div className={`${northStar >= 2 ? '' : 'opacity-30'}`}>
+              <Target size={40} className="inline text-[#635BFF]" />
             </div>
           </div>
           {northStar >= 2 ? (
-            <div className="text-xs text-[#22c55e] mt-3 font-semibold">✓ 이번 주 목표 달성!</div>
+            <div className="text-xs text-[#22c55e] mt-3 font-semibold"><Check size={14} className="inline" /> 이번 주 목표 달성!</div>
           ) : (
             <div className="text-xs text-[#f59e0b] mt-3">목표까지 {Math.max(2 - northStar, 0)}건 남음</div>
           )}
@@ -482,7 +483,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
               </div>
               <div className="text-xs mt-2 text-[#8792a2]">
                 {kpi.total_sent > 0
-                  ? (kpi.deliveryRate >= 97 ? '✓ 목표 초과' : '▼ 주의')
+                  ? (kpi.deliveryRate >= 97 ? <><Check size={14} className="inline" /> 목표 초과</> : '▼ 주의')
                   : '발송 후 자동 계산'}
                 <span className="text-[#8792a2]"> (기준: 97%)</span>
               </div>
@@ -508,7 +509,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
                 {kpi.replyRate > 0 ? `${kpi.replyRate}%` : '0%'}
               </div>
               <div className={`text-xs mt-2 ${kpi.replyRate >= 10 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
-                {kpi.replyRate >= 10 ? '✓ 목표 달성' : '▼ 목표 미달'}
+                {kpi.replyRate >= 10 ? <><Check size={14} className="inline" /> 목표 달성</> : '▼ 목표 미달'}
                 <span className="text-[#8792a2]"> (기준: 10%) · 실제 {kpi.replied}건</span>
               </div>
               <div className="h-1 bg-[#e3e8ee] rounded mt-4 overflow-hidden">
@@ -525,7 +526,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
         {followupBuyers.length > 0 ? (
           <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-5">
             <div className="flex items-center gap-2 mb-4">
-              <span className="text-lg">📋</span>
+              <span className="text-lg"><ClipboardList size={16} className="inline text-[#697386]" /></span>
               <div className="text-sm font-semibold text-[#1a1f36]">
                 팔로업 필요 ({followupBuyers.length}건)
               </div>
@@ -604,7 +605,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
         ) : (
           !loading && (
             <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4 flex items-center gap-2">
-              <span className="text-sm">✅</span>
+              <CheckCircle size={16} className="text-[#22c55e]" />
               <span className="text-xs text-[#8792a2]">팔로업 대기 없음</span>
             </div>
           )
@@ -699,7 +700,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
         {/* 시스템 경고 배너 (직원 F) */}
         {systemWarnings.length > 0 && (
           <div className="p-4 rounded-lg border bg-[#f59e0b]/10 border-[#f59e0b]/30">
-            <div className="text-sm font-semibold text-[#f59e0b] mb-2">⚠️ 시스템 경고 (직원 F)</div>
+            <div className="text-sm font-semibold text-[#f59e0b] mb-2"><AlertTriangle size={16} className="inline text-[#f59e0b]" /> 시스템 경고 (직원 F)</div>
             {systemWarnings.map((w, i) => (
               <div key={i} className="text-xs text-[#fbbf24] mt-1">• {w}</div>
             ))}
@@ -772,7 +773,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className={`text-xs px-2 py-1 rounded ${row.statusColor}`}>
-                        {row.status}
+                        {row.status === '정상' ? <><Check size={14} className="inline" /> {row.status}</> : row.status === '경고' ? <><AlertTriangle size={14} className="inline" /> {row.status}</> : row.status}
                       </span>
                     </td>
                   </tr>

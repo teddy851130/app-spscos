@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import {
+  BarChart3, Inbox, Zap, Building2, Mail, TrendingUp, Shield,
+} from 'lucide-react';
+import type { ReactNode } from 'react';
 
 interface SidebarProps {
   currentPage: string;
@@ -27,14 +31,14 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
     return () => clearInterval(interval);
   }, []);
 
-  const navItems = [
-    { id: 'dashboard', label: '대시보드', icon: '📊' },
-    { id: 'mailQueue', label: '오늘 보낼 메일', icon: '📬' },
-    { id: 'pipeline', label: '파이프라인', icon: '⚡', hasDot: true },
-    { id: 'buyers', label: '바이어 DB', icon: '🏢' },
-    { id: 'emails', label: '이메일 로그', icon: '📧', badgeCount: draftCount },
-    { id: 'kpi', label: 'KPI 리포트', icon: '📈' },
-    { id: 'domain', label: '도메인 상태', icon: '🛡️' },
+  const navItems: { id: string; label: string; icon: ReactNode; hasDot?: boolean; badgeCount?: number }[] = [
+    { id: 'dashboard', label: '대시보드', icon: <BarChart3 size={18} /> },
+    { id: 'mailQueue', label: '오늘 보낼 메일', icon: <Inbox size={18} /> },
+    { id: 'pipeline', label: '파이프라인', icon: <Zap size={18} />, hasDot: true },
+    { id: 'buyers', label: '바이어 DB', icon: <Building2 size={18} /> },
+    { id: 'emails', label: '이메일 로그', icon: <Mail size={18} />, badgeCount: draftCount },
+    { id: 'kpi', label: 'KPI 리포트', icon: <TrendingUp size={18} /> },
+    { id: 'domain', label: '도메인 상태', icon: <Shield size={18} /> },
   ];
 
   const sections = [
@@ -69,7 +73,7 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
                       : 'text-[#697386] hover:bg-[#f6f8fa] hover:text-[#1a1f36]'
                   }`}
                 >
-                  <span className="text-base">{item.icon}</span>
+                  <span className="flex-shrink-0">{item.icon}</span>
                   <span className="flex-1 text-left">{item.label}</span>
                   {item.hasDot && (
                     <div className="w-2 h-2 bg-[#ef4444] rounded-full"></div>

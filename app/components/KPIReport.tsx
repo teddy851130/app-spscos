@@ -7,6 +7,7 @@ import {
   Tooltip, Legend, ResponsiveContainer, ComposedChart,
 } from 'recharts';
 import type { KPISnapshot } from '../lib/types';
+import { BarChart3, AlertTriangle, Target, Send, MailOpen, Check, X } from 'lucide-react';
 
 interface TeamStat {
   team: string;
@@ -210,7 +211,7 @@ export default function KPIReport() {
               </div>
             ) : monthlyChartData.length === 0 ? (
               <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-8 text-center">
-                <div className="text-2xl mb-3">📊</div>
+                <div className="text-2xl mb-3"><BarChart3 size={24} className="inline text-[#697386]" /></div>
                 <div className="text-sm font-semibold text-[#1a1f36]">
                   아직 KPI 데이터가 축적되지 않았습니다.
                 </div>
@@ -313,7 +314,7 @@ export default function KPIReport() {
               </div>
             ) : overallChartData.length === 0 ? (
               <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-8 text-center">
-                <div className="text-2xl mb-3">📊</div>
+                <div className="text-2xl mb-3"><BarChart3 size={24} className="inline text-[#697386]" /></div>
                 <div className="text-sm font-semibold text-[#1a1f36]">
                   아직 KPI 데이터가 축적되지 않았습니다.
                 </div>
@@ -434,9 +435,9 @@ export default function KPIReport() {
             {/* Summary Counts */}
             <div className="grid grid-cols-3 gap-4">
               {[
-                { label: '총 발송 건수', value: totals.sent, icon: '📤', color: 'text-[#635BFF]' },
-                { label: '회신 건수', value: totals.replied, icon: '✉️', color: 'text-[#22c55e]' },
-                { label: '반송 건수', value: totals.bounced, icon: '⚠️', color: 'text-[#f59e0b]' },
+                { label: '총 발송 건수', value: totals.sent, icon: <Send size={24} className="inline text-[#635BFF]" />, color: 'text-[#635BFF]' },
+                { label: '회신 건수', value: totals.replied, icon: <MailOpen size={24} className="inline text-[#22c55e]" />, color: 'text-[#22c55e]' },
+                { label: '반송 건수', value: totals.bounced, icon: <AlertTriangle size={24} className="inline text-[#f59e0b]" />, color: 'text-[#f59e0b]' },
               ].map((item) => (
                 <div key={item.label} className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4 flex items-center gap-4">
                   <span className="text-2xl">{item.icon}</span>
@@ -466,7 +467,7 @@ export default function KPIReport() {
                   </thead>
                   <tbody>
                     <tr className="border-b border-[#e3e8ee]">
-                      <td className="px-4 py-3 font-semibold text-[#8792a2]">🎯 목표 기준</td>
+                      <td className="px-4 py-3 font-semibold text-[#8792a2]"><Target size={16} className="inline text-[#635BFF]" /> 목표 기준</td>
                       <td className="px-4 py-3 text-center text-[#8792a2]">—</td>
                       <td className="px-4 py-3 text-center text-[#8792a2]">—</td>
                       <td className="px-4 py-3 text-center text-[#8792a2]">&gt;97%</td>
@@ -508,7 +509,7 @@ export default function KPIReport() {
             {warnTeams.length > 0 && (
               <div className="bg-[#7f1d1d]/20 border border-[#ef4444]/25 rounded-lg p-4">
                 <div className="text-sm font-semibold text-[#fca5a5]">
-                  ⚠️ {warnTeams.map((t) => t.region).join(', ')} 팀 회신율 저조 — 개선 필요
+                  <AlertTriangle size={16} className="inline text-[#f59e0b]" /> {warnTeams.map((t) => t.region).join(', ')} 팀 회신율 저조 — 개선 필요
                 </div>
                 {warnTeams.map((t) => (
                   <p key={t.region} className="text-xs text-[#fca5a5] mt-1">
@@ -521,7 +522,7 @@ export default function KPIReport() {
             {totals.sent === 0 && (
               <div className="bg-[#1e3a5f] border border-[#635BFF]/30 rounded-lg p-4 text-center">
                 <div className="text-sm text-[#93c5fd]">
-                  📊 아직 발송 기록이 없습니다. 바이어 DB에서 이메일을 발송하면 KPI가 자동 업데이트됩니다.
+                  <BarChart3 size={16} className="inline text-[#697386]" /> 아직 발송 기록이 없습니다. 바이어 DB에서 이메일을 발송하면 KPI가 자동 업데이트됩니다.
                 </div>
               </div>
             )}
