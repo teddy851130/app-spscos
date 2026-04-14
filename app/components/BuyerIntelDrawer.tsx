@@ -270,7 +270,7 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
     ? 'text-[#22c55e] bg-[#22c55e]/10'
     : buyer.tier === 'Tier 2'
     ? 'text-[#f59e0b] bg-[#f59e0b]/10'
-    : 'text-[#94a3b8] bg-[#334155]/50';
+    : 'text-[#697386] bg-[#e3e8ee]/50';
 
   return (
     <>
@@ -281,25 +281,25 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
       />
 
       {/* Drawer */}
-      <div className="fixed right-0 top-0 h-full w-[480px] bg-[#0f172a] border-l border-[#334155] z-50 flex flex-col shadow-2xl overflow-hidden">
+      <div className="fixed right-0 top-0 h-full w-[480px] bg-[#f6f8fa] border-l border-[#e3e8ee] z-50 flex flex-col shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-[#334155] flex items-start justify-between flex-shrink-0 bg-[#1e293b]">
+        <div className="px-6 py-4 border-b border-[#e3e8ee] flex items-start justify-between flex-shrink-0 bg-[#ffffff]">
           <div>
-            <div className="text-base font-bold text-[#f1f5f9]">{buyer.company}</div>
+            <div className="text-base font-bold text-[#1a1f36]">{buyer.company}</div>
             <div className="flex items-center gap-2 mt-1.5">
               <span className={`text-xs px-2 py-0.5 rounded font-semibold ${tierColor}`}>
                 {buyer.tier}
               </span>
-              <span className="text-xs text-[#64748b]">·</span>
-              <span className="text-xs text-[#64748b]">{buyer.region}</span>
+              <span className="text-xs text-[#8792a2]">·</span>
+              <span className="text-xs text-[#8792a2]">{buyer.region}</span>
               {buyer.website && (
                 <>
-                  <span className="text-xs text-[#64748b]">·</span>
+                  <span className="text-xs text-[#8792a2]">·</span>
                   <a
                     href={buyer.website.startsWith('http') ? buyer.website : `https://${buyer.website}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-[#3b82f6] hover:underline"
+                    className="text-xs text-[#635BFF] hover:underline"
                   >
                     {buyer.website.replace(/^https?:\/\//, '')}
                   </a>
@@ -311,14 +311,14 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
             {onEmailClick && (
               <button
                 onClick={() => { onClose(); setTimeout(onEmailClick, 100); }}
-                className="text-xs bg-[#3b82f6] text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-[#2563eb] transition"
+                className="text-xs bg-[#635BFF] text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-[#5851DB] transition"
               >
                 ✉ 메일 작성
               </button>
             )}
             <button
               onClick={onClose}
-              className="text-[#64748b] hover:text-[#f1f5f9] text-xl font-bold leading-none"
+              className="text-[#8792a2] hover:text-[#1a1f36] text-xl font-bold leading-none"
             >
               ✕
             </button>
@@ -328,56 +328,56 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
           {/* Contacts Section */}
-          <div className="px-6 py-5 border-b border-[#334155]">
+          <div className="px-6 py-5 border-b border-[#e3e8ee]">
             <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-semibold text-[#f1f5f9]">담당자 ({contacts.length}명)</div>
+              <div className="text-sm font-semibold text-[#1a1f36]">담당자 ({contacts.length}명)</div>
               <button
                 onClick={() => setAddingContact(true)}
-                className="text-xs text-[#3b82f6] hover:text-[#60a5fa] font-semibold"
+                className="text-xs text-[#635BFF] hover:text-[#7A73FF] font-semibold"
               >
                 + 담당자 추가
               </button>
             </div>
 
             {contactsLoading ? (
-              <div className="text-xs text-[#64748b]">로딩 중...</div>
+              <div className="text-xs text-[#8792a2]">로딩 중...</div>
             ) : contacts.length === 0 ? (
-              <div className="text-xs text-[#64748b] italic">담당자 정보 없음</div>
+              <div className="text-xs text-[#8792a2] italic">담당자 정보 없음</div>
             ) : (
               <div className="space-y-2">
                 {contacts.map((c, idx) => (
                   <div
                     key={c.id || idx}
-                    className="bg-[#1e293b] border border-[#334155] rounded-lg px-4 py-3 flex items-start gap-3"
+                    className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg px-4 py-3 flex items-start gap-3"
                   >
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#3b82f6] to-[#7c3aed] flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#635BFF] to-[#7c3aed] flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
                       {c.contact_name?.[0] || '?'}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-semibold text-[#f1f5f9]">{c.contact_name}</span>
+                        <span className="text-xs font-semibold text-[#1a1f36]">{c.contact_name}</span>
                         {c.is_primary && (
-                          <span className="text-xs bg-[#3b82f6]/20 text-[#60a5fa] px-1.5 py-0.5 rounded">주 담당자</span>
+                          <span className="text-xs bg-[#635BFF]/20 text-[#7A73FF] px-1.5 py-0.5 rounded">주 담당자</span>
                         )}
                         {c.source && c.source !== 'manual' && (
-                          <span className="text-xs bg-[#334155] text-[#94a3b8] px-1.5 py-0.5 rounded">{c.source}</span>
+                          <span className="text-xs bg-[#e3e8ee] text-[#697386] px-1.5 py-0.5 rounded">{c.source}</span>
                         )}
                       </div>
-                      {c.contact_title && <div className="text-xs text-[#64748b] mt-0.5">{c.contact_title}</div>}
+                      {c.contact_title && <div className="text-xs text-[#8792a2] mt-0.5">{c.contact_title}</div>}
                       {c.contact_email && (
-                        <a href={`mailto:${c.contact_email}`} className="text-xs text-[#3b82f6] hover:underline mt-0.5 block">
+                        <a href={`mailto:${c.contact_email}`} className="text-xs text-[#635BFF] hover:underline mt-0.5 block">
                           {c.contact_email}
                         </a>
                       )}
                       {c.contact_linkedin && (
-                        <a href={c.contact_linkedin} target="_blank" rel="noopener noreferrer" className="text-xs text-[#94a3b8] hover:text-[#e2e8f0] mt-0.5 block truncate">
+                        <a href={c.contact_linkedin} target="_blank" rel="noopener noreferrer" className="text-xs text-[#697386] hover:text-[#1a1f36] mt-0.5 block truncate">
                           LinkedIn
                         </a>
                       )}
                     </div>
                     <button
                       onClick={() => handleDeleteContact(c.id, idx)}
-                      className="text-[#475569] hover:text-[#ef4444] text-xs transition"
+                      className="text-[#8792a2] hover:text-[#ef4444] text-xs transition"
                       title="삭제"
                     >
                       ✕
@@ -389,47 +389,47 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
 
             {/* Add Contact Form */}
             {addingContact && (
-              <div className="mt-3 bg-[#1e293b] border border-[#3b82f6]/40 rounded-lg p-4 space-y-2">
-                <div className="text-xs font-semibold text-[#60a5fa] mb-2">새 담당자 추가</div>
+              <div className="mt-3 bg-[#ffffff] border border-[#635BFF]/40 rounded-lg p-4 space-y-2">
+                <div className="text-xs font-semibold text-[#7A73FF] mb-2">새 담당자 추가</div>
                 <input
                   type="text"
                   placeholder="이름 *"
                   value={newContact.contact_name}
                   onChange={(e) => setNewContact({ ...newContact, contact_name: e.target.value })}
-                  className="w-full text-xs bg-[#0f172a] border border-[#334155] text-[#e2e8f0] px-3 py-2 rounded focus:outline-none focus:border-[#3b82f6] placeholder-[#475569]"
+                  className="w-full text-xs bg-[#f6f8fa] border border-[#e3e8ee] text-[#1a1f36] px-3 py-2 rounded focus:outline-none focus:border-[#635BFF] placeholder-[#8792a2]"
                 />
                 <input
                   type="text"
                   placeholder="직책 (예: Head of Sourcing)"
                   value={newContact.contact_title}
                   onChange={(e) => setNewContact({ ...newContact, contact_title: e.target.value })}
-                  className="w-full text-xs bg-[#0f172a] border border-[#334155] text-[#e2e8f0] px-3 py-2 rounded focus:outline-none focus:border-[#3b82f6] placeholder-[#475569]"
+                  className="w-full text-xs bg-[#f6f8fa] border border-[#e3e8ee] text-[#1a1f36] px-3 py-2 rounded focus:outline-none focus:border-[#635BFF] placeholder-[#8792a2]"
                 />
                 <input
                   type="email"
                   placeholder="이메일 *"
                   value={newContact.contact_email}
                   onChange={(e) => setNewContact({ ...newContact, contact_email: e.target.value })}
-                  className="w-full text-xs bg-[#0f172a] border border-[#334155] text-[#e2e8f0] px-3 py-2 rounded focus:outline-none focus:border-[#3b82f6] placeholder-[#475569]"
+                  className="w-full text-xs bg-[#f6f8fa] border border-[#e3e8ee] text-[#1a1f36] px-3 py-2 rounded focus:outline-none focus:border-[#635BFF] placeholder-[#8792a2]"
                 />
                 <input
                   type="url"
                   placeholder="LinkedIn URL (선택)"
                   value={newContact.contact_linkedin}
                   onChange={(e) => setNewContact({ ...newContact, contact_linkedin: e.target.value })}
-                  className="w-full text-xs bg-[#0f172a] border border-[#334155] text-[#e2e8f0] px-3 py-2 rounded focus:outline-none focus:border-[#3b82f6] placeholder-[#475569]"
+                  className="w-full text-xs bg-[#f6f8fa] border border-[#e3e8ee] text-[#1a1f36] px-3 py-2 rounded focus:outline-none focus:border-[#635BFF] placeholder-[#8792a2]"
                 />
                 <div className="flex gap-2 pt-1">
                   <button
                     onClick={handleAddContact}
                     disabled={savingContact || !newContact.contact_name || !newContact.contact_email}
-                    className="flex-1 text-xs bg-[#3b82f6] text-white py-1.5 rounded font-semibold hover:bg-[#2563eb] disabled:opacity-50 transition"
+                    className="flex-1 text-xs bg-[#635BFF] text-white py-1.5 rounded font-semibold hover:bg-[#5851DB] disabled:opacity-50 transition"
                   >
                     {savingContact ? '저장 중...' : '저장'}
                   </button>
                   <button
                     onClick={() => setAddingContact(false)}
-                    className="text-xs border border-[#334155] text-[#64748b] px-4 py-1.5 rounded hover:bg-[#334155] transition"
+                    className="text-xs border border-[#e3e8ee] text-[#8792a2] px-4 py-1.5 rounded hover:bg-[#e3e8ee] transition"
                   >
                     취소
                   </button>
@@ -439,28 +439,28 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
           </div>
 
           {/* Base Info Section — 항상 표시 (#5) */}
-          <div className="px-6 py-5 border-b border-[#334155]">
-            <div className="text-sm font-semibold text-[#f1f5f9] mb-3">📋 기본 정보</div>
+          <div className="px-6 py-5 border-b border-[#e3e8ee]">
+            <div className="text-sm font-semibold text-[#1a1f36] mb-3">📋 기본 정보</div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-[#1e293b] border border-[#334155] rounded-lg px-3 py-2">
-                <div className="text-xs text-[#64748b] mb-0.5">Tier</div>
-                <div className="text-xs font-semibold text-[#f1f5f9]">{buyer.tier || '—'}</div>
+              <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg px-3 py-2">
+                <div className="text-xs text-[#8792a2] mb-0.5">Tier</div>
+                <div className="text-xs font-semibold text-[#1a1f36]">{buyer.tier || '—'}</div>
               </div>
-              <div className="bg-[#1e293b] border border-[#334155] rounded-lg px-3 py-2">
-                <div className="text-xs text-[#64748b] mb-0.5">팀</div>
-                <div className="text-xs font-semibold text-[#f1f5f9]">{baseInfo?.team || buyer.region || '—'}</div>
+              <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg px-3 py-2">
+                <div className="text-xs text-[#8792a2] mb-0.5">팀</div>
+                <div className="text-xs font-semibold text-[#1a1f36]">{baseInfo?.team || buyer.region || '—'}</div>
               </div>
-              <div className="bg-[#1e293b] border border-[#334155] rounded-lg px-3 py-2">
-                <div className="text-xs text-[#64748b] mb-0.5">매출 규모</div>
-                <div className="text-xs font-semibold text-[#f1f5f9]">{baseInfo?.annual_revenue || '—'}</div>
+              <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg px-3 py-2">
+                <div className="text-xs text-[#8792a2] mb-0.5">매출 규모</div>
+                <div className="text-xs font-semibold text-[#1a1f36]">{baseInfo?.annual_revenue || '—'}</div>
               </div>
-              <div className="bg-[#1e293b] border border-[#334155] rounded-lg px-3 py-2">
-                <div className="text-xs text-[#64748b] mb-0.5">직원 수</div>
-                <div className="text-xs font-semibold text-[#f1f5f9]">{baseInfo?.employee_count ? baseInfo.employee_count.toLocaleString() : '—'}</div>
+              <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg px-3 py-2">
+                <div className="text-xs text-[#8792a2] mb-0.5">직원 수</div>
+                <div className="text-xs font-semibold text-[#1a1f36]">{baseInfo?.employee_count ? baseInfo.employee_count.toLocaleString() : '—'}</div>
               </div>
-              <div className="bg-[#1e293b] border border-[#334155] rounded-lg px-3 py-2 col-span-2">
-                <div className="text-xs text-[#64748b] mb-0.5">도메인</div>
-                <div className="text-xs font-semibold text-[#f1f5f9] truncate">{buyer.website?.replace(/^https?:\/\//, '') || '—'}</div>
+              <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg px-3 py-2 col-span-2">
+                <div className="text-xs text-[#8792a2] mb-0.5">도메인</div>
+                <div className="text-xs font-semibold text-[#1a1f36] truncate">{buyer.website?.replace(/^https?:\/\//, '') || '—'}</div>
               </div>
             </div>
           </div>
@@ -468,9 +468,9 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
           {/* Intel Section */}
           <div className="px-6 py-5">
             <div className="flex items-center justify-between mb-4">
-              <div className="text-sm font-semibold text-[#f1f5f9]">🔍 바이어 인텔</div>
+              <div className="text-sm font-semibold text-[#1a1f36]">🔍 바이어 인텔</div>
               {!loading && (
-                <span className="text-xs text-[#475569]">
+                <span className="text-xs text-[#8792a2]">
                   파이프라인 직원C 분석 결과
                 </span>
               )}
@@ -479,54 +479,54 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
             {loading ? (
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="bg-[#1e293b] border border-[#334155] rounded-lg p-4 animate-pulse">
-                    <div className="h-3 bg-[#334155] rounded w-1/3 mb-2"></div>
-                    <div className="h-3 bg-[#334155] rounded w-full mb-1"></div>
-                    <div className="h-3 bg-[#334155] rounded w-4/5"></div>
+                  <div key={i} className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4 animate-pulse">
+                    <div className="h-3 bg-[#e3e8ee] rounded w-1/3 mb-2"></div>
+                    <div className="h-3 bg-[#e3e8ee] rounded w-full mb-1"></div>
+                    <div className="h-3 bg-[#e3e8ee] rounded w-4/5"></div>
                   </div>
                 ))}
-                <div className="text-xs text-[#64748b] text-center mt-2">
+                <div className="text-xs text-[#8792a2] text-center mt-2">
                   🤖 Claude AI가 {buyer.company} 분석 중...
                 </div>
               </div>
             ) : intel ? (
               <div className="space-y-4">
                 {/* 회사 현황 (company_status) */}
-                <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4">
-                  <div className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wide mb-2">🏢 회사 현황</div>
-                  <p className="text-xs text-[#e2e8f0] leading-relaxed whitespace-pre-wrap">
+                <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4">
+                  <div className="text-xs font-semibold text-[#697386] uppercase tracking-wide mb-2">🏢 회사 현황</div>
+                  <p className="text-xs text-[#1a1f36] leading-relaxed whitespace-pre-wrap">
                     {intel.overview || '정보 없음'}
                   </p>
                 </div>
 
                 {/* K-beauty 관심도 (kbeauty_interest) */}
-                <div className="bg-[#1e3a5f30] border border-[#3b82f640] rounded-lg p-4">
-                  <div className="text-xs font-semibold text-[#60a5fa] uppercase tracking-wide mb-2">💡 K-beauty 관심도</div>
+                <div className="bg-[#f0f0ff30] border border-[#635BFF40] rounded-lg p-4">
+                  <div className="text-xs font-semibold text-[#7A73FF] uppercase tracking-wide mb-2">💡 K-beauty 관심도</div>
                   <p className="text-xs text-[#93c5fd] leading-relaxed whitespace-pre-wrap">
                     {intel.why_kbeauty || '정보 없음'}
                   </p>
                 </div>
 
                 {/* 추천 포뮬라 (recommended_formula) */}
-                <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4">
-                  <div className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wide mb-2">🧪 추천 포뮬라</div>
+                <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4">
+                  <div className="text-xs font-semibold text-[#697386] uppercase tracking-wide mb-2">🧪 추천 포뮬라</div>
                   {intel.products && intel.products.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {intel.products.map((p: string, i: number) => (
-                        <span key={i} className="text-xs bg-[#334155] text-[#e2e8f0] px-2 py-1 rounded">
+                        <span key={i} className="text-xs bg-[#e3e8ee] text-[#1a1f36] px-2 py-1 rounded">
                           {p}
                         </span>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-[#64748b]">정보 없음</p>
+                    <p className="text-xs text-[#8792a2]">정보 없음</p>
                   )}
                 </div>
 
                 {/* 제안 앵글 (proposal_angle) */}
-                <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4">
-                  <div className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wide mb-2">🎯 제안 앵글</div>
-                  <p className="text-xs text-[#e2e8f0] leading-relaxed whitespace-pre-wrap">
+                <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4">
+                  <div className="text-xs font-semibold text-[#697386] uppercase tracking-wide mb-2">🎯 제안 앵글</div>
+                  <p className="text-xs text-[#1a1f36] leading-relaxed whitespace-pre-wrap">
                     {intel.tier_note || '정보 없음'}
                   </p>
                 </div>
@@ -536,7 +536,7 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
                   <button
                     onClick={handleGenerateKo}
                     disabled={generatingKo || contacts.length === 0 || draftKo !== null}
-                    className="w-full text-xs bg-[#3b82f6] text-white py-2.5 rounded-lg font-semibold hover:bg-[#2563eb] disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    className="w-full text-xs bg-[#635BFF] text-white py-2.5 rounded-lg font-semibold hover:bg-[#5851DB] disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
                     {generatingKo ? '국문 초안 생성 중...' : draftKo ? '국문 초안 생성됨 ↓' : '✉ 이 인텔로 이메일 생성'}
                   </button>
@@ -547,20 +547,20 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
 
                 {/* 국문 초안 확인 화면 */}
                 {draftKo && (
-                  <div className="bg-[#0f172a] border border-[#3b82f6]/40 rounded-lg p-4 space-y-3">
+                  <div className="bg-[#f6f8fa] border border-[#635BFF]/40 rounded-lg p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                      <div className="text-xs font-semibold text-[#60a5fa]">📝 국문 초안 확인</div>
+                      <div className="text-xs font-semibold text-[#7A73FF]">📝 국문 초안 확인</div>
                       {draftSaved && (
                         <span className="text-xs bg-[#22c55e]/20 text-[#22c55e] px-2 py-0.5 rounded">✓ 영문 저장 완료</span>
                       )}
                     </div>
                     <div>
-                      <div className="text-xs text-[#64748b] mb-1">제목</div>
-                      <div className="text-xs text-[#e2e8f0] bg-[#1e293b] border border-[#334155] rounded px-3 py-2">{draftKo.subject}</div>
+                      <div className="text-xs text-[#8792a2] mb-1">제목</div>
+                      <div className="text-xs text-[#1a1f36] bg-[#ffffff] border border-[#e3e8ee] rounded px-3 py-2">{draftKo.subject}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-[#64748b] mb-1">본문</div>
-                      <div className="text-xs text-[#e2e8f0] bg-[#1e293b] border border-[#334155] rounded px-3 py-2 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto">
+                      <div className="text-xs text-[#8792a2] mb-1">본문</div>
+                      <div className="text-xs text-[#1a1f36] bg-[#ffffff] border border-[#e3e8ee] rounded px-3 py-2 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto">
                         {draftKo.body}
                       </div>
                     </div>
@@ -584,8 +584,8 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
               </div>
             ) : (
               <div className="text-center py-8">
-                <div className="text-xs text-[#64748b]">아직 분석 데이터가 없습니다.</div>
-                <div className="text-xs text-[#475569] mt-1">파이프라인을 실행해주세요.</div>
+                <div className="text-xs text-[#8792a2]">아직 분석 데이터가 없습니다.</div>
+                <div className="text-xs text-[#8792a2] mt-1">파이프라인을 실행해주세요.</div>
               </div>
             )}
           </div>

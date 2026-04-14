@@ -297,7 +297,7 @@ export default function MailQueue() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400" />
-        <span className="ml-3 text-[#94a3b8]">메일 큐 로딩 중...</span>
+        <span className="ml-3 text-[#697386]">메일 큐 로딩 중...</span>
       </div>
     );
   }
@@ -305,7 +305,7 @@ export default function MailQueue() {
   // ── 빈 상태 ──
   if (totalCount === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-[#94a3b8]">
+      <div className="flex flex-col items-center justify-center h-64 text-[#697386]">
         <div className="text-4xl mb-3">&#x2705;</div>
         <p className="text-lg">오늘 보낼 메일이 없습니다</p>
       </div>
@@ -318,22 +318,22 @@ export default function MailQueue() {
       {/* 헤더 */}
       <div className="flex items-center gap-3">
         <Mail className="w-6 h-6 text-blue-400" />
-        <h2 className="text-xl font-bold text-white">
+        <h2 className="text-xl font-bold text-[#1a1f36]">
           오늘 보낼 메일 ({totalCount}건)
         </h2>
       </div>
 
       {/* ── 섹션 1: 팔로업 필요 ── */}
       {followups.length > 0 && (
-        <div className="bg-[#1e293b] rounded-xl border border-[#334155] overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#334155] flex items-center gap-2">
+        <div className="bg-[#ffffff] rounded-xl border border-[#e3e8ee] overflow-hidden">
+          <div className="px-4 py-3 border-b border-[#e3e8ee] flex items-center gap-2">
             <Clock className="w-4 h-4 text-amber-400" />
-            <h3 className="text-sm font-semibold text-[#e2e8f0]">
+            <h3 className="text-sm font-semibold text-[#1a1f36]">
               팔로업 필요 ({followups.length}건)
             </h3>
           </div>
 
-          <div className="divide-y divide-[#334155]">
+          <div className="divide-y divide-[#e3e8ee]">
             {displayedFollowups.map((buyer) => {
               const emailType = getEmailType(buyer.email_count);
               const isOverdue = buyer.badge === 'overdue';
@@ -356,17 +356,17 @@ export default function MailQueue() {
                     </span>
 
                     {/* 회사명 */}
-                    <span className="text-white font-medium truncate max-w-[140px]">
+                    <span className="text-[#1a1f36] font-medium truncate max-w-[140px]">
                       {buyer.company_name}
                     </span>
 
                     {/* 담당자 */}
-                    <span className="text-[#94a3b8] text-sm truncate max-w-[100px]">
+                    <span className="text-[#697386] text-sm truncate max-w-[100px]">
                       {buyer.contact_name}
                     </span>
 
                     {/* Tier */}
-                    <span className="text-xs text-[#64748b] shrink-0">
+                    <span className="text-xs text-[#8792a2] shrink-0">
                       {displayTier(buyer.tier)}
                     </span>
 
@@ -380,7 +380,7 @@ export default function MailQueue() {
                     </span>
 
                     {/* 최종 발송일 */}
-                    <span className="text-xs text-[#64748b] shrink-0">
+                    <span className="text-xs text-[#8792a2] shrink-0">
                       최종: {formatDate(buyer.last_sent_at)}
                     </span>
                   </div>
@@ -402,7 +402,7 @@ export default function MailQueue() {
           {followups.length > DISPLAY_LIMIT && (
             <button
               onClick={() => setShowAllFollowups(!showAllFollowups)}
-              className="w-full px-4 py-2 text-sm text-blue-400 hover:text-blue-300 hover:bg-[#1a2332] transition-colors flex items-center justify-center gap-1 border-t border-[#334155]"
+              className="w-full px-4 py-2 text-sm text-blue-400 hover:text-blue-300 hover:bg-[#1a2332] transition-colors flex items-center justify-center gap-1 border-t border-[#e3e8ee]"
             >
               {showAllFollowups ? (
                 <>접기 <ChevronUp className="w-4 h-4" /></>
@@ -416,15 +416,15 @@ export default function MailQueue() {
 
       {/* ── 섹션 2: 미발송 초안 ── */}
       {drafts.length > 0 && (
-        <div className="bg-[#1e293b] rounded-xl border border-[#334155] overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#334155] flex items-center gap-2">
+        <div className="bg-[#ffffff] rounded-xl border border-[#e3e8ee] overflow-hidden">
+          <div className="px-4 py-3 border-b border-[#e3e8ee] flex items-center gap-2">
             <FileText className="w-4 h-4 text-purple-400" />
-            <h3 className="text-sm font-semibold text-[#e2e8f0]">
+            <h3 className="text-sm font-semibold text-[#1a1f36]">
               미발송 초안 ({drafts.length}건)
             </h3>
           </div>
 
-          <div className="divide-y divide-[#334155]">
+          <div className="divide-y divide-[#e3e8ee]">
             {displayedDrafts.map((draft) => (
               <div key={draft.id}>
                 <div
@@ -433,17 +433,17 @@ export default function MailQueue() {
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     {/* 회사명 */}
-                    <span className="text-white font-medium truncate max-w-[140px]">
+                    <span className="text-[#1a1f36] font-medium truncate max-w-[140px]">
                       {draft.company_name || '회사 미상'}
                     </span>
 
                     {/* 담당자 */}
-                    <span className="text-[#94a3b8] text-sm truncate max-w-[100px]">
+                    <span className="text-[#697386] text-sm truncate max-w-[100px]">
                       {draft.contact_name || '-'}
                     </span>
 
                     {/* 제목 (말줄임) */}
-                    <span className="text-sm text-[#94a3b8] truncate flex-1">
+                    <span className="text-sm text-[#697386] truncate flex-1">
                       제목: {draft.subject_line_1 ? draft.subject_line_1.slice(0, 40) + (draft.subject_line_1.length > 40 ? '...' : '') : '-'}
                     </span>
 
@@ -462,7 +462,7 @@ export default function MailQueue() {
                   </div>
 
                   {/* 초안 보기 버튼 */}
-                  <button className="flex items-center gap-1.5 px-3 py-1.5 bg-[#334155] hover:bg-[#475569] text-[#e2e8f0] text-sm rounded-lg transition-colors shrink-0 ml-3">
+                  <button className="flex items-center gap-1.5 px-3 py-1.5 bg-[#e3e8ee] hover:bg-[#8792a2] text-[#1a1f36] text-sm rounded-lg transition-colors shrink-0 ml-3">
                     <Eye className="w-3.5 h-3.5" />
                     초안 보기
                   </button>
@@ -471,7 +471,7 @@ export default function MailQueue() {
                 {/* 초안 미리보기 / 수정 (토글) */}
                 {previewDraft?.id === draft.id && (
                   <div className="px-4 pb-3">
-                    <div className="bg-[#0f172a] rounded-lg p-4 border border-[#334155] space-y-3">
+                    <div className="bg-[#f6f8fa] rounded-lg p-4 border border-[#e3e8ee] space-y-3">
                       {editingDraftId === draft.id ? (
                         /* ── 수정 모드 ── */
                         <>
@@ -480,7 +480,7 @@ export default function MailQueue() {
                             type="text"
                             value={editSubject}
                             onChange={(e) => setEditSubject(e.target.value)}
-                            className="w-full bg-[#1e293b] border border-[#475569] rounded px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                            className="w-full bg-[#ffffff] border border-[#8792a2] rounded px-3 py-2 text-sm text-[#1a1f36] focus:border-blue-500 focus:outline-none"
                             placeholder="제목"
                           />
                           {/* 본문 수정 */}
@@ -491,7 +491,7 @@ export default function MailQueue() {
                               // 타이핑할 때마다 스팸 재확인
                               setSpamResult(checkSpamClient(e.target.value));
                             }}
-                            className="w-full bg-[#1e293b] border border-[#475569] rounded px-3 py-2 text-sm text-[#e2e8f0] focus:border-blue-500 focus:outline-none min-h-[200px] max-h-[400px] resize-y"
+                            className="w-full bg-[#ffffff] border border-[#8792a2] rounded px-3 py-2 text-sm text-[#1a1f36] focus:border-blue-500 focus:outline-none min-h-[200px] max-h-[400px] resize-y"
                             placeholder="본문"
                           />
 
@@ -517,7 +517,7 @@ export default function MailQueue() {
                                 </span>
                               </div>
                               {spamResult.issues.length > 0 ? (
-                                <ul className="text-xs text-[#94a3b8] space-y-0.5 ml-6">
+                                <ul className="text-xs text-[#697386] space-y-0.5 ml-6">
                                   {spamResult.issues.map((issue, i) => (
                                     <li key={i}>• {issue}</li>
                                   ))}
@@ -535,7 +535,7 @@ export default function MailQueue() {
                                 setEditingDraftId(null);
                                 setSpamResult(null);
                               }}
-                              className="px-3 py-1.5 text-sm text-[#94a3b8] hover:text-white transition"
+                              className="px-3 py-1.5 text-sm text-[#697386] hover:text-[#1a1f36] transition"
                             >
                               취소
                             </button>
@@ -582,7 +582,7 @@ export default function MailQueue() {
                         /* ── 보기 모드 ── */
                         <>
                           <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-white">
+                            <p className="text-sm font-medium text-[#1a1f36]">
                               {draft.subject_line_1}
                             </p>
                             <button
@@ -592,12 +592,12 @@ export default function MailQueue() {
                                 setEditBody(draft.body_first || draft.body_followup || '');
                                 setSpamResult(checkSpamClient(draft.body_first || draft.body_followup || ''));
                               }}
-                              className="px-3 py-1 text-xs bg-[#334155] hover:bg-[#475569] text-[#e2e8f0] rounded transition"
+                              className="px-3 py-1 text-xs bg-[#e3e8ee] hover:bg-[#8792a2] text-[#1a1f36] rounded transition"
                             >
                               수정
                             </button>
                           </div>
-                          <p className="text-sm text-[#94a3b8] whitespace-pre-wrap max-h-[400px] overflow-y-auto">
+                          <p className="text-sm text-[#697386] whitespace-pre-wrap max-h-[400px] overflow-y-auto">
                             {draft.body_first || draft.body_followup || '내용 없음'}
                           </p>
                         </>
@@ -613,7 +613,7 @@ export default function MailQueue() {
           {drafts.length > DISPLAY_LIMIT && (
             <button
               onClick={() => setShowAllDrafts(!showAllDrafts)}
-              className="w-full px-4 py-2 text-sm text-purple-400 hover:text-purple-300 hover:bg-[#1a2332] transition-colors flex items-center justify-center gap-1 border-t border-[#334155]"
+              className="w-full px-4 py-2 text-sm text-purple-400 hover:text-purple-300 hover:bg-[#1a2332] transition-colors flex items-center justify-center gap-1 border-t border-[#e3e8ee]"
             >
               {showAllDrafts ? (
                 <>접기 <ChevronUp className="w-4 h-4" /></>

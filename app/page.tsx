@@ -176,25 +176,25 @@ export default function Home() {
 
   return (
     <AuthGuard>
-    <div className="flex h-screen bg-[#0f172a] text-[#f1f5f9]">
+    <div className="flex h-screen bg-[#f6f8fa] text-[#1a1f36]">
       <Sidebar currentPage={currentPage} setCurrentPage={setCurrentPage} />
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Topbar */}
-        <div className="h-14 bg-[#1e293b] border-b border-[#334155] flex items-center justify-between px-6 flex-shrink-0">
+        <div className="h-14 bg-white border-b border-[#e3e8ee] flex items-center justify-between px-6 flex-shrink-0">
           <div>
-            <div className="text-base font-bold text-[#f1f5f9]">{config.title}</div>
-            <div className="text-xs text-[#64748b] mt-0.5">{config.subtitle}</div>
+            <div className="text-base font-bold text-[#1a1f36]">{config.title}</div>
+            <div className="text-xs text-[#8792a2] mt-0.5">{config.subtitle}</div>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setPipelineModalOpen(true)}
-              className="px-3 py-1.5 bg-transparent border border-[#334155] text-[#94a3b8] rounded-lg text-xs font-semibold hover:bg-[#334155] hover:text-[#e2e8f0] transition"
+              className="px-3 py-1.5 bg-transparent border border-[#e3e8ee] text-[#697386] rounded-lg text-xs font-semibold hover:bg-[#f0f0ff] hover:text-[#1a1f36] transition"
             >
               ▶ 파이프라인 실행
             </button>
             <button
               onClick={() => setCsvUploadModalOpen(true)}
-              className="px-3 py-1.5 bg-[#3b82f6] text-white rounded-lg text-xs font-semibold hover:bg-[#2563eb] transition"
+              className="px-3 py-1.5 bg-[#635BFF] text-white rounded-lg text-xs font-semibold hover:bg-[#5851DB] transition"
             >
               + 바이어 추가
             </button>
@@ -203,7 +203,7 @@ export default function Home() {
             <div className="relative" ref={notifRef}>
               <button
                 onClick={() => setNotifOpen(!notifOpen)}
-                className="relative text-lg hover:opacity-80 transition p-1 rounded hover:bg-[#334155]"
+                className="relative text-lg hover:opacity-80 transition p-1 rounded hover:bg-[#f0f0ff]"
                 title="알림"
               >
                 🔔
@@ -216,11 +216,11 @@ export default function Home() {
 
               {/* Notification Panel */}
               {notifOpen && (
-                <div className="absolute right-0 top-10 w-[340px] bg-[#1e293b] border border-[#334155] rounded-lg shadow-2xl z-50 overflow-hidden">
+                <div className="absolute right-0 top-10 w-[340px] bg-white border border-[#e3e8ee] rounded-lg shadow-2xl z-50 overflow-hidden">
                   {/* Panel Header */}
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-[#334155]">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-[#e3e8ee]">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-[#f1f5f9]">알림</span>
+                      <span className="text-sm font-semibold text-[#1a1f36]">알림</span>
                       {unreadCount > 0 && (
                         <span className="text-xs bg-[#ef4444] text-white px-1.5 py-0.5 rounded-full font-bold">
                           {unreadCount}
@@ -230,7 +230,7 @@ export default function Home() {
                     {unreadCount > 0 && (
                       <button
                         onClick={markAllRead}
-                        className="text-xs text-[#3b82f6] hover:text-[#60a5fa] font-semibold"
+                        className="text-xs text-[#635BFF] hover:text-[#7A73FF] font-semibold"
                       >
                         모두 읽음
                       </button>
@@ -240,7 +240,7 @@ export default function Home() {
                   {/* Notification List */}
                   <div className="max-h-[360px] overflow-y-auto">
                     {notifications.length === 0 ? (
-                      <div className="px-4 py-8 text-center text-xs text-[#64748b]">
+                      <div className="px-4 py-8 text-center text-xs text-[#8792a2]">
                         새로운 알림이 없습니다.
                       </div>
                     ) : (
@@ -248,8 +248,8 @@ export default function Home() {
                         <div
                           key={notif.id}
                           onClick={() => markRead(notif.id)}
-                          className={`flex items-start gap-3 px-4 py-3 border-b border-[#334155] cursor-pointer hover:bg-[#273549] transition ${
-                            !notif.read ? 'bg-[#1e3a5f20]' : ''
+                          className={`flex items-start gap-3 px-4 py-3 border-b border-[#e3e8ee] cursor-pointer hover:bg-[#f6f8fa] transition ${
+                            !notif.read ? 'bg-[#f0f0ff]' : ''
                           }`}
                         >
                           <div className="flex-shrink-0 mt-0.5">
@@ -259,15 +259,15 @@ export default function Home() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2">
-                              <span className={`text-xs font-semibold ${!notif.read ? 'text-[#f1f5f9]' : 'text-[#94a3b8]'}`}>
+                              <span className={`text-xs font-semibold ${!notif.read ? 'text-[#1a1f36]' : 'text-[#697386]'}`}>
                                 {notif.title}
                               </span>
-                              <span className="text-xs text-[#475569] whitespace-nowrap flex-shrink-0">{notif.time}</span>
+                              <span className="text-xs text-[#8792a2] whitespace-nowrap flex-shrink-0">{notif.time}</span>
                             </div>
-                            <p className="text-xs text-[#64748b] mt-0.5 leading-relaxed">{notif.body}</p>
+                            <p className="text-xs text-[#8792a2] mt-0.5 leading-relaxed">{notif.body}</p>
                           </div>
                           {!notif.read && (
-                            <div className="w-2 h-2 bg-[#3b82f6] rounded-full flex-shrink-0 mt-1" />
+                            <div className="w-2 h-2 bg-[#635BFF] rounded-full flex-shrink-0 mt-1" />
                           )}
                         </div>
                       ))
@@ -275,10 +275,10 @@ export default function Home() {
                   </div>
 
                   {/* Panel Footer */}
-                  <div className="px-4 py-3 border-t border-[#334155] text-center">
+                  <div className="px-4 py-3 border-t border-[#e3e8ee] text-center">
                     <button
                       onClick={() => { setCurrentPage('emails'); setNotifOpen(false); }}
-                      className="text-xs text-[#3b82f6] hover:text-[#60a5fa] font-semibold"
+                      className="text-xs text-[#635BFF] hover:text-[#7A73FF] font-semibold"
                     >
                       이메일 로그 전체 보기 →
                     </button>

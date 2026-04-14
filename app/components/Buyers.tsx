@@ -72,11 +72,11 @@ export default function Buyers() {
     if (s === '회신받음' || s === 'Replied') return 'bg-[#22c55e]/20 text-[#22c55e]';
     if (s === '발송완료' || s === 'Contacted') return 'bg-[#f59e0b]/20 text-[#f59e0b]';
     if (s === '반송됨' || s === 'Bounced') return 'bg-[#ef4444]/20 text-[#ef4444]';
-    if (s === 'Interested') return 'bg-[#3b82f6]/20 text-[#3b82f6]';
+    if (s === 'Interested') return 'bg-[#635BFF]/20 text-[#635BFF]';
     if (s === 'Sample') return 'bg-[#a855f7]/20 text-[#a855f7]';
     if (s === 'Deal') return 'bg-[#22c55e]/20 text-[#22c55e]';
-    if (s === 'Lost') return 'bg-[#64748b]/20 text-[#64748b]';
-    return 'bg-[#334155]/50 text-[#94a3b8]'; // Cold/미발송
+    if (s === 'Lost') return 'bg-[#8792a2]/20 text-[#8792a2]';
+    return 'bg-[#e3e8ee]/50 text-[#697386]'; // Cold/미발송
   };
 
   useEffect(() => {
@@ -380,8 +380,8 @@ export default function Buyers() {
             onClick={() => setViewMode('all')}
             className={`px-4 py-2 rounded-lg text-xs font-semibold transition ${
               viewMode === 'all'
-                ? 'bg-[#3b82f6] text-white'
-                : 'bg-[#1e293b] border border-[#334155] text-[#94a3b8] hover:text-[#f1f5f9]'
+                ? 'bg-[#635BFF] text-white'
+                : 'bg-[#ffffff] border border-[#e3e8ee] text-[#697386] hover:text-[#1a1f36]'
             }`}
           >
             전체 바이어 DB ({buyers.filter(b => !b.is_blacklisted).length})
@@ -391,7 +391,7 @@ export default function Buyers() {
             className={`px-4 py-2 rounded-lg text-xs font-semibold transition ${
               viewMode === 'blacklist'
                 ? 'bg-[#ef4444] text-white'
-                : 'bg-[#1e293b] border border-[#334155] text-[#94a3b8] hover:text-[#f1f5f9]'
+                : 'bg-[#ffffff] border border-[#e3e8ee] text-[#697386] hover:text-[#1a1f36]'
             }`}
           >
             블랙리스트 ({blacklistDomains.length})
@@ -399,9 +399,9 @@ export default function Buyers() {
         </div>
 
         {/* Info Banner */}
-        <div className="bg-[#1e3a5f30] border border-[#3b82f640] rounded-lg p-3 flex items-center gap-3">
+        <div className="bg-[#635BFF10] border border-[#635BFF40] rounded-lg p-3 flex items-center gap-3">
           <span className="text-lg flex-shrink-0">💡</span>
-          <span className="text-xs text-[#93c5fd]">
+          <span className="text-xs text-[#635BFF]">
             {viewMode === 'all'
               ? <><strong>회사명 클릭</strong>으로 바이어 인텔 확인 · <strong>✉ 메일 버튼</strong>으로 AI 초안 생성 후 발송</>
               : <>이메일 검증 실패 또는 Tier2 catch-all 도메인 목록입니다. 파이프라인에서 자동 제외됩니다.</>
@@ -412,35 +412,35 @@ export default function Buyers() {
         {/* Loading state */}
         {loading && (
           <div className="flex items-center justify-center py-12">
-            <div className="text-[#64748b] text-sm">바이어 DB 로딩 중...</div>
+            <div className="text-[#8792a2] text-sm">바이어 DB 로딩 중...</div>
           </div>
         )}
 
         {/* Blacklist View */}
         {viewMode === 'blacklist' && (
-          <div className="bg-[#1e293b] border border-[#334155] rounded-lg overflow-hidden">
+          <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-[#334155]">
-                    <th className="text-left px-4 py-3 font-semibold text-[#64748b]">도메인</th>
-                    <th className="text-left px-4 py-3 font-semibold text-[#64748b]">회사명</th>
-                    <th className="text-left px-4 py-3 font-semibold text-[#64748b]">사유</th>
+                  <tr className="border-b border-[#e3e8ee]">
+                    <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">도메인</th>
+                    <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">회사명</th>
+                    <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">사유</th>
                   </tr>
                 </thead>
                 <tbody>
                   {blacklistDomains.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="px-4 py-8 text-center text-[#64748b]">
+                      <td colSpan={3} className="px-4 py-8 text-center text-[#8792a2]">
                         블랙리스트 도메인이 없습니다
                       </td>
                     </tr>
                   ) : (
                     blacklistDomains.map((bl, idx) => (
-                      <tr key={idx} className="border-b border-[#334155] hover:bg-[#273549]">
+                      <tr key={idx} className="border-b border-[#e3e8ee] hover:bg-[#f6f8fa]">
                         <td className="px-4 py-3 text-[#ef4444] font-semibold">{bl.domain}</td>
-                        <td className="px-4 py-3 text-[#94a3b8]">{bl.company}</td>
-                        <td className="px-4 py-3 text-[#64748b]">{bl.reason}</td>
+                        <td className="px-4 py-3 text-[#697386]">{bl.company}</td>
+                        <td className="px-4 py-3 text-[#8792a2]">{bl.reason}</td>
                       </tr>
                     ))
                   )}
@@ -457,12 +457,12 @@ export default function Buyers() {
             placeholder="🔍  회사명 또는 담당자 검색..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-[260px] bg-[#1e293b] border border-[#334155] text-[#e2e8f0] px-3 py-2 rounded-lg text-xs placeholder-[#64748b]"
+            className="w-[260px] bg-[#ffffff] border border-[#e3e8ee] text-[#1a1f36] px-3 py-2 rounded-lg text-xs placeholder-[#8792a2]"
           />
           <select
             value={region}
             onChange={(e) => setRegion(e.target.value)}
-            className="bg-[#1e293b] border border-[#334155] text-[#e2e8f0] px-3 py-2 rounded-lg text-xs"
+            className="bg-[#ffffff] border border-[#e3e8ee] text-[#1a1f36] px-3 py-2 rounded-lg text-xs"
           >
             <option value="">전체 리전</option>
             <option value="GCC">GCC</option>
@@ -472,7 +472,7 @@ export default function Buyers() {
           <select
             value={tier}
             onChange={(e) => setTier(e.target.value)}
-            className="bg-[#1e293b] border border-[#334155] text-[#e2e8f0] px-3 py-2 rounded-lg text-xs"
+            className="bg-[#ffffff] border border-[#e3e8ee] text-[#1a1f36] px-3 py-2 rounded-lg text-xs"
           >
             <option value="">전체 Tier</option>
             <option value="Tier1">Tier 1</option>
@@ -482,7 +482,7 @@ export default function Buyers() {
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            className="bg-[#1e293b] border border-[#334155] text-[#e2e8f0] px-3 py-2 rounded-lg text-xs"
+            className="bg-[#ffffff] border border-[#e3e8ee] text-[#1a1f36] px-3 py-2 rounded-lg text-xs"
           >
             <option value="">전체 상태</option>
             <option value="미발송">미발송</option>
@@ -492,7 +492,7 @@ export default function Buyers() {
           <select
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="bg-[#1e293b] border border-[#334155] text-[#e2e8f0] px-3 py-2 rounded-lg text-xs"
+            className="bg-[#ffffff] border border-[#e3e8ee] text-[#1a1f36] px-3 py-2 rounded-lg text-xs"
           >
             <option value="">마지막 발송 — 전체</option>
             <option value="latest">최신순</option>
@@ -502,44 +502,44 @@ export default function Buyers() {
 
           <div className="flex-1" />
 
-          <span className="text-xs text-[#64748b] whitespace-nowrap">{displayCount}개 표시</span>
+          <span className="text-xs text-[#8792a2] whitespace-nowrap">{displayCount}개 표시</span>
           <button
             onClick={() => { setSearch(''); setRegion(''); setTier(''); setStatus(''); setDate(''); }}
-            className="bg-transparent border border-[#334155] text-[#64748b] px-3 py-2 rounded-lg text-xs hover:text-[#e2e8f0] transition"
+            className="bg-transparent border border-[#e3e8ee] text-[#8792a2] px-3 py-2 rounded-lg text-xs hover:text-[#1a1f36] transition"
           >
             ✕ 초기화
           </button>
           <button
             onClick={downloadCSV}
-            className="bg-transparent border border-[#334155] text-[#94a3b8] px-3 py-2 rounded-lg text-xs hover:bg-[#334155]"
+            className="bg-transparent border border-[#e3e8ee] text-[#697386] px-3 py-2 rounded-lg text-xs hover:bg-[#f0f0ff]"
           >
             📥 CSV
           </button>
           <button
             onClick={() => setAddBuyerModalOpen(true)}
-            className="bg-[#3b82f6] text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-[#2563eb]"
+            className="bg-[#635BFF] text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-[#5851DB]"
           >
             + 수동 추가
           </button>
         </div>
 
         {/* Table */}
-        <div className="bg-[#1e293b] border border-[#334155] rounded-lg overflow-hidden">
+        <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-[#334155]">
-                  <th className="text-left px-4 py-3 font-semibold text-[#64748b]">회사</th>
-                  <th className="text-center px-2 py-3 font-semibold text-[#64748b]">사이트</th>
-                  <th className="text-left px-4 py-3 font-semibold text-[#64748b]">리전</th>
-                  <th className="text-left px-4 py-3 font-semibold text-[#64748b]">Tier</th>
-                  <th className="text-left px-4 py-3 font-semibold text-[#64748b]">담당자</th>
-                  <th className="text-center px-2 py-3 font-semibold text-[#64748b]">LinkedIn</th>
-                  <th className="text-left px-4 py-3 font-semibold text-[#64748b]">직책</th>
-                  <th className="text-left px-4 py-3 font-semibold text-[#64748b]">이메일</th>
-                  <th className="text-left px-4 py-3 font-semibold text-[#64748b]">마지막 발송</th>
-                  <th className="text-left px-4 py-3 font-semibold text-[#64748b]">상태</th>
-                  <th className="text-center px-4 py-3 font-semibold text-[#64748b]">메일</th>
+                <tr className="border-b border-[#e3e8ee]">
+                  <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">회사</th>
+                  <th className="text-center px-2 py-3 font-semibold text-[#8792a2]">사이트</th>
+                  <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">리전</th>
+                  <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">Tier</th>
+                  <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">담당자</th>
+                  <th className="text-center px-2 py-3 font-semibold text-[#8792a2]">LinkedIn</th>
+                  <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">직책</th>
+                  <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">이메일</th>
+                  <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">마지막 발송</th>
+                  <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">상태</th>
+                  <th className="text-center px-4 py-3 font-semibold text-[#8792a2]">메일</th>
                 </tr>
               </thead>
               <tbody>
@@ -551,10 +551,10 @@ export default function Buyers() {
                     ? 'bg-[#ef4444]/20 text-[#ef4444]'
                     : count > 0
                     ? 'bg-[#f59e0b]/20 text-[#f59e0b]'
-                    : 'bg-[#3b82f6]/20 text-[#3b82f6]';
+                    : 'bg-[#635BFF]/20 text-[#635BFF]';
 
                   return (
-                    <tr key={buyer.rowKey || buyer.id} className="border-b border-[#334155] hover:bg-[#273549]">
+                    <tr key={buyer.rowKey || buyer.id} className="border-b border-[#e3e8ee] hover:bg-[#f6f8fa]">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div
@@ -566,12 +566,12 @@ export default function Buyers() {
                             {/* Clickable company name */}
                             <button
                               onClick={() => handleCompanyClick(buyer)}
-                              className="font-semibold text-[#e2e8f0] hover:text-[#60a5fa] hover:underline text-left transition"
+                              className="font-semibold text-[#1a1f36] hover:text-[#7A73FF] hover:underline text-left transition"
                               title="클릭하여 바이어 인텔 보기"
                             >
                               {buyer.company}
                             </button>
-                            <div className="text-[#64748b]">{buyer.email.split('@')[1] || ''}</div>
+                            <div className="text-[#8792a2]">{buyer.email.split('@')[1] || ''}</div>
                           </div>
                         </div>
                       </td>
@@ -583,17 +583,17 @@ export default function Buyers() {
                             rel="noopener noreferrer"
                             title={`https://${buyer.domain}`}
                             onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center justify-center w-7 h-7 rounded bg-[#3b82f6]/10 text-[#3b82f6] hover:bg-[#3b82f6]/20 transition"
+                            className="inline-flex items-center justify-center w-7 h-7 rounded bg-[#635BFF]/10 text-[#635BFF] hover:bg-[#635BFF]/20 transition"
                           >
                             🌐
                           </a>
                         ) : (
-                          <span className="text-[#475569]">—</span>
+                          <span className="text-[#8792a2]">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-[#94a3b8]">{buyer.region}</td>
-                      <td className="px-4 py-3 text-[#94a3b8]">{buyer.tierDisplay || buyer.tier}</td>
-                      <td className="px-4 py-3 text-[#94a3b8]">{buyer.contact}</td>
+                      <td className="px-4 py-3 text-[#697386]">{buyer.region}</td>
+                      <td className="px-4 py-3 text-[#697386]">{buyer.tierDisplay || buyer.tier}</td>
+                      <td className="px-4 py-3 text-[#697386]">{buyer.contact}</td>
                       <td className="px-2 py-3 text-center">
                         {buyer.linkedin_url ? (
                           <a
@@ -607,12 +607,12 @@ export default function Buyers() {
                             in
                           </a>
                         ) : (
-                          <span className="text-[#475569]">—</span>
+                          <span className="text-[#8792a2]">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-[#94a3b8]">{buyer.title}</td>
-                      <td className="px-4 py-3 text-[#94a3b8]">{buyer.email}</td>
-                      <td className="px-4 py-3 text-[#64748b]">{buyer.lastSent}</td>
+                      <td className="px-4 py-3 text-[#697386]">{buyer.title}</td>
+                      <td className="px-4 py-3 text-[#697386]">{buyer.email}</td>
+                      <td className="px-4 py-3 text-[#8792a2]">{buyer.lastSent}</td>
                       <td className="px-4 py-3">
                         <select
                           value={reverseMapStatus(buyer.status)}
@@ -630,7 +630,7 @@ export default function Buyers() {
                             { value: 'Deal', label: '딜' },
                             { value: 'Lost', label: '탈락' },
                           ].map((opt) => (
-                            <option key={opt.value} value={opt.value} style={{ background: '#1e293b', color: '#e2e8f0' }}>
+                            <option key={opt.value} value={opt.value} style={{ background: '#ffffff', color: '#1a1f36' }}>
                               {opt.label}
                             </option>
                           ))}
@@ -652,21 +652,21 @@ export default function Buyers() {
           </div>
 
           {/* Footer */}
-          <div className="border-t border-[#334155] px-4 py-3 flex justify-between items-center text-xs text-[#64748b]">
+          <div className="border-t border-[#e3e8ee] px-4 py-3 flex justify-between items-center text-xs text-[#8792a2]">
             <span>총 {totalCount}개 바이어 · {displayCount}개 필터 · {PAGE_SIZE}개씩 표시</span>
             <div className="flex gap-2 items-center">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="bg-transparent border border-[#334155] text-[#64748b] px-2 py-1 rounded hover:bg-[#334155] disabled:opacity-30 disabled:cursor-not-allowed"
+                className="bg-transparent border border-[#e3e8ee] text-[#8792a2] px-2 py-1 rounded hover:bg-[#f0f0ff] disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 ← 이전
               </button>
-              <span className="bg-[#334155] px-3 py-1 rounded">{page} / {totalPages}</span>
+              <span className="bg-[#e3e8ee] px-3 py-1 rounded">{page} / {totalPages}</span>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="bg-transparent border border-[#334155] text-[#64748b] px-2 py-1 rounded hover:bg-[#334155] disabled:opacity-30 disabled:cursor-not-allowed"
+                className="bg-transparent border border-[#e3e8ee] text-[#8792a2] px-2 py-1 rounded hover:bg-[#f0f0ff] disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 다음 →
               </button>

@@ -477,7 +477,7 @@ export default function Pipeline() {
     if (currentAgent === key && jobStatus === 'running') {
       return { color: 'bg-[#f59e0b]', text: 'text-[#f59e0b]', label: '실행 중', pulse: true };
     }
-    if (!status || status === 'waiting') return { color: 'bg-[#334155]', text: 'text-[#64748b]', label: '대기', pulse: false };
+    if (!status || status === 'waiting') return { color: 'bg-[#e3e8ee]', text: 'text-[#8792a2]', label: '대기', pulse: false };
     if (status === 'running') return { color: 'bg-[#f59e0b]', text: 'text-[#f59e0b]', label: '실행 중', pulse: true };
     if (status === 'done') return { color: 'bg-[#22c55e]', text: 'text-[#22c55e]', label: '완료', pulse: false };
     return { color: 'bg-[#ef4444]', text: 'text-[#ef4444]', label: '오류', pulse: false };
@@ -521,11 +521,11 @@ export default function Pipeline() {
         )}
 
         {/* ─── Header: CSV Upload + Pipeline Run ─── */}
-        <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
+        <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-5">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <div className="text-sm font-semibold text-[#f1f5f9]">파이프라인 — CSV 업로드 → B→C→D→E→F 자동 실행</div>
-              <div className="text-xs text-[#64748b] mt-1">
+              <div className="text-sm font-semibold text-[#1a1f36]">파이프라인 — CSV 업로드 → B→C→D→E→F 자동 실행</div>
+              <div className="text-xs text-[#8792a2] mt-1">
                 {isRunning
                   ? 'GCC + USA + Europe 3개 팀 동시 실행 중 — 브라우저를 닫으셔도 됩니다'
                   : csvUploaded
@@ -546,7 +546,7 @@ export default function Pipeline() {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading || isRunning}
-                className="px-4 py-2 bg-[#334155] border border-[#475569] rounded-lg text-white text-sm font-semibold hover:bg-[#475569] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-4 py-2 bg-[#e3e8ee] border border-[#8792a2] rounded-lg text-white text-sm font-semibold hover:bg-[#8792a2] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isUploading ? (
                   <><span className="animate-spin inline-block">⟳</span> 업로드 중...</>
@@ -559,7 +559,7 @@ export default function Pipeline() {
               <button
                 onClick={handleStartPipeline}
                 disabled={!csvUploaded || isRunning || isStarting}
-                className="px-5 py-2 bg-[#3b82f6] rounded-lg text-white text-sm font-semibold hover:bg-[#2563eb] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-5 py-2 bg-[#635BFF] rounded-lg text-white text-sm font-semibold hover:bg-[#5851DB] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isStarting ? (
                   <><span className="animate-spin inline-block">⟳</span> 시작 중...</>
@@ -582,10 +582,10 @@ export default function Pipeline() {
               onClick={() => !isUploading && fileInputRef.current?.click()}
               className={`border-2 border-dashed rounded-lg p-6 mb-4 text-center cursor-pointer transition-all select-none ${
                 isDragging
-                  ? 'border-[#3b82f6] bg-[#3b82f6]/15 scale-[1.01] shadow-lg shadow-[#3b82f6]/20'
+                  ? 'border-[#635BFF] bg-[#635BFF]/15 scale-[1.01] shadow-lg shadow-[#635BFF]/20'
                   : uploadedFile
                     ? 'border-[#22c55e] bg-[#22c55e]/10 hover:bg-[#22c55e]/15'
-                    : 'border-[#475569] bg-[#0f172a] hover:border-[#3b82f6]/60 hover:bg-[#0f172a]/80'
+                    : 'border-[#8792a2] bg-[#f6f8fa] hover:border-[#635BFF]/60 hover:bg-[#f6f8fa]/80'
               } ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {uploadedFile && !isDragging && !isUploading ? (
@@ -596,7 +596,7 @@ export default function Pipeline() {
                     <div className="text-sm font-semibold text-[#22c55e] break-all">
                       {uploadedFile.name}
                     </div>
-                    <div className="text-xs text-[#64748b]">
+                    <div className="text-xs text-[#8792a2]">
                       {formatFileSize(uploadedFile.size)} · 업로드 완료
                     </div>
                   </div>
@@ -610,7 +610,7 @@ export default function Pipeline() {
                       if (fileInputRef.current) fileInputRef.current.value = '';
                     }}
                     aria-label="업로드된 파일 제거"
-                    className="ml-2 w-7 h-7 flex items-center justify-center rounded-full bg-[#1e293b] hover:bg-[#ef4444] text-[#94a3b8] hover:text-white transition-colors text-sm font-bold"
+                    className="ml-2 w-7 h-7 flex items-center justify-center rounded-full bg-[#ffffff] hover:bg-[#ef4444] text-[#697386] hover:text-white transition-colors text-sm font-bold"
                   >
                     ✕
                   </button>
@@ -621,7 +621,7 @@ export default function Pipeline() {
                     {isDragging ? '⬇️' : '📄'}
                   </div>
                   <div
-                    className={`text-sm font-semibold mb-1 ${isDragging ? 'text-[#3b82f6]' : 'text-[#f1f5f9]'}`}
+                    className={`text-sm font-semibold mb-1 ${isDragging ? 'text-[#635BFF]' : 'text-[#1a1f36]'}`}
                     style={{ pointerEvents: 'none' }}
                   >
                     {isUploading
@@ -630,11 +630,11 @@ export default function Pipeline() {
                         ? '여기에 CSV 파일을 놓으세요'
                         : '여기에 CSV 파일을 드래그하거나 클릭해서 업로드'}
                   </div>
-                  <div className="text-xs text-[#64748b] mb-3" style={{ pointerEvents: 'none' }}>
+                  <div className="text-xs text-[#8792a2] mb-3" style={{ pointerEvents: 'none' }}>
                     .csv 파일만 지원
                   </div>
                   <div
-                    className="text-xs text-[#475569] font-mono break-all max-w-2xl mx-auto"
+                    className="text-xs text-[#8792a2] font-mono break-all max-w-2xl mx-auto"
                     style={{ pointerEvents: 'none' }}
                   >
                     컬럼: {CSV_COLUMNS.join(', ')}
@@ -646,14 +646,14 @@ export default function Pipeline() {
 
           {/* Upload Result */}
           {uploadResult && (
-            <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-3 mb-4">
+            <div className="bg-[#f6f8fa] border border-[#e3e8ee] rounded-lg p-3 mb-4">
               <div className="flex items-center gap-4 text-xs">
                 <span className="text-[#22c55e] font-semibold">추가: {uploadResult.added}개</span>
-                <span className="text-[#64748b]">건너뜀: {uploadResult.skipped}개</span>
-                <span className="text-[#64748b]">전체: {uploadResult.total}행</span>
-                <span className="text-[#64748b]">|</span>
+                <span className="text-[#8792a2]">건너뜀: {uploadResult.skipped}개</span>
+                <span className="text-[#8792a2]">전체: {uploadResult.total}행</span>
+                <span className="text-[#8792a2]">|</span>
                 {Object.entries(uploadResult.byTeam).filter(([, v]) => v > 0).map(([k, v]) => (
-                  <span key={k} className="text-[#94a3b8]">{k}: {v}개</span>
+                  <span key={k} className="text-[#697386]">{k}: {v}개</span>
                 ))}
               </div>
             </div>
@@ -663,12 +663,12 @@ export default function Pipeline() {
           {isRunning && (
             <div className="mb-4">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-semibold text-[#94a3b8]">전체 진행률</span>
-                <span className="text-xs font-bold text-[#f1f5f9]">{overallProgress}%</span>
+                <span className="text-xs font-semibold text-[#697386]">전체 진행률</span>
+                <span className="text-xs font-bold text-[#1a1f36]">{overallProgress}%</span>
               </div>
-              <div className="h-2 bg-[#334155] rounded-full overflow-hidden">
+              <div className="h-2 bg-[#e3e8ee] rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-[#3b82f6] to-[#22c55e] transition-all duration-500"
+                  className="h-full bg-gradient-to-r from-[#635BFF] to-[#22c55e] transition-all duration-500"
                   style={{ width: `${overallProgress}%` }}
                 />
               </div>
@@ -685,17 +685,17 @@ export default function Pipeline() {
               const teamFailed = job?.status === 'failed';
 
               return (
-                <div key={team.key} className={`bg-[#0f172a] border rounded-lg p-4 ${
+                <div key={team.key} className={`bg-[#f6f8fa] border rounded-lg p-4 ${
                   teamFailed ? 'border-[#ef4444]/40' :
                   teamDone ? 'border-[#22c55e]/40' :
                   job?.status === 'running' ? 'border-[#f59e0b]/40' :
-                  'border-[#334155]'
+                  'border-[#e3e8ee]'
                 }`}>
                   {/* Team Header */}
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-lg">{team.flag}</span>
-                      <span className="text-sm font-bold text-[#f1f5f9]">{team.label}</span>
+                      <span className="text-sm font-bold text-[#1a1f36]">{team.label}</span>
                     </div>
                     {teamDone && <span className="text-xs bg-[#22c55e]/20 text-[#22c55e] px-2 py-0.5 rounded font-semibold">완료</span>}
                     {teamFailed && <span className="text-xs bg-[#ef4444]/20 text-[#ef4444] px-2 py-0.5 rounded font-semibold">실패</span>}
@@ -704,16 +704,16 @@ export default function Pipeline() {
 
                   {/* Team Stats */}
                   <div className="grid grid-cols-3 gap-2 mb-3">
-                    <div className="text-center p-1.5 bg-[#1e293b] rounded">
-                      <div className="text-xs text-[#64748b]">기업</div>
-                      <div className="text-sm font-bold text-[#3b82f6]">{progress.buyers}</div>
+                    <div className="text-center p-1.5 bg-[#ffffff] rounded">
+                      <div className="text-xs text-[#8792a2]">기업</div>
+                      <div className="text-sm font-bold text-[#635BFF]">{progress.buyers}</div>
                     </div>
-                    <div className="text-center p-1.5 bg-[#1e293b] rounded">
-                      <div className="text-xs text-[#64748b]">유효메일</div>
+                    <div className="text-center p-1.5 bg-[#ffffff] rounded">
+                      <div className="text-xs text-[#8792a2]">유효메일</div>
                       <div className="text-sm font-bold text-[#8b5cf6]">{progress.validEmails}</div>
                     </div>
-                    <div className="text-center p-1.5 bg-[#1e293b] rounded">
-                      <div className="text-xs text-[#64748b]">초안</div>
+                    <div className="text-center p-1.5 bg-[#ffffff] rounded">
+                      <div className="text-xs text-[#8792a2]">초안</div>
                       <div className="text-sm font-bold text-[#22c55e]">{progress.drafts}</div>
                     </div>
                   </div>
@@ -730,7 +730,7 @@ export default function Pipeline() {
                             {display.label === '완료' ? '✓' : display.label === '오류' ? '✕' : step.key}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-xs text-[#94a3b8] truncate">{step.name.split('—')[1]?.trim() || step.name}</div>
+                            <div className="text-xs text-[#697386] truncate">{step.name.split('—')[1]?.trim() || step.name}</div>
                           </div>
                           <span className={`text-xs font-semibold ${display.text} flex-shrink-0`}>{display.label}</span>
                         </div>
@@ -746,11 +746,11 @@ export default function Pipeline() {
         {/* ─── Logs + Recent Jobs ─── */}
         <div className="grid grid-cols-2 gap-4">
           {/* 실시간 로그 (전체 팀) */}
-          <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
-            <div className="text-sm font-semibold text-[#f1f5f9] mb-3">실시간 로그</div>
+          <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-5">
+            <div className="text-sm font-semibold text-[#1a1f36] mb-3">실시간 로그</div>
             <div className="space-y-1 max-h-[300px] overflow-y-auto">
               {Object.values(allJobLogs).flat().length === 0 ? (
-                <div className="text-xs text-[#475569] p-3 text-center">
+                <div className="text-xs text-[#8792a2] p-3 text-center">
                   파이프라인을 실행하면 로그가 표시됩니다
                 </div>
               ) : (
@@ -760,21 +760,21 @@ export default function Pipeline() {
                 .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
                 .slice(-50)
                 .map((log) => (
-                  <div key={log._key} className="flex items-start gap-2 p-2 bg-[#0f172a] rounded border border-[#334155]">
-                    <span className="text-xs text-[#475569] whitespace-nowrap flex-shrink-0">
+                  <div key={log._key} className="flex items-start gap-2 p-2 bg-[#f6f8fa] rounded border border-[#e3e8ee]">
+                    <span className="text-xs text-[#8792a2] whitespace-nowrap flex-shrink-0">
                       {new Date(log.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </span>
-                    <span className="text-xs bg-[#334155] text-[#94a3b8] px-1 py-0.5 rounded flex-shrink-0">{log.team}</span>
+                    <span className="text-xs bg-[#e3e8ee] text-[#697386] px-1 py-0.5 rounded flex-shrink-0">{log.team}</span>
                     <span className={`text-xs px-1 py-0.5 rounded font-semibold flex-shrink-0 ${
                       log.agent === 'B' ? 'bg-[#8b5cf6]/20 text-[#8b5cf6]' :
                       log.agent === 'C' ? 'bg-[#f59e0b]/20 text-[#f59e0b]' :
                       log.agent === 'D' ? 'bg-[#22c55e]/20 text-[#22c55e]' :
                       log.agent === 'E' ? 'bg-[#ef4444]/20 text-[#ef4444]' :
-                      'bg-[#64748b]/20 text-[#64748b]'
+                      'bg-[#8792a2]/20 text-[#8792a2]'
                     }`}>{log.agent}</span>
                     <span className={`text-xs flex-1 ${
                       log.status === 'completed' ? 'text-[#22c55e]' :
-                      log.status === 'failed' ? 'text-[#ef4444]' : 'text-[#94a3b8]'
+                      log.status === 'failed' ? 'text-[#ef4444]' : 'text-[#697386]'
                     }`}>{log.message}</span>
                   </div>
                 ))
@@ -783,23 +783,23 @@ export default function Pipeline() {
           </div>
 
           {/* 최근 실행 기록 */}
-          <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
-            <div className="text-sm font-semibold text-[#f1f5f9] mb-3">최근 실행 기록</div>
+          <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-5">
+            <div className="text-sm font-semibold text-[#1a1f36] mb-3">최근 실행 기록</div>
             <div className="space-y-2 max-h-[300px] overflow-y-auto">
               {recentJobs.length === 0 ? (
-                <div className="text-xs text-[#475569] p-3 text-center">아직 실행 기록이 없습니다</div>
+                <div className="text-xs text-[#8792a2] p-3 text-center">아직 실행 기록이 없습니다</div>
               ) : (
                 recentJobs.map((job) => (
-                  <div key={job.id} className="flex items-center justify-between p-3 bg-[#0f172a]/50 rounded-lg border border-[#334155]">
+                  <div key={job.id} className="flex items-center justify-between p-3 bg-[#f6f8fa]/50 rounded-lg border border-[#e3e8ee]">
                     <div className="flex items-center gap-3">
                       <span className={`w-2 h-2 rounded-full ${
                         job.status === 'completed' ? 'bg-[#22c55e]' :
                         job.status === 'running' ? 'bg-[#f59e0b] animate-pulse' :
-                        job.status === 'failed' ? 'bg-[#ef4444]' : 'bg-[#64748b]'
+                        job.status === 'failed' ? 'bg-[#ef4444]' : 'bg-[#8792a2]'
                       }`} />
                       <div>
-                        <div className="text-xs font-semibold text-[#f1f5f9]">{job.team} 팀</div>
-                        <div className="text-xs text-[#64748b]">
+                        <div className="text-xs font-semibold text-[#1a1f36]">{job.team} 팀</div>
+                        <div className="text-xs text-[#8792a2]">
                           {new Date(job.created_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
@@ -808,7 +808,7 @@ export default function Pipeline() {
                       job.status === 'completed' ? 'bg-[#22c55e]/20 text-[#22c55e]' :
                       job.status === 'running' ? 'bg-[#f59e0b]/20 text-[#f59e0b]' :
                       job.status === 'failed' ? 'bg-[#ef4444]/20 text-[#ef4444]' :
-                      'bg-[#64748b]/20 text-[#64748b]'
+                      'bg-[#8792a2]/20 text-[#8792a2]'
                     }`}>
                       {job.status === 'completed' ? '완료' : job.status === 'running' ? '실행 중' : job.status === 'failed' ? '실패' : '대기'}
                     </span>

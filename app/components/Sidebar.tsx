@@ -44,18 +44,18 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
   ];
 
   return (
-    <div className="w-[220px] bg-[#1e293b] border-r border-[#334155] flex flex-col h-screen">
+    <div className="w-[220px] bg-white border-r border-[#e3e8ee] flex flex-col h-screen">
       {/* Logo */}
-      <div className="p-6 border-b border-[#334155]">
-        <div className="font-bold text-base text-[#f1f5f9]">SPS International</div>
-        <div className="text-xs text-[#94a3b8] mt-1">Buyer Platform v1.0</div>
+      <div className="p-6 border-b border-[#e3e8ee]">
+        <div className="font-bold text-base text-[#1a1f36]">SPS International</div>
+        <div className="text-xs text-[#697386] mt-1">Buyer Platform v1.0</div>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-4 space-y-4">
         {sections.map((section) => (
           <div key={section.title}>
-            <div className="text-xs font-semibold text-[#64748b] uppercase px-3 mb-2">
+            <div className="text-xs font-semibold text-[#8792a2] uppercase px-3 mb-2">
               {section.title}
             </div>
             <div className="space-y-1">
@@ -65,8 +65,8 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
                   onClick={() => setCurrentPage(item.id)}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${
                     currentPage === item.id
-                      ? 'bg-[#334155] text-[#60a5fa]'
-                      : 'text-[#94a3b8] hover:bg-[#334155]/50 hover:text-[#e2e8f0]'
+                      ? 'bg-[#f0f0ff] text-[#635BFF]'
+                      : 'text-[#697386] hover:bg-[#f6f8fa] hover:text-[#1a1f36]'
                   }`}
                 >
                   <span className="text-base">{item.icon}</span>
@@ -87,14 +87,14 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
       </nav>
 
       {/* User Info */}
-      <div className="border-t border-[#334155] p-4">
+      <div className="border-t border-[#e3e8ee] p-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-[#3b82f6] rounded-full flex items-center justify-center font-bold text-white">
+          <div className="w-10 h-10 bg-[#635BFF] rounded-full flex items-center justify-center font-bold text-white">
             신
           </div>
           <div className="text-sm">
-            <div className="font-semibold text-[#f1f5f9]">신동환 CEO</div>
-            <div className="text-xs text-[#94a3b8]">teddy@spscos.com</div>
+            <div className="font-semibold text-[#1a1f36]">신동환 CEO</div>
+            <div className="text-xs text-[#697386]">teddy@spscos.com</div>
           </div>
         </div>
       </div>

@@ -104,11 +104,11 @@ export default function CSVUploadModal({ isOpen, onClose, onImport }: CSVUploadM
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center" onClick={onClose}>
       <div
-        className="bg-[#1e293b] border border-[#334155] rounded-xl p-6 w-[520px] max-w-[90vw] shadow-2xl"
+        className="bg-[#ffffff] border border-[#e3e8ee] rounded-xl p-6 w-[520px] max-w-[90vw] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="text-base font-bold text-[#f1f5f9] mb-2">CSV 바이어 임포트</div>
-        <p className="text-xs text-[#64748b] mb-4">
+        <div className="text-base font-bold text-[#1a1f36] mb-2">CSV 바이어 임포트</div>
+        <p className="text-xs text-[#8792a2] mb-4">
           CSV 파일을 업로드하여 바이어를 일괄 추가합니다.
           필수 열: company (회사명). 선택: region, tier, contact, email
         </p>
@@ -116,7 +116,7 @@ export default function CSVUploadModal({ isOpen, onClose, onImport }: CSVUploadM
         {/* File Upload */}
         <div
           onClick={() => fileRef.current?.click()}
-          className="border-2 border-dashed border-[#334155] rounded-lg p-8 text-center cursor-pointer hover:border-[#3b82f6] transition mb-4"
+          className="border-2 border-dashed border-[#e3e8ee] rounded-lg p-8 text-center cursor-pointer hover:border-[#635BFF] transition mb-4"
         >
           <input
             ref={fileRef}
@@ -126,18 +126,18 @@ export default function CSVUploadModal({ isOpen, onClose, onImport }: CSVUploadM
             className="hidden"
           />
           {file ? (
-            <div className="text-sm text-[#e2e8f0]">{file.name} ({preview.length}+ 행)</div>
+            <div className="text-sm text-[#1a1f36]">{file.name} ({preview.length}+ 행)</div>
           ) : (
-            <div className="text-xs text-[#64748b]">CSV 파일을 클릭하여 선택하세요</div>
+            <div className="text-xs text-[#8792a2]">CSV 파일을 클릭하여 선택하세요</div>
           )}
         </div>
 
         {/* Preview */}
         {preview.length > 0 && (
-          <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-3 mb-4 max-h-[200px] overflow-auto">
-            <div className="text-xs font-semibold text-[#94a3b8] mb-2">미리보기 (최대 5행)</div>
+          <div className="bg-[#f6f8fa] border border-[#e3e8ee] rounded-lg p-3 mb-4 max-h-[200px] overflow-auto">
+            <div className="text-xs font-semibold text-[#697386] mb-2">미리보기 (최대 5행)</div>
             {preview.map((row, i) => (
-              <div key={i} className="text-xs text-[#64748b] py-1 border-b border-[#334155] last:border-0">
+              <div key={i} className="text-xs text-[#8792a2] py-1 border-b border-[#e3e8ee] last:border-0">
                 {Object.values(row).join(' | ')}
               </div>
             ))}
@@ -151,14 +151,14 @@ export default function CSVUploadModal({ isOpen, onClose, onImport }: CSVUploadM
         <div className="flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-transparent border border-[#334155] text-[#94a3b8] rounded-lg text-xs hover:bg-[#334155] transition"
+            className="px-4 py-2 bg-transparent border border-[#e3e8ee] text-[#697386] rounded-lg text-xs hover:bg-[#e3e8ee] transition"
           >
             취소
           </button>
           <button
             onClick={handleImport}
             disabled={!file || importing}
-            className="px-4 py-2 bg-[#3b82f6] text-white rounded-lg text-xs font-semibold hover:bg-[#2563eb] transition disabled:opacity-50"
+            className="px-4 py-2 bg-[#635BFF] text-white rounded-lg text-xs font-semibold hover:bg-[#5851DB] transition disabled:opacity-50"
           >
             {importing ? '임포트 중...' : '임포트 시작'}
           </button>

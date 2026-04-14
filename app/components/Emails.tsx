@@ -108,19 +108,19 @@ export default function Emails() {
       <div className="p-6">
 
         {/* Status Legend */}
-        <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4 mb-4 flex items-center gap-6">
-          <div className="text-xs font-semibold text-[#64748b] mr-2">상태 아이콘 설명:</div>
+        <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4 mb-4 flex items-center gap-6">
+          <div className="text-xs font-semibold text-[#8792a2] mr-2">상태 아이콘 설명:</div>
           <div className="flex items-center gap-2">
             <span className="text-xs bg-[#22c55e]/20 text-[#22c55e] px-2 py-1 rounded">✓ 회신받음</span>
-            <span className="text-xs text-[#64748b]">바이어가 답장을 보낸 상태</span>
+            <span className="text-xs text-[#8792a2]">바이어가 답장을 보낸 상태</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs bg-[#f59e0b]/20 text-[#f59e0b] px-2 py-1 rounded">📬 발송완료</span>
-            <span className="text-xs text-[#64748b]">이메일 발송됨, 회신 대기 중</span>
+            <span className="text-xs text-[#8792a2]">이메일 발송됨, 회신 대기 중</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs bg-[#ef4444]/20 text-[#ef4444] px-2 py-1 rounded">⚠ 반송됨</span>
-            <span className="text-xs text-[#64748b]">이메일 주소 오류 또는 수신 거부</span>
+            <span className="text-xs text-[#8792a2]">이메일 주소 오류 또는 수신 거부</span>
           </div>
         </div>
 
@@ -129,7 +129,7 @@ export default function Emails() {
           <select
             value={teamFilter}
             onChange={(e) => setTeamFilter(e.target.value)}
-            className="bg-[#1e293b] border border-[#334155] text-[#e2e8f0] px-3 py-2 rounded text-xs"
+            className="bg-[#ffffff] border border-[#e3e8ee] text-[#1a1f36] px-3 py-2 rounded text-xs"
           >
             <option value="">전체 팀</option>
             <option value="GCC">GCC</option>
@@ -139,7 +139,7 @@ export default function Emails() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-[#1e293b] border border-[#334155] text-[#e2e8f0] px-3 py-2 rounded text-xs"
+            className="bg-[#ffffff] border border-[#e3e8ee] text-[#1a1f36] px-3 py-2 rounded text-xs"
           >
             <option value="">전체 상태</option>
             <option value="sent">발송완료</option>
@@ -150,14 +150,14 @@ export default function Emails() {
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="bg-[#1e293b] border border-[#334155] text-[#e2e8f0] px-3 py-2 rounded text-xs"
+            className="bg-[#ffffff] border border-[#e3e8ee] text-[#1a1f36] px-3 py-2 rounded text-xs"
           />
-          <span className="text-[#475569]">~</span>
+          <span className="text-[#8792a2]">~</span>
           <input
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="bg-[#1e293b] border border-[#334155] text-[#e2e8f0] px-3 py-2 rounded text-xs"
+            className="bg-[#ffffff] border border-[#e3e8ee] text-[#1a1f36] px-3 py-2 rounded text-xs"
           />
           <div className="flex-1" />
           {/* Count badges */}
@@ -167,13 +167,13 @@ export default function Emails() {
             {bouncedCount > 0 && (
               <span className="text-xs bg-[#ef4444]/20 text-[#ef4444] px-2 py-1 rounded">⚠ {bouncedCount}</span>
             )}
-            <span className="text-xs text-[#64748b]">총 {filtered.length}건</span>
+            <span className="text-xs text-[#8792a2]">총 {filtered.length}건</span>
           </div>
         </div>
 
         {/* Data source note */}
         {usingFallback && (
-          <div className="bg-[#1e3a5f30] border border-[#3b82f640] rounded-lg p-3 mb-4 flex items-center gap-2">
+          <div className="bg-[#1e3a5f30] border border-[#635BFF40] rounded-lg p-3 mb-4 flex items-center gap-2">
             <span className="text-xs text-[#93c5fd]">
               ℹ️ 아직 이메일 발송 기록이 없습니다. 바이어 DB에서 이메일을 발송하면 여기에 표시됩니다.
             </span>
@@ -181,34 +181,34 @@ export default function Emails() {
         )}
 
         {/* Email Table */}
-        <div className="bg-[#1e293b] border border-[#334155] rounded-lg overflow-hidden">
+        <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg overflow-hidden">
           {loading ? (
-            <div className="py-12 text-center text-xs text-[#64748b]">이메일 로그 로딩 중...</div>
+            <div className="py-12 text-center text-xs text-[#8792a2]">이메일 로그 로딩 중...</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-[#334155]">
-                    <th className="text-left px-4 py-3 font-semibold text-[#64748b]">발송 일시</th>
-                    <th className="text-left px-4 py-3 font-semibold text-[#64748b]">수신자</th>
-                    <th className="text-left px-4 py-3 font-semibold text-[#64748b]">회사</th>
-                    <th className="text-left px-4 py-3 font-semibold text-[#64748b]">팀</th>
-                    <th className="text-left px-4 py-3 font-semibold text-[#64748b]">제목</th>
-                    <th className="text-left px-4 py-3 font-semibold text-[#64748b]">상태</th>
+                  <tr className="border-b border-[#e3e8ee]">
+                    <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">발송 일시</th>
+                    <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">수신자</th>
+                    <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">회사</th>
+                    <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">팀</th>
+                    <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">제목</th>
+                    <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">상태</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((email) => (
-                    <tr key={email.id} className="border-b border-[#334155] hover:bg-[#273549]">
-                      <td className="px-4 py-3 text-[#64748b] whitespace-nowrap">{formatDate(email.sent_at)}</td>
-                      <td className="px-4 py-3 text-[#e2e8f0]">{email.to_name || email.to_email}</td>
-                      <td className="px-4 py-3 text-[#e2e8f0]">{email.company}</td>
+                    <tr key={email.id} className="border-b border-[#e3e8ee] hover:bg-[#f6f8fa]">
+                      <td className="px-4 py-3 text-[#8792a2] whitespace-nowrap">{formatDate(email.sent_at)}</td>
+                      <td className="px-4 py-3 text-[#1a1f36]">{email.to_name || email.to_email}</td>
+                      <td className="px-4 py-3 text-[#1a1f36]">{email.company}</td>
                       <td className="px-4 py-3">
                         {email.region ? (
                           <span
                             className={`text-xs px-2 py-1 rounded ${
                               email.region === 'GCC'
-                                ? 'bg-[#3b82f6]/20 text-[#3b82f6]'
+                                ? 'bg-[#635BFF]/20 text-[#635BFF]'
                                 : email.region === 'USA'
                                 ? 'bg-[#7c3aed]/20 text-[#a78bfa]'
                                 : 'bg-[#0891b2]/20 text-[#4ade80]'
@@ -217,10 +217,10 @@ export default function Emails() {
                             {email.region}
                           </span>
                         ) : (
-                          <span className="text-[#475569]">—</span>
+                          <span className="text-[#8792a2]">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-[#94a3b8] max-w-xs overflow-hidden text-ellipsis whitespace-nowrap">
+                      <td className="px-4 py-3 text-[#697386] max-w-xs overflow-hidden text-ellipsis whitespace-nowrap">
                         {email.subject}
                       </td>
                       <td className="px-4 py-3">
@@ -240,7 +240,7 @@ export default function Emails() {
                   ))}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-[#64748b] text-xs">
+                      <td colSpan={6} className="px-4 py-8 text-center text-[#8792a2] text-xs">
                         검색 결과가 없습니다.
                       </td>
                     </tr>

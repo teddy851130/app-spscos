@@ -269,23 +269,23 @@ SPS Cosmetics | spscos.com`;
       {/* Modal */}
       {isOpen && (
         <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1e293b] rounded-lg border border-[#334155] w-full max-w-[900px] max-h-[90vh] flex flex-col shadow-2xl">
+          <div className="bg-[#ffffff] rounded-lg border border-[#e3e8ee] w-full max-w-[900px] max-h-[90vh] flex flex-col shadow-2xl">
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[#334155] flex-shrink-0">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#e3e8ee] flex-shrink-0">
               <div>
-                <div className="text-base font-bold text-[#f1f5f9]">발송 전 최종 검토</div>
+                <div className="text-base font-bold text-[#1a1f36]">발송 전 최종 검토</div>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="bg-[#22c55e]/20 text-[#22c55e] text-xs px-2 py-0.5 rounded">
                     ✓ 스팸 점수 85/100 — 안전
                   </span>
                   {intel && (
-                    <span className="bg-[#3b82f6]/20 text-[#60a5fa] text-xs px-2 py-0.5 rounded">
+                    <span className="bg-[#635BFF]/20 text-[#7A73FF] text-xs px-2 py-0.5 rounded">
                       🔍 인텔 로드됨
                     </span>
                   )}
                 </div>
               </div>
-              <button onClick={onClose} className="text-[#94a3b8] hover:text-[#f1f5f9] text-xl font-bold">
+              <button onClick={onClose} className="text-[#697386] hover:text-[#1a1f36] text-xl font-bold">
                 ✕
               </button>
             </div>
@@ -293,24 +293,24 @@ SPS Cosmetics | spscos.com`;
             {/* Content */}
             <div className="flex-1 flex min-h-0 overflow-hidden">
               {/* Left Panel */}
-              <div className="flex-1 flex flex-col border-r border-[#334155] overflow-hidden">
+              <div className="flex-1 flex flex-col border-r border-[#e3e8ee] overflow-hidden">
                 {/* Recipient Info */}
-                <div className="px-6 py-4 bg-[#0f172a] border-b border-[#334155] flex-shrink-0">
+                <div className="px-6 py-4 bg-[#f6f8fa] border-b border-[#e3e8ee] flex-shrink-0">
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between">
-                      <span className="text-[#64748b]">받는사람</span>
-                      <span className="text-[#e2e8f0] font-semibold">
+                      <span className="text-[#8792a2]">받는사람</span>
+                      <span className="text-[#1a1f36] font-semibold">
                         {buyer.contact} ({buyer.company})
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#64748b]">발신</span>
-                      <span className="text-[#e2e8f0]">Donghwan Shin &lt;teddy@spscos.com&gt;</span>
+                      <span className="text-[#8792a2]">발신</span>
+                      <span className="text-[#1a1f36]">Donghwan Shin &lt;teddy@spscos.com&gt;</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-[#64748b]">숨은참조</span>
+                      <span className="text-[#8792a2]">숨은참조</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-[#e2e8f0]">spscos@pipedrivemail.com</span>
+                        <span className="text-[#1a1f36]">spscos@pipedrivemail.com</span>
                         <span className="bg-[#22c55e]/20 text-[#22c55e] text-xs px-2 py-0.5 rounded">
                           Pipedrive 자동연동
                         </span>
@@ -320,26 +320,26 @@ SPS Cosmetics | spscos.com`;
                 </div>
 
                 {/* Subject Field */}
-                <div className="px-6 py-4 border-b border-[#334155] flex-shrink-0">
-                  <label className="text-xs text-[#64748b] mb-2 block">제목</label>
+                <div className="px-6 py-4 border-b border-[#e3e8ee] flex-shrink-0">
+                  <label className="text-xs text-[#8792a2] mb-2 block">제목</label>
                   <div
                     contentEditable
                     suppressContentEditableWarning
                     onBlur={(e) => setSubject(e.currentTarget.textContent || '')}
-                    className="w-full bg-transparent text-[#e2e8f0] outline-none text-sm font-semibold"
+                    className="w-full bg-transparent text-[#1a1f36] outline-none text-sm font-semibold"
                   >
                     {subject}
                   </div>
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b border-[#334155] flex-shrink-0 bg-[#0f172a]">
+                <div className="flex border-b border-[#e3e8ee] flex-shrink-0 bg-[#f6f8fa]">
                   <button
                     onClick={() => setCurrentTab('en')}
                     className={`flex-1 px-4 py-3 text-xs font-semibold border-b-2 transition ${
                       currentTab === 'en'
-                        ? 'text-[#3b82f6] border-[#3b82f6]'
-                        : 'text-[#64748b] border-transparent hover:text-[#94a3b8]'
+                        ? 'text-[#635BFF] border-[#635BFF]'
+                        : 'text-[#8792a2] border-transparent hover:text-[#697386]'
                     }`}
                   >
                     🇺🇸 영문(발송본)
@@ -348,8 +348,8 @@ SPS Cosmetics | spscos.com`;
                     onClick={() => setCurrentTab('ko')}
                     className={`flex-1 px-4 py-3 text-xs font-semibold border-b-2 transition ${
                       currentTab === 'ko'
-                        ? 'text-[#3b82f6] border-[#3b82f6]'
-                        : 'text-[#64748b] border-transparent hover:text-[#94a3b8]'
+                        ? 'text-[#635BFF] border-[#635BFF]'
+                        : 'text-[#8792a2] border-transparent hover:text-[#697386]'
                     }`}
                   >
                     🇰🇷 국문 수정
@@ -358,8 +358,8 @@ SPS Cosmetics | spscos.com`;
                     onClick={() => setCurrentTab('intel')}
                     className={`flex-1 px-4 py-3 text-xs font-semibold border-b-2 transition relative ${
                       currentTab === 'intel'
-                        ? 'text-[#3b82f6] border-[#3b82f6]'
-                        : 'text-[#64748b] border-transparent hover:text-[#94a3b8]'
+                        ? 'text-[#635BFF] border-[#635BFF]'
+                        : 'text-[#8792a2] border-transparent hover:text-[#697386]'
                     }`}
                   >
                     🔍 바이어 인텔
@@ -376,13 +376,13 @@ SPS Cosmetics | spscos.com`;
                       <textarea
                         value={emailBody}
                         onChange={(e) => setEmailBody(e.target.value)}
-                        className="w-full h-64 bg-[#0f172a] border border-[#334155] text-[#e2e8f0] p-4 rounded-lg text-xs font-mono resize-none focus:outline-none focus:border-[#3b82f6]"
+                        className="w-full h-64 bg-[#f6f8fa] border border-[#e3e8ee] text-[#1a1f36] p-4 rounded-lg text-xs font-mono resize-none focus:outline-none focus:border-[#635BFF]"
                       />
                       {intel && (
                         <button
                           onClick={regenerateWithIntel}
                           disabled={isLoading}
-                          className="text-xs bg-[#3b82f6]/20 text-[#60a5fa] px-3 py-1.5 rounded font-semibold hover:bg-[#3b82f6]/30 transition disabled:opacity-50"
+                          className="text-xs bg-[#635BFF]/20 text-[#7A73FF] px-3 py-1.5 rounded font-semibold hover:bg-[#635BFF]/30 transition disabled:opacity-50"
                         >
                           ✨ 바이어 인텔로 메일 재생성
                         </button>
@@ -395,9 +395,9 @@ SPS Cosmetics | spscos.com`;
                       <textarea
                         value={koreanBody}
                         onChange={(e) => setKoreanBody(e.target.value)}
-                        className="w-full h-64 bg-[#0f172a] border border-[#334155] text-[#e2e8f0] p-4 rounded-lg text-xs font-mono resize-none focus:outline-none focus:border-[#3b82f6]"
+                        className="w-full h-64 bg-[#f6f8fa] border border-[#e3e8ee] text-[#1a1f36] p-4 rounded-lg text-xs font-mono resize-none focus:outline-none focus:border-[#635BFF]"
                       />
-                      <button onClick={applyKoToEn} className="text-xs text-[#3b82f6] hover:text-[#60a5fa] font-semibold">
+                      <button onClick={applyKoToEn} className="text-xs text-[#635BFF] hover:text-[#7A73FF] font-semibold">
                         → 영문에 반영
                       </button>
                     </div>
@@ -408,51 +408,51 @@ SPS Cosmetics | spscos.com`;
                       {intelLoading ? (
                         <div className="space-y-3">
                           {[1, 2, 3].map((i) => (
-                            <div key={i} className="bg-[#0f172a] border border-[#334155] rounded-lg p-4 animate-pulse">
-                              <div className="h-3 bg-[#334155] rounded w-1/3 mb-2"></div>
-                              <div className="h-3 bg-[#334155] rounded w-full mb-1"></div>
-                              <div className="h-3 bg-[#334155] rounded w-4/5"></div>
+                            <div key={i} className="bg-[#f6f8fa] border border-[#e3e8ee] rounded-lg p-4 animate-pulse">
+                              <div className="h-3 bg-[#e3e8ee] rounded w-1/3 mb-2"></div>
+                              <div className="h-3 bg-[#e3e8ee] rounded w-full mb-1"></div>
+                              <div className="h-3 bg-[#e3e8ee] rounded w-4/5"></div>
                             </div>
                           ))}
-                          <p className="text-xs text-[#64748b] text-center">
+                          <p className="text-xs text-[#8792a2] text-center">
                             🤖 Claude AI가 {buyer.company} 분석 중...
                           </p>
                         </div>
                       ) : intel ? (
                         <>
                           {/* 🏢 회사 현황 (company_status) — BuyerIntelDrawer와 통일 */}
-                          <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-4">
-                            <div className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wide mb-2">🏢 회사 현황</div>
-                            <div className="text-xs font-bold text-[#e2e8f0] mb-2">{buyer.company} · {buyer.region} · {buyer.tier}</div>
-                            <p className="text-xs text-[#e2e8f0] leading-relaxed whitespace-pre-wrap">{intel.overview || '정보 없음'}</p>
+                          <div className="bg-[#f6f8fa] border border-[#e3e8ee] rounded-lg p-4">
+                            <div className="text-xs font-semibold text-[#697386] uppercase tracking-wide mb-2">🏢 회사 현황</div>
+                            <div className="text-xs font-bold text-[#1a1f36] mb-2">{buyer.company} · {buyer.region} · {buyer.tier}</div>
+                            <p className="text-xs text-[#1a1f36] leading-relaxed whitespace-pre-wrap">{intel.overview || '정보 없음'}</p>
                           </div>
 
                           {/* 💡 K-beauty 관심도 (kbeauty_interest) */}
-                          <div className="bg-[#1e3a5f30] border border-[#3b82f640] rounded-lg p-4">
-                            <div className="text-xs font-semibold text-[#60a5fa] uppercase tracking-wide mb-2">💡 K-beauty 관심도</div>
+                          <div className="bg-[#f0f0ff30] border border-[#635BFF40] rounded-lg p-4">
+                            <div className="text-xs font-semibold text-[#7A73FF] uppercase tracking-wide mb-2">💡 K-beauty 관심도</div>
                             <p className="text-xs text-[#93c5fd] leading-relaxed whitespace-pre-wrap">{intel.why_kbeauty || '정보 없음'}</p>
                           </div>
 
                           {/* 🧪 추천 포뮬라 (recommended_formula) */}
-                          <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-4">
-                            <div className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wide mb-2">🧪 추천 포뮬라</div>
+                          <div className="bg-[#f6f8fa] border border-[#e3e8ee] rounded-lg p-4">
+                            <div className="text-xs font-semibold text-[#697386] uppercase tracking-wide mb-2">🧪 추천 포뮬라</div>
                             {intel.products && intel.products.length > 0 ? (
                               <div className="flex flex-wrap gap-1.5">
                                 {intel.products.map((p: string, i: number) => (
-                                  <span key={i} className="text-xs bg-[#334155] text-[#e2e8f0] px-2 py-0.5 rounded">
+                                  <span key={i} className="text-xs bg-[#e3e8ee] text-[#1a1f36] px-2 py-0.5 rounded">
                                     {p}
                                   </span>
                                 ))}
                               </div>
                             ) : (
-                              <p className="text-xs text-[#64748b]">정보 없음</p>
+                              <p className="text-xs text-[#8792a2]">정보 없음</p>
                             )}
                           </div>
 
                           {/* 🎯 제안 앵글 (proposal_angle) */}
-                          <div className="bg-[#0f172a] border border-[#334155] rounded-lg p-4">
-                            <div className="text-xs font-semibold text-[#94a3b8] uppercase tracking-wide mb-2">🎯 제안 앵글</div>
-                            <p className="text-xs text-[#e2e8f0] leading-relaxed whitespace-pre-wrap">{intel.tier_note || '정보 없음'}</p>
+                          <div className="bg-[#f6f8fa] border border-[#e3e8ee] rounded-lg p-4">
+                            <div className="text-xs font-semibold text-[#697386] uppercase tracking-wide mb-2">🎯 제안 앵글</div>
+                            <p className="text-xs text-[#1a1f36] leading-relaxed whitespace-pre-wrap">{intel.tier_note || '정보 없음'}</p>
                           </div>
 
                           {/* Regenerate button */}
@@ -460,14 +460,14 @@ SPS Cosmetics | spscos.com`;
                             <button
                               onClick={regenerateWithIntel}
                               disabled={isLoading}
-                              className="flex-1 text-xs bg-[#3b82f6] text-white py-2 rounded-lg font-semibold hover:bg-[#2563eb] transition disabled:opacity-50"
+                              className="flex-1 text-xs bg-[#635BFF] text-white py-2 rounded-lg font-semibold hover:bg-[#5851DB] transition disabled:opacity-50"
                             >
                               {isLoading ? '생성 중...' : '✨ 이 인텔로 이메일 재생성'}
                             </button>
                             <button
                               onClick={() => { setIntelLoaded(false); setIntel(null); fetchIntel(); }}
                               disabled={intelLoading}
-                              className="text-xs border border-[#334155] text-[#64748b] px-3 py-2 rounded-lg hover:bg-[#334155] transition"
+                              className="text-xs border border-[#e3e8ee] text-[#8792a2] px-3 py-2 rounded-lg hover:bg-[#e3e8ee] transition"
                             >
                               🔄
                             </button>
@@ -475,9 +475,9 @@ SPS Cosmetics | spscos.com`;
                         </>
                       ) : (
                         <div className="text-center py-8">
-                          <div className="text-xs text-[#64748b]">아직 분석 데이터가 없습니다.</div>
-                          <div className="text-xs text-[#475569] mt-1">파이프라인을 실행해주세요.</div>
-                          <button onClick={() => fetchIntel()} className="block mx-auto mt-3 text-xs text-[#3b82f6] hover:underline">
+                          <div className="text-xs text-[#8792a2]">아직 분석 데이터가 없습니다.</div>
+                          <div className="text-xs text-[#8792a2] mt-1">파이프라인을 실행해주세요.</div>
+                          <button onClick={() => fetchIntel()} className="block mx-auto mt-3 text-xs text-[#635BFF] hover:underline">
                             다시 시도
                           </button>
                         </div>
@@ -487,22 +487,22 @@ SPS Cosmetics | spscos.com`;
                 </div>
 
                 {/* AI Prompts Section */}
-                <div className="px-6 py-3 border-t border-[#334155] flex-shrink-0">
+                <div className="px-6 py-3 border-t border-[#e3e8ee] flex-shrink-0">
                   <button
                     onClick={() => setShowAIPrompts(!showAIPrompts)}
-                    className="text-xs text-[#3b82f6] hover:text-[#60a5fa] font-semibold"
+                    className="text-xs text-[#635BFF] hover:text-[#7A73FF] font-semibold"
                   >
                     ✨ AI 수정 요청
                   </button>
 
                   {showAIPrompts && (
-                    <div className="mt-3 p-3 bg-[#0f172a] border border-[#334155] rounded-lg space-y-2">
+                    <div className="mt-3 p-3 bg-[#f6f8fa] border border-[#e3e8ee] rounded-lg space-y-2">
                       <div className="flex flex-wrap gap-2">
                         {['더 짧게', '친근한 톤', '격식체', 'CTA 강화'].map((preset) => (
                           <button
                             key={preset}
                             onClick={() => applyAIPreset(preset)}
-                            className="text-xs bg-[#334155] text-[#e2e8f0] px-2 py-1 rounded hover:bg-[#475569]"
+                            className="text-xs bg-[#e3e8ee] text-[#1a1f36] px-2 py-1 rounded hover:bg-[#8792a2]"
                           >
                             {preset}
                           </button>
@@ -514,11 +514,11 @@ SPS Cosmetics | spscos.com`;
                         value={aiPrompt}
                         onChange={(e) => setAiPrompt(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && applyAIPreset('custom')}
-                        className="w-full text-xs bg-[#1e293b] border border-[#334155] text-[#e2e8f0] px-2 py-1 rounded placeholder-[#64748b] focus:outline-none focus:border-[#3b82f6]"
+                        className="w-full text-xs bg-[#ffffff] border border-[#e3e8ee] text-[#1a1f36] px-2 py-1 rounded placeholder-[#8792a2] focus:outline-none focus:border-[#635BFF]"
                       />
                       <button
                         onClick={() => applyAIPreset('custom')}
-                        className="w-full text-xs bg-[#3b82f6] text-white py-1 rounded hover:bg-[#2563eb] font-semibold"
+                        className="w-full text-xs bg-[#635BFF] text-white py-1 rounded hover:bg-[#5851DB] font-semibold"
                       >
                         적용
                       </button>
@@ -527,17 +527,17 @@ SPS Cosmetics | spscos.com`;
                 </div>
 
                 {/* Edit Notice */}
-                <div className="px-6 py-3 bg-[#0f172a] text-xs text-[#64748b] border-t border-[#334155] flex-shrink-0">
+                <div className="px-6 py-3 bg-[#f6f8fa] text-xs text-[#8792a2] border-t border-[#e3e8ee] flex-shrink-0">
                   ✏️ 영문·국문 모두 직접 수정 가능 · 🔍 바이어 인텔 탭에서 개인화 포인트 확인 가능
                 </div>
               </div>
 
               {/* Right Panel */}
-              <div className="w-[300px] bg-[#0f172a] border-l border-[#334155] flex flex-col overflow-hidden">
+              <div className="w-[300px] bg-[#f6f8fa] border-l border-[#e3e8ee] flex flex-col overflow-hidden">
                 <div className="flex-1 overflow-y-auto">
                   {/* 첨부 파일 */}
-                  <div className="px-4 py-4 border-b border-[#334155]">
-                    <div className="text-xs font-semibold text-[#f1f5f9] mb-3">첨부 파일</div>
+                  <div className="px-4 py-4 border-b border-[#e3e8ee]">
+                    <div className="text-xs font-semibold text-[#1a1f36] mb-3">첨부 파일</div>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -548,8 +548,8 @@ SPS Cosmetics | spscos.com`;
                             className="w-4 h-4 rounded cursor-pointer"
                           />
                           <div className="flex-1">
-                            <div className="text-xs font-semibold text-[#e2e8f0]">SPS_Company_Profile_2026.pdf</div>
-                            <div className="text-xs text-[#64748b]">2.4MB</div>
+                            <div className="text-xs font-semibold text-[#1a1f36]">SPS_Company_Profile_2026.pdf</div>
+                            <div className="text-xs text-[#8792a2]">2.4MB</div>
                           </div>
                         </div>
                         {attachPDF1 && <span className="text-xs text-[#22c55e]">✓ 첨부됨</span>}
@@ -563,21 +563,21 @@ SPS Cosmetics | spscos.com`;
                             className="w-4 h-4 rounded cursor-pointer"
                           />
                           <div className="flex-1">
-                            <div className="text-xs font-semibold text-[#e2e8f0]">SPS_Product_Catalog_2026.pdf</div>
-                            <div className="text-xs text-[#64748b]">5.1MB</div>
+                            <div className="text-xs font-semibold text-[#1a1f36]">SPS_Product_Catalog_2026.pdf</div>
+                            <div className="text-xs text-[#8792a2]">5.1MB</div>
                           </div>
                         </div>
                         {attachPDF2 && <span className="text-xs text-[#22c55e]">✓ 첨부됨</span>}
                       </div>
                     </div>
-                    <div className="mt-3 border-2 border-dashed border-[#334155] rounded-lg p-4 text-center cursor-pointer hover:border-[#3b82f6] transition">
+                    <div className="mt-3 border-2 border-dashed border-[#e3e8ee] rounded-lg p-4 text-center cursor-pointer hover:border-[#635BFF] transition">
                       <div className="text-lg mb-1">📎</div>
-                      <div className="text-xs text-[#64748b]">파일을 드래그하거나 클릭</div>
+                      <div className="text-xs text-[#8792a2]">파일을 드래그하거나 클릭</div>
                     </div>
                   </div>
 
                   {/* 발송 전 체크 */}
-                  <div className="px-4 py-4 border-b border-[#334155]">
+                  <div className="px-4 py-4 border-b border-[#e3e8ee]">
                     <div className="bg-[#14532d20] border border-[#16a34a30] rounded-lg p-3">
                       <div className="text-xs font-semibold text-[#22c55e] mb-2">발송 전 체크</div>
                       <div className="space-y-2 text-xs text-[#4ade80]">
@@ -591,19 +591,19 @@ SPS Cosmetics | spscos.com`;
 
                   {/* 발송 방식 */}
                   <div className="px-4 py-4">
-                    <div className="text-xs font-semibold text-[#f1f5f9] mb-3">발송 방식</div>
+                    <div className="text-xs font-semibold text-[#1a1f36] mb-3">발송 방식</div>
                     <div className="space-y-2">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input type="radio" name="sendType" defaultChecked className="w-4 h-4" />
-                        <span className="text-xs text-[#e2e8f0]">지금 즉시 발송</span>
+                        <span className="text-xs text-[#1a1f36]">지금 즉시 발송</span>
                       </label>
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input type="radio" name="sendType" className="w-4 h-4" />
-                        <span className="text-xs text-[#e2e8f0]">오늘 밤 야간 파이프라인</span>
+                        <span className="text-xs text-[#1a1f36]">오늘 밤 야간 파이프라인</span>
                       </label>
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input type="radio" name="sendType" className="w-4 h-4" />
-                        <span className="text-xs text-[#e2e8f0]">예약 발송</span>
+                        <span className="text-xs text-[#1a1f36]">예약 발송</span>
                       </label>
                     </div>
                   </div>
@@ -612,25 +612,25 @@ SPS Cosmetics | spscos.com`;
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between px-6 py-4 border-t border-[#334155] flex-shrink-0 bg-[#0f172a]">
-              <span className="text-xs text-[#64748b]">
+            <div className="flex items-center justify-between px-6 py-4 border-t border-[#e3e8ee] flex-shrink-0 bg-[#f6f8fa]">
+              <span className="text-xs text-[#8792a2]">
                 이번 주 발송: 13/15통 · 오늘 남은 발송: 2통
               </span>
               <div className="flex gap-2">
                 <button
                   onClick={onClose}
-                  className="px-4 py-2 border border-[#334155] text-[#94a3b8] rounded-lg text-xs font-semibold hover:bg-[#334155] transition"
+                  className="px-4 py-2 border border-[#e3e8ee] text-[#697386] rounded-lg text-xs font-semibold hover:bg-[#e3e8ee] transition"
                 >
                   취소
                 </button>
                 <button
                   onClick={handleSend}
                   disabled={isLoading}
-                  className="px-4 py-2 bg-[#3b82f6] text-white rounded-lg text-xs font-semibold hover:bg-[#2563eb] transition disabled:opacity-50"
+                  className="px-4 py-2 bg-[#635BFF] text-white rounded-lg text-xs font-semibold hover:bg-[#5851DB] transition disabled:opacity-50"
                 >
                   {isLoading ? (
                     <span className="flex items-center gap-2">
-                      <span className="inline-block w-3 h-3 border-2 border-[#3b82f6] border-t-white rounded-full animate-spin" />
+                      <span className="inline-block w-3 h-3 border-2 border-[#635BFF] border-t-white rounded-full animate-spin" />
                       발송 중...
                     </span>
                   ) : (
@@ -645,12 +645,12 @@ SPS Cosmetics | spscos.com`;
 
       {/* Toast */}
       {showToast && (
-        <div className="fixed bottom-6 right-6 bg-[#1e293b] border border-[#334155] rounded-lg p-4 z-50 shadow-lg max-w-sm">
+        <div className="fixed bottom-6 right-6 bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4 z-50 shadow-lg max-w-sm">
           <div className="text-sm font-semibold text-[#22c55e] mb-1">✅ 이메일 발송 완료</div>
-          <div className="text-xs text-[#e2e8f0] mb-2">
+          <div className="text-xs text-[#1a1f36] mb-2">
             {buyer.contact} ({buyer.company})에게 발송되었습니다.
           </div>
-          <div className="text-xs text-[#64748b]">Pipedrive BCC 연동 · 이메일 로그 기록 완료</div>
+          <div className="text-xs text-[#8792a2]">Pipedrive BCC 연동 · 이메일 로그 기록 완료</div>
         </div>
       )}
     </>

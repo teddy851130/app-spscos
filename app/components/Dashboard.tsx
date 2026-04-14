@@ -390,7 +390,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
   if (loading) {
     return (
       <div className="flex-1 overflow-y-auto h-full flex items-center justify-center">
-        <div className="text-[#64748b] text-sm">대시보드 로딩 중...</div>
+        <div className="text-[#8792a2] text-sm">대시보드 로딩 중...</div>
       </div>
     );
   }
@@ -411,7 +411,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
             </div>
             <button
               onClick={() => setAlertDismissed(true)}
-              className="text-xs text-[#e2e8f0] px-3 py-1 bg-[#334155] rounded hover:bg-[#475569] transition whitespace-nowrap flex-shrink-0"
+              className="text-xs text-[#1a1f36] px-3 py-1 bg-[#e3e8ee] rounded hover:bg-[#8792a2] transition whitespace-nowrap flex-shrink-0"
             >
               닫기
             </button>
@@ -443,12 +443,12 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
         )}
 
         {/* North Star Metric — 이번 주 긍정 회신 (가장 중요한 단일 지표) */}
-        <div className="bg-gradient-to-r from-[#1e3a5f] to-[#1e293b] border border-[#3b82f6]/30 rounded-xl p-6">
+        <div className="bg-gradient-to-r from-[#f0f0ff] to-[#ffffff] border border-[#635BFF]/30 rounded-xl p-6">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-xs text-[#60a5fa] font-semibold uppercase tracking-wide">North Star — 이번 주 긍정 회신</div>
-              <div className="text-4xl font-bold text-[#f1f5f9] mt-2">{northStar}<span className="text-lg text-[#64748b] ml-1">건</span></div>
-              <div className="text-xs text-[#64748b] mt-2">목표: 주 2건 이상 (Interested / Sample / Deal)</div>
+              <div className="text-xs text-[#7A73FF] font-semibold uppercase tracking-wide">North Star — 이번 주 긍정 회신</div>
+              <div className="text-4xl font-bold text-[#1a1f36] mt-2">{northStar}<span className="text-lg text-[#8792a2] ml-1">건</span></div>
+              <div className="text-xs text-[#8792a2] mt-2">목표: 주 2건 이상 (Interested / Sample / Deal)</div>
             </div>
             <div className={`text-5xl ${northStar >= 2 ? '' : 'opacity-30'}`}>
               {northStar >= 2 ? '🎯' : '🎯'}
@@ -464,54 +464,54 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
         {/* KPI Cards */}
         {kpi && (
           <div className="grid grid-cols-4 gap-4">
-            <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
-              <div className="text-xs text-[#64748b] font-semibold uppercase tracking-wide">이번 주 발송</div>
-              <div className="text-3xl font-bold text-[#3b82f6] mt-2">{kpi.sent}통</div>
+            <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-5">
+              <div className="text-xs text-[#8792a2] font-semibold uppercase tracking-wide">이번 주 발송</div>
+              <div className="text-3xl font-bold text-[#635BFF] mt-2">{kpi.sent}통</div>
               <div className="text-xs text-[#22c55e] mt-2">
-                <span className="text-[#64748b]">전체 발송: </span>{kpi.total_sent}통
+                <span className="text-[#8792a2]">전체 발송: </span>{kpi.total_sent}통
               </div>
-              <div className="h-1 bg-[#334155] rounded mt-4 overflow-hidden">
-                <div className="h-full bg-[#3b82f6]" style={{ width: `${Math.min((kpi.sent / 15) * 100, 100)}%` }} />
+              <div className="h-1 bg-[#e3e8ee] rounded mt-4 overflow-hidden">
+                <div className="h-full bg-[#635BFF]" style={{ width: `${Math.min((kpi.sent / 15) * 100, 100)}%` }} />
               </div>
             </div>
 
-            <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
-              <div className="text-xs text-[#64748b] font-semibold uppercase tracking-wide">비반송율</div>
-              <div className={`text-3xl font-bold mt-2 ${kpi.total_sent > 0 ? (kpi.deliveryRate >= 97 ? 'text-[#22c55e]' : 'text-[#f59e0b]') : 'text-[#64748b]'}`}>
+            <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-5">
+              <div className="text-xs text-[#8792a2] font-semibold uppercase tracking-wide">비반송율</div>
+              <div className={`text-3xl font-bold mt-2 ${kpi.total_sent > 0 ? (kpi.deliveryRate >= 97 ? 'text-[#22c55e]' : 'text-[#f59e0b]') : 'text-[#8792a2]'}`}>
                 {kpi.total_sent > 0 ? `${kpi.deliveryRate}%` : '—'}
               </div>
-              <div className="text-xs mt-2 text-[#64748b]">
+              <div className="text-xs mt-2 text-[#8792a2]">
                 {kpi.total_sent > 0
                   ? (kpi.deliveryRate >= 97 ? '✓ 목표 초과' : '▼ 주의')
                   : '발송 후 자동 계산'}
-                <span className="text-[#64748b]"> (기준: 97%)</span>
+                <span className="text-[#8792a2]"> (기준: 97%)</span>
               </div>
-              <div className="h-1 bg-[#334155] rounded mt-4 overflow-hidden">
+              <div className="h-1 bg-[#e3e8ee] rounded mt-4 overflow-hidden">
                 <div className={`h-full ${kpi.deliveryRate >= 97 ? 'bg-[#22c55e]' : 'bg-[#f59e0b]'}`} style={{ width: `${Math.min(kpi.deliveryRate, 100)}%` }} />
               </div>
             </div>
 
-            <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
-              <div className="text-xs text-[#64748b] font-semibold uppercase tracking-wide">열람율</div>
-              <div className="text-3xl font-bold mt-2 text-[#64748b]">—</div>
-              <div className="text-xs mt-2 text-[#64748b]">
-                추적 미설정 <span className="text-[#64748b]">(기준: 45%)</span>
+            <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-5">
+              <div className="text-xs text-[#8792a2] font-semibold uppercase tracking-wide">열람율</div>
+              <div className="text-3xl font-bold mt-2 text-[#8792a2]">—</div>
+              <div className="text-xs mt-2 text-[#8792a2]">
+                추적 미설정 <span className="text-[#8792a2]">(기준: 45%)</span>
               </div>
-              <div className="h-1 bg-[#334155] rounded mt-4 overflow-hidden">
-                <div className="h-full bg-[#334155]" style={{ width: '0%' }} />
+              <div className="h-1 bg-[#e3e8ee] rounded mt-4 overflow-hidden">
+                <div className="h-full bg-[#e3e8ee]" style={{ width: '0%' }} />
               </div>
             </div>
 
-            <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
-              <div className="text-xs text-[#64748b] font-semibold uppercase tracking-wide">회신율</div>
+            <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-5">
+              <div className="text-xs text-[#8792a2] font-semibold uppercase tracking-wide">회신율</div>
               <div className={`text-3xl font-bold mt-2 ${kpi.replyRate >= 10 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
                 {kpi.replyRate > 0 ? `${kpi.replyRate}%` : '0%'}
               </div>
               <div className={`text-xs mt-2 ${kpi.replyRate >= 10 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
                 {kpi.replyRate >= 10 ? '✓ 목표 달성' : '▼ 목표 미달'}
-                <span className="text-[#64748b]"> (기준: 10%) · 실제 {kpi.replied}건</span>
+                <span className="text-[#8792a2]"> (기준: 10%) · 실제 {kpi.replied}건</span>
               </div>
-              <div className="h-1 bg-[#334155] rounded mt-4 overflow-hidden">
+              <div className="h-1 bg-[#e3e8ee] rounded mt-4 overflow-hidden">
                 <div
                   className={`h-full ${kpi.replyRate >= 10 ? 'bg-[#22c55e]' : 'bg-[#ef4444]'}`}
                   style={{ width: `${Math.min(kpi.replyRate * 5, 100)}%` }}
@@ -523,10 +523,10 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
 
         {/* 팔로업 대기 목록 — 건수가 0이면 안 보임 */}
         {followupBuyers.length > 0 ? (
-          <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
+          <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-5">
             <div className="flex items-center gap-2 mb-4">
               <span className="text-lg">📋</span>
-              <div className="text-sm font-semibold text-[#f1f5f9]">
+              <div className="text-sm font-semibold text-[#1a1f36]">
                 팔로업 필요 ({followupBuyers.length}건)
               </div>
             </div>
@@ -536,7 +536,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
                 const badgeConfig = {
                   overdue: { label: '긴급', className: 'bg-[#ef4444]/20 text-[#ef4444]' },
                   today: { label: '오늘', className: 'bg-[#f59e0b]/20 text-[#f59e0b]' },
-                  tomorrow: { label: '내일', className: 'bg-[#64748b]/20 text-[#94a3b8]' },
+                  tomorrow: { label: '내일', className: 'bg-[#8792a2]/20 text-[#697386]' },
                 }[buyer.badge];
 
                 // 날짜 포맷: M/D
@@ -551,12 +551,12 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
                   ? 'bg-[#22c55e]/20 text-[#22c55e]'
                   : buyer.tier === 'Tier2'
                     ? 'bg-[#f59e0b]/20 text-[#f59e0b]'
-                    : 'bg-[#64748b]/20 text-[#94a3b8]';
+                    : 'bg-[#8792a2]/20 text-[#697386]';
 
                 return (
                   <div
                     key={buyer.id}
-                    className="flex items-center gap-3 p-3 bg-[#0f172a] rounded-lg border border-[#334155] hover:border-[#3b82f6]/50 transition"
+                    className="flex items-center gap-3 p-3 bg-[#f6f8fa] rounded-lg border border-[#e3e8ee] hover:border-[#635BFF]/50 transition"
                   >
                     {/* 긴급/오늘/내일 배지 */}
                     <span className={`text-xs px-2 py-0.5 rounded font-semibold whitespace-nowrap flex-shrink-0 ${badgeConfig.className}`}>
@@ -564,15 +564,15 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
                     </span>
 
                     {/* 회사명 */}
-                    <span className="text-xs font-semibold text-[#f1f5f9] truncate min-w-0 max-w-[140px]">
+                    <span className="text-xs font-semibold text-[#1a1f36] truncate min-w-0 max-w-[140px]">
                       {buyer.company_name}
                     </span>
 
                     {/* 구분선 */}
-                    <span className="text-[#334155]">|</span>
+                    <span className="text-[#e3e8ee]">|</span>
 
                     {/* 담당자명 */}
-                    <span className="text-xs text-[#94a3b8] truncate min-w-0 max-w-[80px]">
+                    <span className="text-xs text-[#697386] truncate min-w-0 max-w-[80px]">
                       {buyer.contact_name}
                     </span>
 
@@ -582,17 +582,17 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
                     </span>
 
                     {/* 마지막 발송 / 팔로업 예정 */}
-                    <span className="text-xs text-[#64748b] whitespace-nowrap flex-shrink-0">
+                    <span className="text-xs text-[#8792a2] whitespace-nowrap flex-shrink-0">
                       마지막 발송: {formatDate(buyer.last_sent_at)}
                     </span>
-                    <span className="text-xs text-[#64748b] whitespace-nowrap flex-shrink-0">
+                    <span className="text-xs text-[#8792a2] whitespace-nowrap flex-shrink-0">
                       팔로업 예정: {formatDate(buyer.next_followup_at)}
                     </span>
 
                     {/* 메일 작성 버튼 — '오늘 보낼 메일' 탭으로 이동 */}
                     <button
                       onClick={() => onNavigate?.('mailQueue')}
-                      className="ml-auto text-xs px-3 py-1.5 bg-[#3b82f6]/20 text-[#3b82f6] rounded hover:bg-[#3b82f6]/30 transition whitespace-nowrap flex-shrink-0 font-semibold"
+                      className="ml-auto text-xs px-3 py-1.5 bg-[#635BFF]/20 text-[#635BFF] rounded hover:bg-[#635BFF]/30 transition whitespace-nowrap flex-shrink-0 font-semibold"
                     >
                       메일 작성
                     </button>
@@ -603,9 +603,9 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
           </div>
         ) : (
           !loading && (
-            <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4 flex items-center gap-2">
+            <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4 flex items-center gap-2">
               <span className="text-sm">✅</span>
-              <span className="text-xs text-[#64748b]">팔로업 대기 없음</span>
+              <span className="text-xs text-[#8792a2]">팔로업 대기 없음</span>
             </div>
           )
         )}
@@ -613,11 +613,11 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
         {/* Charts Section */}
         <div className="grid grid-cols-3 gap-4">
           {/* Bar Chart */}
-          <div className="col-span-2 bg-[#1e293b] border border-[#334155] rounded-lg p-5">
+          <div className="col-span-2 bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-5">
             <div className="flex justify-between items-start mb-6">
               <div>
-                <div className="text-sm font-semibold text-[#f1f5f9]">팀별 일일 발송 추이 (최근 7일)</div>
-                <div className="text-xs text-[#64748b] mt-1">GCC · USA · Europe — last_sent_at 기준</div>
+                <div className="text-sm font-semibold text-[#1a1f36]">팀별 일일 발송 추이 (최근 7일)</div>
+                <div className="text-xs text-[#8792a2] mt-1">GCC · USA · Europe — last_sent_at 기준</div>
               </div>
             </div>
 
@@ -626,7 +626,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
                 <div key={idx} className="flex flex-col items-center flex-1 gap-2">
                   <div className="flex gap-0.5 items-end justify-center h-40">
                     <div
-                      className="bg-[#3b82f6] rounded-sm"
+                      className="bg-[#635BFF] rounded-sm"
                       style={{ width: '8px', height: `${Math.max((item.gcc / maxChart) * 140, item.gcc > 0 ? 4 : 0)}px` }}
                       title={`GCC: ${item.gcc}`}
                     />
@@ -641,54 +641,54 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
                       title={`Europe: ${item.europe}`}
                     />
                   </div>
-                  <div className="text-xs text-[#64748b]">{item.date}</div>
+                  <div className="text-xs text-[#8792a2]">{item.date}</div>
                 </div>
               ))}
             </div>
 
             {chartData.every((d) => d.gcc === 0 && d.usa === 0 && d.europe === 0) && (
-              <div className="text-center text-xs text-[#475569] mt-2">
+              <div className="text-center text-xs text-[#8792a2] mt-2">
                 최근 7일 내 발송 데이터가 없습니다. 이메일 발송 후 업데이트됩니다.
               </div>
             )}
 
             <div className="flex justify-center gap-6 mt-6 text-xs">
-              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[#3b82f6] rounded-sm" /><span className="text-[#e2e8f0]">GCC</span></div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[#7c3aed] rounded-sm" /><span className="text-[#e2e8f0]">USA</span></div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[#0891b2] rounded-sm" /><span className="text-[#e2e8f0]">Europe</span></div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[#635BFF] rounded-sm" /><span className="text-[#1a1f36]">GCC</span></div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[#7c3aed] rounded-sm" /><span className="text-[#1a1f36]">USA</span></div>
+              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[#0891b2] rounded-sm" /><span className="text-[#1a1f36]">Europe</span></div>
             </div>
           </div>
 
           {/* Recent Replies */}
-          <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
-            <div className="text-sm font-semibold text-[#f1f5f9] mb-4">최근 회신</div>
+          <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-5">
+            <div className="text-sm font-semibold text-[#1a1f36] mb-4">최근 회신</div>
             {recentReplies.length === 0 ? (
-              <div className="text-xs text-[#64748b] italic text-center py-8">
+              <div className="text-xs text-[#8792a2] italic text-center py-8">
                 아직 회신받은 바이어가 없습니다.
               </div>
             ) : (
               <div className="space-y-3">
                 {recentReplies.map((reply, idx) => (
-                  <div key={idx} className="pb-3 border-b border-[#334155] last:border-b-0">
+                  <div key={idx} className="pb-3 border-b border-[#e3e8ee] last:border-b-0">
                     <div className="flex items-start gap-2.5 mb-2">
                       <div
                         className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
                         style={{
-                          backgroundImage: `linear-gradient(135deg, ${['#3b82f6','#7c3aed','#0891b2','#f59e0b'][idx % 4]}, ${['#2563eb','#6d28d9','#0e7490','#d97706'][idx % 4]})`,
+                          backgroundImage: `linear-gradient(135deg, ${['#635BFF','#7c3aed','#0891b2','#f59e0b'][idx % 4]}, ${['#5851DB','#6d28d9','#0e7490','#d97706'][idx % 4]})`,
                           color: 'white',
                         }}
                       >
                         {reply.from[0]}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs font-semibold text-[#f1f5f9]">{reply.from}</div>
-                        <div className="text-xs text-[#64748b]">{reply.company}</div>
+                        <div className="text-xs font-semibold text-[#1a1f36]">{reply.from}</div>
+                        <div className="text-xs text-[#8792a2]">{reply.company}</div>
                       </div>
                       <span className="bg-[#22c55e]/20 text-[#22c55e] text-xs px-2 py-0.5 rounded whitespace-nowrap flex-shrink-0">
                         {reply.tag}
                       </span>
                     </div>
-                    <div className="text-xs text-[#94a3b8] line-clamp-2">{reply.preview}</div>
+                    <div className="text-xs text-[#697386] line-clamp-2">{reply.preview}</div>
                   </div>
                 ))}
               </div>
@@ -708,59 +708,59 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
 
         {/* 오늘 파이프라인 결과 */}
         <div className="grid grid-cols-5 gap-4">
-          <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4 text-center">
-            <div className="text-xs text-[#64748b] font-semibold">오늘 발굴 기업</div>
-            <div className="text-2xl font-bold text-[#3b82f6] mt-2">{todayStats.companies}</div>
+          <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4 text-center">
+            <div className="text-xs text-[#8792a2] font-semibold">오늘 발굴 기업</div>
+            <div className="text-2xl font-bold text-[#635BFF] mt-2">{todayStats.companies}</div>
           </div>
-          <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4 text-center">
-            <div className="text-xs text-[#64748b] font-semibold">오늘 발굴 담당자</div>
+          <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4 text-center">
+            <div className="text-xs text-[#8792a2] font-semibold">오늘 발굴 담당자</div>
             <div className="text-2xl font-bold text-[#8b5cf6] mt-2">{todayStats.contacts}</div>
           </div>
-          <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4 text-center">
-            <div className="text-xs text-[#64748b] font-semibold">Tier 1</div>
+          <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4 text-center">
+            <div className="text-xs text-[#8792a2] font-semibold">Tier 1</div>
             <div className="text-2xl font-bold text-[#22c55e] mt-2">{todayStats.tier1}</div>
           </div>
-          <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4 text-center">
-            <div className="text-xs text-[#64748b] font-semibold">Tier 2</div>
+          <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4 text-center">
+            <div className="text-xs text-[#8792a2] font-semibold">Tier 2</div>
             <div className="text-2xl font-bold text-[#f59e0b] mt-2">{todayStats.tier2}</div>
           </div>
-          <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-4 text-center">
-            <div className="text-xs text-[#64748b] font-semibold">Tier 3 (저장만)</div>
-            <div className="text-2xl font-bold text-[#64748b] mt-2">{todayStats.tier3}</div>
+          <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4 text-center">
+            <div className="text-xs text-[#8792a2] font-semibold">Tier 3 (저장만)</div>
+            <div className="text-2xl font-bold text-[#8792a2] mt-2">{todayStats.tier3}</div>
           </div>
         </div>
 
         {/* Team Status Table */}
-        <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
+        <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <div className="text-sm font-semibold text-[#f1f5f9]">팀별 현황</div>
-              <div className="text-xs text-[#64748b] mt-0.5">바이어 DB 기준 실시간 집계</div>
+              <div className="text-sm font-semibold text-[#1a1f36]">팀별 현황</div>
+              <div className="text-xs text-[#8792a2] mt-0.5">바이어 DB 기준 실시간 집계</div>
             </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#334155]">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-[#64748b]">팀</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-[#64748b]">발송</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-[#64748b]">전달율</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-[#64748b]">회신율</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-[#64748b]">신규 리드</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-[#64748b]">상태</th>
+                <tr className="border-b border-[#e3e8ee]">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-[#8792a2]">팀</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-[#8792a2]">발송</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-[#8792a2]">전달율</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-[#8792a2]">회신율</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-[#8792a2]">신규 리드</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-[#8792a2]">상태</th>
                 </tr>
               </thead>
               <tbody>
                 {teamStats.map((row, idx) => (
-                  <tr key={idx} className="border-b border-[#334155] hover:bg-[#273549]">
+                  <tr key={idx} className="border-b border-[#e3e8ee] hover:bg-[#f6f8fa]">
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-[#f1f5f9]">
+                      <div className="font-semibold text-[#1a1f36]">
                         <span className="text-lg mr-2">{row.flag}</span>
                         {row.region}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-center font-bold text-[#f1f5f9]">{row.sent}통</td>
-                    <td className="px-4 py-3 text-center text-[#94a3b8] font-semibold">{row.sent > 0 ? `${Math.round(((row.sent) / Math.max(row.sent, 1)) * 100)}%` : '—'}</td>
+                    <td className="px-4 py-3 text-center font-bold text-[#1a1f36]">{row.sent}통</td>
+                    <td className="px-4 py-3 text-center text-[#697386] font-semibold">{row.sent > 0 ? `${Math.round(((row.sent) / Math.max(row.sent, 1)) * 100)}%` : '—'}</td>
                     <td className={`px-4 py-3 text-center font-semibold ${parseFloat(row.replyRate) >= 10 ? 'text-[#22c55e]' : parseFloat(row.replyRate) >= 5 ? 'text-[#f59e0b]' : 'text-[#ef4444]'}`}>
                       {row.replyRate}
                       {parseFloat(row.replyRate) < 10 && row.sent > 0 ? ' ▼' : ''}
@@ -784,11 +784,11 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
 
         {/* 이메일 초안 목록 */}
         {emailDrafts.length > 0 && (
-          <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
+          <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="text-sm font-semibold text-[#f1f5f9]">이메일 초안 목록</div>
-                <div className="text-xs text-[#64748b] mt-0.5">{emailDrafts.length}개 초안 준비됨</div>
+                <div className="text-sm font-semibold text-[#1a1f36]">이메일 초안 목록</div>
+                <div className="text-xs text-[#8792a2] mt-0.5">{emailDrafts.length}개 초안 준비됨</div>
               </div>
               {flaggedDrafts.length > 0 && (
                 <span className="bg-[#ef4444]/20 text-[#ef4444] text-xs px-3 py-1 rounded font-semibold">
@@ -801,12 +801,12 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
                 <button
                   key={draft.id}
                   onClick={() => setPreviewDraft(previewDraft?.id === draft.id ? null : draft)}
-                  className="w-full text-left p-3 bg-[#0f172a] rounded-lg border border-[#334155] hover:border-[#3b82f6]/50 transition"
+                  className="w-full text-left p-3 bg-[#f6f8fa] rounded-lg border border-[#e3e8ee] hover:border-[#635BFF]/50 transition"
                 >
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-[#f1f5f9]">{draft.contact_name}</span>
-                      <span className="text-xs text-[#64748b]">@ {draft.company_name}</span>
+                      <span className="text-xs font-semibold text-[#1a1f36]">{draft.contact_name}</span>
+                      <span className="text-xs text-[#8792a2]">@ {draft.company_name}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`text-xs px-2 py-0.5 rounded font-semibold ${
@@ -820,11 +820,11 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
                         </span>
                       )}
                       {draft.spam_score && (
-                        <span className="text-xs text-[#64748b]">{draft.spam_score}점</span>
+                        <span className="text-xs text-[#8792a2]">{draft.spam_score}점</span>
                       )}
                     </div>
                   </div>
-                  <div className="text-xs text-[#94a3b8] space-y-0.5">
+                  <div className="text-xs text-[#697386] space-y-0.5">
                     <div>1: {draft.subject_line_1}</div>
                     <div>2: {draft.subject_line_2}</div>
                     <div>3: {draft.subject_line_3}</div>
@@ -832,11 +832,11 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
 
                   {/* 본문 미리보기 */}
                   {previewDraft?.id === draft.id && (
-                    <div className="mt-3 p-3 bg-[#1e293b] rounded border border-[#334155]">
-                      <div className="text-xs font-semibold text-[#3b82f6] mb-2">1차 콜드메일</div>
-                      <div className="text-xs text-[#94a3b8] whitespace-pre-wrap mb-3">{draft.body_first}</div>
+                    <div className="mt-3 p-3 bg-[#ffffff] rounded border border-[#e3e8ee]">
+                      <div className="text-xs font-semibold text-[#635BFF] mb-2">1차 콜드메일</div>
+                      <div className="text-xs text-[#697386] whitespace-pre-wrap mb-3">{draft.body_first}</div>
                       <div className="text-xs font-semibold text-[#8b5cf6] mb-2">2차 팔로업</div>
-                      <div className="text-xs text-[#94a3b8] whitespace-pre-wrap">{draft.body_followup}</div>
+                      <div className="text-xs text-[#697386] whitespace-pre-wrap">{draft.body_followup}</div>
                     </div>
                   )}
                 </button>
@@ -847,22 +847,22 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
 
         {/* Flag 항목 (검토 필요) */}
         {flaggedDrafts.length > 0 && (
-          <div className="bg-[#1e293b] border border-[#ef4444]/30 rounded-lg p-5">
+          <div className="bg-[#ffffff] border border-[#ef4444]/30 rounded-lg p-5">
             <div className="text-sm font-semibold text-[#ef4444] mb-3">
               검토 필요 (스팸 점수 미달) — {flaggedDrafts.length}건
             </div>
             <div className="space-y-2">
               {flaggedDrafts.map((draft) => (
-                <div key={draft.id} className="p-3 bg-[#0f172a] rounded-lg border border-[#ef4444]/20">
+                <div key={draft.id} className="p-3 bg-[#f6f8fa] rounded-lg border border-[#ef4444]/20">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-[#f1f5f9]">
+                    <span className="text-xs font-semibold text-[#1a1f36]">
                       {draft.contact_name} @ {draft.company_name}
                     </span>
                     <span className="text-xs bg-[#ef4444]/20 text-[#ef4444] px-2 py-0.5 rounded font-semibold">
                       스팸점수: {draft.spam_score}
                     </span>
                   </div>
-                  <div className="text-xs text-[#94a3b8]">{draft.subject_line_1}</div>
+                  <div className="text-xs text-[#697386]">{draft.subject_line_1}</div>
                 </div>
               ))}
             </div>
@@ -871,7 +871,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
 
         {/* Pending Intel 항목 */}
         {pendingIntelDrafts.length > 0 && (
-          <div className="bg-[#1e293b] border border-[#f59e0b]/30 rounded-lg p-5">
+          <div className="bg-[#ffffff] border border-[#f59e0b]/30 rounded-lg p-5">
             <div className="text-sm font-semibold text-[#f59e0b] mb-3">
               인텔 데이터 필요 — {pendingIntelDrafts.length}건
             </div>
@@ -880,9 +880,9 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
             </div>
             <div className="space-y-2">
               {pendingIntelDrafts.map((draft) => (
-                <div key={draft.id} className="p-3 bg-[#0f172a] rounded-lg border border-[#f59e0b]/20">
+                <div key={draft.id} className="p-3 bg-[#f6f8fa] rounded-lg border border-[#f59e0b]/20">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-[#f1f5f9]">
+                    <span className="text-xs font-semibold text-[#1a1f36]">
                       {draft.contact_name} @ {draft.company_name}
                     </span>
                     <span className="text-xs bg-[#f59e0b]/20 text-[#f59e0b] px-2 py-0.5 rounded font-semibold">

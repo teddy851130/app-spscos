@@ -14,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className="h-full">
-      <body className="h-full bg-[#0f172a] text-[#f1f5f9]">
+      <body className="h-full bg-[#f6f8fa] text-[#1a1f36]">
         <GlobalDragGuard />
         {children}
       </body>

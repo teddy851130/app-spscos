@@ -53,8 +53,8 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   // 로딩 중
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#0f172a]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400" />
+      <div className="flex items-center justify-center h-screen bg-[#f6f8fa]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#635BFF]" />
       </div>
     );
   }
@@ -62,16 +62,16 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   // 비로그인 → 로그인 화면
   if (!user) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#0f172a]">
-        <div className="bg-[#1e293b] border border-[#334155] rounded-2xl p-10 text-center max-w-md shadow-2xl">
+      <div className="flex items-center justify-center h-screen bg-[#f6f8fa]">
+        <div className="bg-white border border-[#e3e8ee] rounded-2xl p-10 text-center max-w-md shadow-2xl">
           {/* 로고 */}
           <div className="mb-6">
-            <div className="text-2xl font-bold text-white">SPS International</div>
-            <div className="text-sm text-[#94a3b8] mt-1">Buyer Platform</div>
+            <div className="text-2xl font-bold text-[#1a1f36]">SPS International</div>
+            <div className="text-sm text-[#697386] mt-1">Buyer Platform</div>
           </div>
 
           {/* 안내 */}
-          <p className="text-[#94a3b8] text-sm mb-8">
+          <p className="text-[#697386] text-sm mb-8">
             SPS 팀 계정으로 로그인해주세요
           </p>
 
@@ -89,7 +89,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
             Google 계정으로 로그인
           </button>
 
-          <p className="text-xs text-[#475569] mt-6">
+          <p className="text-xs text-[#8792a2] mt-6">
             @spscos.com 계정만 접근 가능합니다
           </p>
         </div>
