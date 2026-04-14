@@ -29,6 +29,7 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
 
   const navItems = [
     { id: 'dashboard', label: '대시보드', icon: '📊' },
+    { id: 'mailQueue', label: '오늘 보낼 메일', icon: '📬' },
     { id: 'pipeline', label: '파이프라인', icon: '⚡', hasDot: true },
     { id: 'buyers', label: '바이어 DB', icon: '🏢' },
     { id: 'emails', label: '이메일 로그', icon: '📧', badgeCount: draftCount },
@@ -37,9 +38,9 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
   ];
 
   const sections = [
-    { title: '메인', items: navItems.slice(0, 2) },
-    { title: '바이어 관리', items: navItems.slice(2, 4) },
-    { title: '모니터링', items: navItems.slice(4) },
+    { title: '메인', items: navItems.slice(0, 3) },
+    { title: '바이어 관리', items: navItems.slice(3, 5) },
+    { title: '모니터링', items: navItems.slice(5) },
   ];
 
   return (

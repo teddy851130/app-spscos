@@ -69,7 +69,11 @@ interface RecentReply {
   tag: string;
 }
 
-export default function Dashboard() {
+interface DashboardProps {
+  onNavigate?: (page: string) => void;
+}
+
+export default function Dashboard({ onNavigate }: DashboardProps = {}) {
   const [kpi, setKpi] = useState<KPI | null>(null);
   const [teamStats, setTeamStats] = useState<TeamStat[]>([]);
   const [chartData, setChartData] = useState<ChartDay[]>([]);
@@ -585,14 +589,9 @@ export default function Dashboard() {
                       팔로업 예정: {formatDate(buyer.next_followup_at)}
                     </span>
 
-                    {/* 메일 작성 버튼 */}
-                    {/* TODO: EmailComposeModal 연결 — Dashboard에 모달 상태 추가 후 onEmailClick(buyer) 구현 필요 */}
+                    {/* 메일 작성 버튼 — '오늘 보낼 메일' 탭으로 이동 */}
                     <button
-                      onClick={() => {
-                        // TODO: EmailComposeModal 열기 (buyer 정보 전달)
-                        // setEmailTarget({ id: buyer.id, company: buyer.company_name, contact: buyer.contact_name, email: buyer.contact_email, region: buyer.region, tier: buyer.tier, status: buyer.status });
-                        console.log('팔로업 메일 작성:', buyer.company_name, buyer.contact_name);
-                      }}
+                      onClick={() => onNavigate?.('mailQueue')}
                       className="ml-auto text-xs px-3 py-1.5 bg-[#3b82f6]/20 text-[#3b82f6] rounded hover:bg-[#3b82f6]/30 transition whitespace-nowrap flex-shrink-0 font-semibold"
                     >
                       메일 작성

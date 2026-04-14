@@ -8,12 +8,14 @@ import Buyers from './components/Buyers';
 import Emails from './components/Emails';
 import KPIReport from './components/KPIReport';
 import Domain from './components/Domain';
+import MailQueue from './components/MailQueue';
 import PipelineRunModal from './components/PipelineRunModal';
 import CSVUploadModal from './components/CSVUploadModal';
 import { supabase } from './lib/supabase';
 
 const pageConfig: Record<string, { title: string; subtitle: string }> = {
   dashboard: { title: '대시보드', subtitle: '오늘 현황 · ' + new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }) },
+  mailQueue: { title: '오늘 보낼 메일', subtitle: '팔로업 큐 · 미발송 초안 관리' },
   pipeline: { title: '파이프라인', subtitle: '자동화 워크플로우 관리' },
   buyers: { title: '바이어 DB', subtitle: '잠재 바이어 관리' },
   emails: { title: '이메일 로그', subtitle: '발송 이력' },
@@ -287,7 +289,8 @@ export default function Home() {
 
         {/* Content */}
         <div className="flex-1 flex flex-col min-h-0">
-          {currentPage === 'dashboard' && <Dashboard />}
+          {currentPage === 'dashboard' && <Dashboard onNavigate={setCurrentPage} />}
+          {currentPage === 'mailQueue' && <MailQueue />}
           {currentPage === 'pipeline' && <Pipeline />}
           {currentPage === 'buyers' && <Buyers key={buyersRefreshKey} />}
           {currentPage === 'emails' && <Emails />}
