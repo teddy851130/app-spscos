@@ -110,6 +110,7 @@ export default function Buyers() {
               is_blacklisted: row.is_blacklisted || false,
               annual_revenue: row.annual_revenue,
               discovered_at: row.discovered_at,
+              email_count: row.email_count ?? 0,
             };
 
             // 담당자가 없으면 buyers 테이블의 레거시 contact 필드로 1행 생성
@@ -247,7 +248,7 @@ export default function Buyers() {
     setBuyers((prev) =>
       prev.map((b) =>
         b.id === buyerId
-          ? { ...b, status: '발송완료', lastSent: new Date().toLocaleDateString('ko-KR') }
+          ? { ...b, status: '발송완료', lastSent: new Date().toLocaleDateString('ko-KR'), email_count: ((b as any).email_count ?? 0) + 1 }
           : b
       )
     );
@@ -543,10 +544,12 @@ export default function Buyers() {
               </thead>
               <tbody>
                 {paged.map((buyer) => {
-                  const mailButtonLabel = buyer.status === '회신받음' ? '팔로업' : buyer.status === '발송완료' ? '재발송' : '첫 발송';
-                  const mailButtonColor = buyer.status === '회신받음'
-                    ? 'bg-[#22c55e]/20 text-[#22c55e]'
-                    : buyer.status === '발송완료'
+                  // email_count 기반 버튼 라벨: 0회 → 첫 발송, 1~2회 → 팔로업, 3회+ → 마지막
+                  const count = (buyer as any).email_count ?? 0;
+                  const mailButtonLabel = count === 0 ? '첫 발송' : count <= 2 ? '팔로업' : '마지막';
+                  const mailButtonColor = count >= 3
+                    ? 'bg-[#ef4444]/20 text-[#ef4444]'
+                    : count > 0
                     ? 'bg-[#f59e0b]/20 text-[#f59e0b]'
                     : 'bg-[#3b82f6]/20 text-[#3b82f6]';
 

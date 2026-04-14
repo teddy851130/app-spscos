@@ -114,8 +114,8 @@ export default function Dashboard() {
         const thisWeekSent = buyers.filter(
           (b) => b.last_sent_at && new Date(b.last_sent_at) >= oneWeekAgo
         );
-        // DB status는 영어 enum — 'Cold'가 미발송 상태
-        const totalSent = buyers.filter((b) => b.status && b.status !== 'Cold');
+        // 전체 발송: last_sent_at이 있는 바이어 (실제 메일을 보낸 적 있는 바이어)
+        const totalSent = buyers.filter((b) => b.last_sent_at);
         const totalReplied = buyers.filter((b) => b.status === 'Replied');
 
         const replyRate = totalSent.length > 0

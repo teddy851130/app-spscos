@@ -196,12 +196,22 @@ Deno.serve(async (req: Request) => {
         nextFollowup = followupDate.toISOString();
       }
 
+      // status가 'Cold'(미발송)이면 'Contacted'(발송완료)로 변경
+      const { data: statusData } = await sb
+        .from("buyers")
+        .select("status")
+        .eq("id", buyerId)
+        .single();
+      const currentStatus = statusData?.status ?? "Cold";
+      const newStatus = currentStatus === "Cold" ? "Contacted" : currentStatus;
+
       await sb
         .from("buyers")
         .update({
           last_sent_at: now,
           email_count: currentCount + 1,
           next_followup_at: nextFollowup,
+          status: newStatus,
         })
         .eq("id", buyerId);
 
