@@ -7,6 +7,7 @@ import { parseIntelJson } from './BuyerIntelDrawer';
 interface EmailComposeModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSent?: () => void;  // 발송 성공 후 호출 — Buyers에서 상태 갱신용
   buyer: {
     id?: string;
     company: string;
@@ -57,7 +58,7 @@ ${company}의 ${region} 시장에서의 인상적인 성장을 주목하고 있�
 신동환 | CEO
 SPS International | spscos.com | +82-10-XXXX-XXXX`;
 
-export default function EmailComposeModal({ isOpen, onClose, buyer }: EmailComposeModalProps) {
+export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: EmailComposeModalProps) {
   const [currentTab, setCurrentTab] = useState<'en' | 'ko' | 'intel'>('en');
   const [emailBody, setEmailBody] = useState('');
   const [koreanBody, setKoreanBody] = useState('');
@@ -196,6 +197,7 @@ SPS Cosmetics | spscos.com`;
         console.warn('[send-email]', data.warning);
       }
       setShowToast(true);
+      onSent?.();  // 발송 성공 → Buyers에서 버튼/상태 갱신
       onClose();
       setTimeout(() => setShowToast(false), 5000);
     } catch (err) {

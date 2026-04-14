@@ -110,30 +110,42 @@ export default function Dashboard() {
         const now = new Date();
         const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-        // This week's sent (last_sent_at in last 7 days)
+        // 이번 주 발송: last_sent_at 기준 (바이어 수)
         const thisWeekSent = buyers.filter(
           (b) => b.last_sent_at && new Date(b.last_sent_at) >= oneWeekAgo
         );
-        // 전체 발송: last_sent_at이 있는 바이어 (실제 메일을 보낸 적 있는 바이어)
-        const totalSent = buyers.filter((b) => b.last_sent_at);
+
+        // 전체 발송: email_logs 테이블에서 실제 발송 건수를 가져옴
+        const { count: emailLogCount } = await supabase
+          .from('email_logs')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'sent');
+        const totalEmailsSent = emailLogCount ?? 0;
+
+        // 반송 건수
+        const { count: bouncedCount } = await supabase
+          .from('email_logs')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'bounced');
+        const totalBounced = bouncedCount ?? 0;
+
         const totalReplied = buyers.filter((b) => b.status === 'Replied');
 
-        const replyRate = totalSent.length > 0
-          ? Math.round((totalReplied.length / totalSent.length) * 100 * 10) / 10
+        const replyRate = totalEmailsSent > 0
+          ? Math.round((totalReplied.length / totalEmailsSent) * 100 * 10) / 10
           : 0;
 
-        // 전달율: 실제 반송 기반 계산
-        const totalBounced = buyers.filter((b) => b.status === 'Bounced');
-        const deliveryRate = totalSent.length > 0
-          ? Math.round(((totalSent.length - totalBounced.length) / totalSent.length) * 1000) / 10
+        // 전달율: (발송 - 반송) / 발송 — 반송되지 않은 비율
+        const deliveryRate = totalEmailsSent > 0
+          ? Math.round(((totalEmailsSent - totalBounced) / totalEmailsSent) * 1000) / 10
           : 0;
 
         setKpi({
           sent: thisWeekSent.length,
           replied: totalReplied.length,
-          total_sent: totalSent.length,
+          total_sent: totalEmailsSent,
           deliveryRate,
-          openRate: 0, // 실제 추적 미설정
+          openRate: 0, // 추적 픽셀 미구현
           replyRate,
         });
 
@@ -148,9 +160,9 @@ export default function Dashboard() {
         );
         setNorthStar(weekPositive.length);
 
-        // 바운스율 경고
-        const bRate = totalSent.length > 0
-          ? Math.round((totalBounced.length / totalSent.length) * 1000) / 10
+        // 바운스율 경고 (email_logs 기반)
+        const bRate = totalEmailsSent > 0
+          ? Math.round((totalBounced / totalEmailsSent) * 1000) / 10
           : 0;
         setBounceRate(bRate);
         setBounceAlert(bRate > 5);
@@ -460,7 +472,7 @@ export default function Dashboard() {
             </div>
 
             <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
-              <div className="text-xs text-[#64748b] font-semibold uppercase tracking-wide">전달율</div>
+              <div className="text-xs text-[#64748b] font-semibold uppercase tracking-wide">비반송율</div>
               <div className={`text-3xl font-bold mt-2 ${kpi.total_sent > 0 ? (kpi.deliveryRate >= 97 ? 'text-[#22c55e]' : 'text-[#f59e0b]') : 'text-[#64748b]'}`}>
                 {kpi.total_sent > 0 ? `${kpi.deliveryRate}%` : '—'}
               </div>

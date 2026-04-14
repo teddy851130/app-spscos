@@ -683,6 +683,7 @@ export default function Buyers() {
             setEmailModalOpen(false);
             setSelectedBuyer(null);
           }}
+          onSent={() => handleEmailSent(selectedBuyer.id)}
           buyer={selectedBuyer}
         />
       )}
