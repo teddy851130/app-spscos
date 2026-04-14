@@ -37,6 +37,52 @@ interface DraftItem {
   buyer_id: string;
 }
 
+// ── 스팸 체크 (클라이언트 사이드 — run-pipeline과 동일 규칙) ──
+
+const SPAM_WORDS = [
+  "free", "guarantee", "guaranteed", "winner", "congratulations",
+  "limited time", "act now", "click here", "no cost", "risk free",
+  "risk-free", "exclusive deal", "don't miss", "urgent",
+  "buy now", "order now", "special promotion", "no obligation",
+  "double your", "earn extra", "cash bonus",
+];
+
+interface SpamCheckResult {
+  score: number;         // 0~10 (10=안전, 낮을수록 위험)
+  level: '낮음' | '보통' | '높음';
+  issues: string[];      // 감지된 문제 목록
+}
+
+function checkSpamClient(text: string): SpamCheckResult {
+  const issues: string[] = [];
+  const lower = text.toLowerCase();
+
+  // 1. 스팸 키워드 감지
+  const found = SPAM_WORDS.filter((w) => lower.includes(w));
+  if (found.length > 0) issues.push(`스팸 키워드 ${found.length}개: ${found.join(', ')}`);
+
+  // 2. spscos.com 링크 3개+
+  const spsLinks = (text.match(/spscos\.com/gi) || []).length;
+  if (spsLinks >= 3) issues.push(`spscos.com 링크 ${spsLinks}개 (최대 2개)`);
+
+  // 3. 외부 링크 2개+
+  const allLinks = (text.match(/https?:\/\//gi) || []).length;
+  const externalLinks = allLinks - spsLinks;
+  if (externalLinks >= 2) issues.push(`외부 링크 ${externalLinks}개 (최대 1개)`);
+
+  // 4. 대문자 연속 3자+
+  if (/[A-Z]{3,}/.test(text)) issues.push('대문자 연속 3자+ 감지');
+
+  // 5. 느낌표 2개+
+  if (/!!/.test(text)) issues.push('느낌표 연속 사용');
+
+  // 점수 계산: 이슈 없으면 10, 이슈당 -2
+  const score = Math.max(1, 10 - issues.length * 2);
+  const level = score >= 8 ? '낮음' : score >= 5 ? '보통' : '높음';
+
+  return { score, level, issues };
+}
+
 // ── 헬퍼 함수 ──
 
 // DB tier → 표시용 (공백 추가)
@@ -76,8 +122,13 @@ export default function MailQueue() {
   const [showAllFollowups, setShowAllFollowups] = useState(false);
   const [showAllDrafts, setShowAllDrafts] = useState(false);
 
-  // 초안 미리보기
+  // 초안 미리보기 + 수정
   const [previewDraft, setPreviewDraft] = useState<DraftItem | null>(null);
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState('');
+  const [editSubject, setEditSubject] = useState('');
+  const [spamResult, setSpamResult] = useState<SpamCheckResult | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const DISPLAY_LIMIT = 20;
 
@@ -417,17 +468,140 @@ export default function MailQueue() {
                   </button>
                 </div>
 
-                {/* 초안 미리보기 (토글) */}
+                {/* 초안 미리보기 / 수정 (토글) */}
                 {previewDraft?.id === draft.id && (
                   <div className="px-4 pb-3">
-                    <div className="bg-[#0f172a] rounded-lg p-4 border border-[#334155]">
-                      <p className="text-sm font-medium text-white mb-2">
-                        {draft.subject_line_1}
-                      </p>
-                      <p className="text-sm text-[#94a3b8] whitespace-pre-wrap max-h-[400px] overflow-y-auto">
-                        {draft.body_first || draft.body_followup || '내용 없음'}
-                      </p>
-                      {/* TODO: 초안 직접 발송 기능 — 향후 구현 예정 */}
+                    <div className="bg-[#0f172a] rounded-lg p-4 border border-[#334155] space-y-3">
+                      {editingDraftId === draft.id ? (
+                        /* ── 수정 모드 ── */
+                        <>
+                          {/* 제목 수정 */}
+                          <input
+                            type="text"
+                            value={editSubject}
+                            onChange={(e) => setEditSubject(e.target.value)}
+                            className="w-full bg-[#1e293b] border border-[#475569] rounded px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                            placeholder="제목"
+                          />
+                          {/* 본문 수정 */}
+                          <textarea
+                            value={editBody}
+                            onChange={(e) => {
+                              setEditBody(e.target.value);
+                              // 타이핑할 때마다 스팸 재확인
+                              setSpamResult(checkSpamClient(e.target.value));
+                            }}
+                            className="w-full bg-[#1e293b] border border-[#475569] rounded px-3 py-2 text-sm text-[#e2e8f0] focus:border-blue-500 focus:outline-none min-h-[200px] max-h-[400px] resize-y"
+                            placeholder="본문"
+                          />
+
+                          {/* 스팸 재확인 결과 */}
+                          {spamResult && (
+                            <div className={`rounded-lg p-3 border text-sm ${
+                              spamResult.level === '낮음'
+                                ? 'bg-green-500/10 border-green-500/30'
+                                : spamResult.level === '보통'
+                                  ? 'bg-amber-500/10 border-amber-500/30'
+                                  : 'bg-red-500/10 border-red-500/30'
+                            }`}>
+                              <div className="flex items-center gap-2 mb-1">
+                                <AlertCircle className={`w-4 h-4 ${
+                                  spamResult.level === '낮음' ? 'text-green-400'
+                                    : spamResult.level === '보통' ? 'text-amber-400' : 'text-red-400'
+                                }`} />
+                                <span className={`font-semibold ${
+                                  spamResult.level === '낮음' ? 'text-green-400'
+                                    : spamResult.level === '보통' ? 'text-amber-400' : 'text-red-400'
+                                }`}>
+                                  스팸 위험: {spamResult.level} ({spamResult.score}/10)
+                                </span>
+                              </div>
+                              {spamResult.issues.length > 0 ? (
+                                <ul className="text-xs text-[#94a3b8] space-y-0.5 ml-6">
+                                  {spamResult.issues.map((issue, i) => (
+                                    <li key={i}>• {issue}</li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <p className="text-xs text-green-400 ml-6">문제 없음 — 발송해도 안전합니다</p>
+                              )}
+                            </div>
+                          )}
+
+                          {/* 저장/취소 버튼 */}
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={() => {
+                                setEditingDraftId(null);
+                                setSpamResult(null);
+                              }}
+                              className="px-3 py-1.5 text-sm text-[#94a3b8] hover:text-white transition"
+                            >
+                              취소
+                            </button>
+                            <button
+                              disabled={saving}
+                              onClick={async () => {
+                                setSaving(true);
+                                const check = checkSpamClient(editBody);
+                                const newScore = check.score;
+                                const newStatus = newScore >= 8 ? 'pass' : newScore >= 5 ? 'rewrite' : 'flag';
+
+                                const { error } = await supabase
+                                  .from('email_drafts')
+                                  .update({
+                                    subject_line_1: editSubject,
+                                    body_first: editBody,
+                                    spam_score: newScore,
+                                    spam_status: newStatus,
+                                  })
+                                  .eq('id', draft.id);
+
+                                if (error) {
+                                  alert('저장 실패: ' + error.message);
+                                } else {
+                                  // 로컬 상태 업데이트
+                                  setDrafts((prev) => prev.map((d) =>
+                                    d.id === draft.id
+                                      ? { ...d, subject_line_1: editSubject, body_first: editBody, spam_score: newScore, spam_status: newStatus }
+                                      : d
+                                  ));
+                                  setPreviewDraft({ ...draft, subject_line_1: editSubject, body_first: editBody, spam_score: newScore, spam_status: newStatus });
+                                  setEditingDraftId(null);
+                                  setSpamResult(null);
+                                }
+                                setSaving(false);
+                              }}
+                              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition disabled:opacity-50"
+                            >
+                              {saving ? '저장 중...' : '저장'}
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        /* ── 보기 모드 ── */
+                        <>
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-white">
+                              {draft.subject_line_1}
+                            </p>
+                            <button
+                              onClick={() => {
+                                setEditingDraftId(draft.id);
+                                setEditSubject(draft.subject_line_1);
+                                setEditBody(draft.body_first || draft.body_followup || '');
+                                setSpamResult(checkSpamClient(draft.body_first || draft.body_followup || ''));
+                              }}
+                              className="px-3 py-1 text-xs bg-[#334155] hover:bg-[#475569] text-[#e2e8f0] rounded transition"
+                            >
+                              수정
+                            </button>
+                          </div>
+                          <p className="text-sm text-[#94a3b8] whitespace-pre-wrap max-h-[400px] overflow-y-auto">
+                            {draft.body_first || draft.body_followup || '내용 없음'}
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}

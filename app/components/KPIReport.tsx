@@ -1,7 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, Legend, ResponsiveContainer, ComposedChart,
+} from 'recharts';
+import type { KPISnapshot } from '../lib/types';
 
 interface TeamStat {
   team: string;
@@ -35,6 +40,11 @@ export default function KPIReport() {
   const [totals, setTotals] = useState({ sent: 0, replied: 0, bounced: 0 });
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState('');
+
+  // --- 월간/전체 탭용 상태 ---
+  const [snapshots, setSnapshots] = useState<KPISnapshot[]>([]);
+  const [snapshotLoading, setSnapshotLoading] = useState(false);
+  const [regionFilter, setRegionFilter] = useState<'ALL' | 'GCC' | 'USA' | 'Europe'>('ALL');
 
   useEffect(() => {
     async function fetchKPI() {
@@ -82,6 +92,76 @@ export default function KPIReport() {
     fetchKPI();
   }, []);
 
+  // --- kpi_snapshots 데이터 로드 (월간/전체 탭 진입 시) ---
+  useEffect(() => {
+    if (activeTab === '주간') return;
+    async function fetchSnapshots() {
+      setSnapshotLoading(true);
+      try {
+        let query = supabase
+          .from('kpi_snapshots')
+          .select('*')
+          .order('snapshot_date', { ascending: true });
+
+        // 월간 탭: 최근 30일만
+        if (activeTab === '월간') {
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          query = query.gte('snapshot_date', thirtyDaysAgo.toISOString().slice(0, 10));
+        }
+
+        const { data } = await query;
+        setSnapshots(data ?? []);
+      } finally {
+        setSnapshotLoading(false);
+      }
+    }
+    fetchSnapshots();
+  }, [activeTab]);
+
+  // --- 월간 탭: 리전 필터 적용 후 일별 데이터 ---
+  const monthlyChartData = useMemo(() => {
+    const filtered = regionFilter === 'ALL'
+      ? snapshots
+      : snapshots.filter((s) => s.region === regionFilter);
+
+    // 같은 날짜의 데이터를 합산 (리전별 row가 있으므로)
+    const byDate = new Map<string, { date: string; sent: number; replied: number; bounced: number }>();
+    filtered.forEach((s) => {
+      const key = s.snapshot_date;
+      const prev = byDate.get(key) ?? { date: key, sent: 0, replied: 0, bounced: 0 };
+      prev.sent += s.emails_sent;
+      prev.replied += s.emails_replied;
+      prev.bounced += s.emails_bounced;
+      byDate.set(key, prev);
+    });
+
+    return Array.from(byDate.values())
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((d) => ({
+        ...d,
+        // X축 라벨: M/D 형식
+        label: `${parseInt(d.date.slice(5, 7))}/${parseInt(d.date.slice(8, 10))}`,
+      }));
+  }, [snapshots, regionFilter]);
+
+  // --- 전체 추이 탭: 월별 집계 ---
+  const overallChartData = useMemo(() => {
+    // 전체 데이터를 월별로 합산
+    const byMonth = new Map<string, { month: string; sent: number; replied: number; bounced: number; newLeads: number }>();
+    snapshots.forEach((s) => {
+      const month = s.snapshot_date.slice(0, 7); // YYYY-MM
+      const prev = byMonth.get(month) ?? { month, sent: 0, replied: 0, bounced: 0, newLeads: 0 };
+      prev.sent += s.emails_sent;
+      prev.replied += s.emails_replied;
+      prev.bounced += s.emails_bounced;
+      prev.newLeads += s.new_leads;
+      byMonth.set(month, prev);
+    });
+
+    return Array.from(byMonth.values()).sort((a, b) => a.month.localeCompare(b.month));
+  }, [snapshots]);
+
   const overallReply = totals.sent > 0 ? Math.round((totals.replied / totals.sent) * 1000) / 10 : 0;
   const overallDeliv = totals.sent > 0
     ? Math.round(((totals.sent - totals.bounced) / totals.sent) * 1000) / 10
@@ -121,16 +201,204 @@ export default function KPIReport() {
           )}
         </div>
 
-        {activeTab !== '주간' && (
-          <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-8 text-center">
-            <div className="text-2xl mb-3">📊</div>
-            <div className="text-sm font-semibold text-[#f1f5f9]">{activeTab} 데이터</div>
-            <div className="text-xs text-[#64748b] mt-2">
-              {activeTab === '월간'
-                ? '월간 데이터는 4주 이상 발송 데이터가 쌓이면 자동으로 표시됩니다.'
-                : '전체 추이 차트는 kpi_snapshots 테이블에 데이터가 축적되면 활성화됩니다.'}
-            </div>
-          </div>
+        {/* === 월간 탭: 최근 30일 LineChart === */}
+        {activeTab === '월간' && (
+          <>
+            {snapshotLoading ? (
+              <div className="text-center py-12 text-[#64748b] text-sm animate-pulse">
+                월간 KPI 데이터 로딩 중...
+              </div>
+            ) : monthlyChartData.length === 0 ? (
+              <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-8 text-center">
+                <div className="text-2xl mb-3">📊</div>
+                <div className="text-sm font-semibold text-[#f1f5f9]">
+                  아직 KPI 데이터가 축적되지 않았습니다.
+                </div>
+                <div className="text-xs text-[#64748b] mt-2">
+                  매일 자동으로 수집됩니다.
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* 리전 필터 토글 */}
+                <div className="flex gap-2">
+                  {(['ALL', 'GCC', 'USA', 'Europe'] as const).map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setRegionFilter(r)}
+                      className={`px-3 py-1.5 text-xs rounded font-semibold transition ${
+                        regionFilter === r
+                          ? 'bg-[#3b82f6] text-white'
+                          : 'bg-[#1e293b] text-[#94a3b8] border border-[#334155] hover:border-[#3b82f6]'
+                      }`}
+                    >
+                      {r === 'ALL' ? '전체' : r}
+                    </button>
+                  ))}
+                </div>
+
+                {/* 라인 차트 */}
+                <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
+                  <div className="text-sm font-semibold text-[#f1f5f9] mb-4">
+                    최근 30일 일별 추이 {regionFilter !== 'ALL' ? `(${regionFilter})` : ''}
+                  </div>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <LineChart data={monthlyChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fill: '#94a3b8', fontSize: 11 }}
+                        axisLine={{ stroke: '#334155' }}
+                      />
+                      <YAxis
+                        tick={{ fill: '#94a3b8', fontSize: 11 }}
+                        axisLine={{ stroke: '#334155' }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#1e293b',
+                          border: '1px solid #334155',
+                          borderRadius: 8,
+                          color: '#f1f5f9',
+                          fontSize: 12,
+                        }}
+                      />
+                      <Legend
+                        wrapperStyle={{ fontSize: 12, color: '#94a3b8' }}
+                      />
+                      {/* 발송 — 파란색 */}
+                      <Line
+                        type="monotone"
+                        dataKey="sent"
+                        name="발송"
+                        stroke="#3b82f6"
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                        activeDot={{ r: 5 }}
+                      />
+                      {/* 회신 — 초록색 */}
+                      <Line
+                        type="monotone"
+                        dataKey="replied"
+                        name="회신"
+                        stroke="#22c55e"
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                        activeDot={{ r: 5 }}
+                      />
+                      {/* 반송 — 빨간색 */}
+                      <Line
+                        type="monotone"
+                        dataKey="bounced"
+                        name="반송"
+                        stroke="#ef4444"
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                        activeDot={{ r: 5 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {/* === 전체 추이 탭: 월별 BarChart + 신규 리드 Line === */}
+        {activeTab === '전체 추이' && (
+          <>
+            {snapshotLoading ? (
+              <div className="text-center py-12 text-[#64748b] text-sm animate-pulse">
+                전체 추이 데이터 로딩 중...
+              </div>
+            ) : overallChartData.length === 0 ? (
+              <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-8 text-center">
+                <div className="text-2xl mb-3">📊</div>
+                <div className="text-sm font-semibold text-[#f1f5f9]">
+                  아직 KPI 데이터가 축적되지 않았습니다.
+                </div>
+                <div className="text-xs text-[#64748b] mt-2">
+                  매일 자동으로 수집됩니다.
+                </div>
+              </div>
+            ) : (
+              <div className="bg-[#1e293b] border border-[#334155] rounded-lg p-5">
+                <div className="text-sm font-semibold text-[#f1f5f9] mb-4">
+                  월별 이메일 KPI 추이
+                </div>
+                <ResponsiveContainer width="100%" height={360}>
+                  <ComposedChart data={overallChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis
+                      dataKey="month"
+                      tick={{ fill: '#94a3b8', fontSize: 11 }}
+                      axisLine={{ stroke: '#334155' }}
+                    />
+                    {/* 좌측 Y축: 이메일 건수 */}
+                    <YAxis
+                      yAxisId="left"
+                      tick={{ fill: '#94a3b8', fontSize: 11 }}
+                      axisLine={{ stroke: '#334155' }}
+                    />
+                    {/* 우측 Y축: 신규 리드 수 */}
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      tick={{ fill: '#f59e0b', fontSize: 11 }}
+                      axisLine={{ stroke: '#334155' }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#1e293b',
+                        border: '1px solid #334155',
+                        borderRadius: 8,
+                        color: '#f1f5f9',
+                        fontSize: 12,
+                      }}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontSize: 12, color: '#94a3b8' }}
+                    />
+                    {/* 발송 바 — 파란색 */}
+                    <Bar
+                      yAxisId="left"
+                      dataKey="sent"
+                      name="발송"
+                      fill="#3b82f6"
+                      radius={[4, 4, 0, 0]}
+                    />
+                    {/* 회신 바 — 초록색 */}
+                    <Bar
+                      yAxisId="left"
+                      dataKey="replied"
+                      name="회신"
+                      fill="#22c55e"
+                      radius={[4, 4, 0, 0]}
+                    />
+                    {/* 반송 바 — 빨간색 */}
+                    <Bar
+                      yAxisId="left"
+                      dataKey="bounced"
+                      name="반송"
+                      fill="#ef4444"
+                      radius={[4, 4, 0, 0]}
+                    />
+                    {/* 신규 리드 라인 — 노란색, 우측 Y축 */}
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="newLeads"
+                      name="신규 리드"
+                      stroke="#f59e0b"
+                      strokeWidth={2}
+                      dot={{ r: 4 }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </>
         )}
 
         {activeTab === '주간' && (
