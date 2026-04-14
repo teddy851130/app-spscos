@@ -288,7 +288,7 @@ export default function Home() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
           {currentPage === 'dashboard' && <Dashboard onNavigate={setCurrentPage} />}
           {currentPage === 'mailQueue' && <MailQueue />}
           {currentPage === 'pipeline' && <Pipeline />}

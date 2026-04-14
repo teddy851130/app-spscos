@@ -262,7 +262,8 @@ export default function MailQueue() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex-1 overflow-y-auto h-full">
+    <div className="p-6 space-y-6">
       {/* 헤더 */}
       <div className="flex items-center gap-3">
         <Mail className="w-6 h-6 text-blue-400" />
@@ -423,9 +424,8 @@ export default function MailQueue() {
                       <p className="text-sm font-medium text-white mb-2">
                         {draft.subject_line_1}
                       </p>
-                      <p className="text-sm text-[#94a3b8] whitespace-pre-wrap">
-                        {(draft.body_first || draft.body_followup || '').slice(0, 200)}
-                        {(draft.body_first || draft.body_followup || '').length > 200 && '...'}
+                      <p className="text-sm text-[#94a3b8] whitespace-pre-wrap max-h-[400px] overflow-y-auto">
+                        {draft.body_first || draft.body_followup || '내용 없음'}
                       </p>
                       {/* TODO: 초안 직접 발송 기능 — 향후 구현 예정 */}
                     </div>
@@ -463,6 +463,7 @@ export default function MailQueue() {
           buyer={selectedBuyer}
         />
       )}
+    </div>
     </div>
   );
 }
