@@ -38,21 +38,25 @@ async function log(
 // ============================================
 // Claude API 호출 헬퍼 — 429 (rate limit) 시 자동 재시도
 // ============================================
-// 3개 팀 병렬 실행 + 배치 10개 병렬 → 순간적으로 Claude 분당 한계 초과 발생.
+// 3개 팀 병렬 실행 + 배치 병렬 → 순간적으로 Claude 분당 한계 초과 발생.
 // 429는 일시적이므로 짧은 대기 후 재시도하면 대부분 해결됨.
-// 최대 3회 시도 (즉시 + 2초 후 + 4초 후). 여전히 429면 호출자가 처리.
+// 최대 4회 시도 (즉시 + 2초 + 5초 + 10초). Anthropic retry-after 헤더 우선 사용.
 async function fetchClaudeWithRetry(
   url: string,
   options: RequestInit,
-  maxRetries = 2,
+  maxRetries = 3,
 ): Promise<Response> {
+  const defaultDelays = [2000, 5000, 10000]; // 2초 → 5초 → 10초
   let lastRes: Response | null = null;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const res = await fetch(url, options);
     if (res.status !== 429) return res;
     lastRes = res;
     if (attempt < maxRetries) {
-      const delayMs = 2000 * Math.pow(2, attempt); // 2초 → 4초
+      // Anthropic의 retry-after 헤더 우선 (초 단위), 없으면 기본 백오프
+      const retryAfter = res.headers.get("retry-after");
+      const headerDelayMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : 0;
+      const delayMs = headerDelayMs > 0 ? headerDelayMs : defaultDelays[attempt];
       await new Promise((r) => setTimeout(r, delayMs));
     }
   }
@@ -192,7 +196,7 @@ async function agentC(sb: SB, jobId: string, _team: string) {
 
   // 병렬 배치 처리 (10개씩) — Edge Function timeout 회피용
   // 순차 처리 시 기업 수 × ~8초 → 50개 이상이면 400초 한계 초과 위험
-  const BATCH_SIZE_C = 10;
+  const BATCH_SIZE_C = 5;
   for (let batchStart = 0; batchStart < buyers.length; batchStart += BATCH_SIZE_C) {
     const batch = buyers.slice(batchStart, batchStart + BATCH_SIZE_C);
     await Promise.all(batch.map(async (b: Record<string, unknown>) => {
@@ -307,7 +311,7 @@ async function agentD(sb: SB, jobId: string, _team: string) {
 
   // 병렬 배치 처리 (10개씩) — Edge Function timeout 회피용
   // 순차 처리 시 담당자 × ~10초 → 40명만 넘어도 400초 한계 초과 (기존 Europe 고착 원인)
-  const BATCH_SIZE_D = 10;
+  const BATCH_SIZE_D = 5;
   for (let batchStart = 0; batchStart < newContacts.length; batchStart += BATCH_SIZE_D) {
     const batch = newContacts.slice(batchStart, batchStart + BATCH_SIZE_D);
     await Promise.all(batch.map(async (c: Record<string, unknown>) => {
@@ -517,7 +521,7 @@ async function agentE(sb: SB, jobId: string, _team: string) {
 
   // 병렬 배치 처리 (10개씩) — Edge Function timeout 회피용
   // 순차 처리 시 초안 × ~4초 → 100건 이상이면 한계 근접
-  const BATCH_SIZE_E = 10;
+  const BATCH_SIZE_E = 5;
   for (let batchStart = 0; batchStart < drafts.length; batchStart += BATCH_SIZE_E) {
     const batch = drafts.slice(batchStart, batchStart + BATCH_SIZE_E);
     await Promise.all(batch.map(async (d: Record<string, unknown>) => {
