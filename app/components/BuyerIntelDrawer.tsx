@@ -77,6 +77,9 @@ interface BuyerBaseInfo {
   annual_revenue: string | null;
   employee_count: number | null;
   team: string | null;
+  // PR5: 인텔 품질 점수(0~100) — 헤더 배지 노출
+  intel_score: number | null;
+  analysis_failed_at: string | null;
 }
 
 interface DraftDrafts {
@@ -113,7 +116,7 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
     setLoading(true);
     supabase
       .from('buyers')
-      .select('recent_news, annual_revenue, employee_count, team')
+      .select('recent_news, annual_revenue, employee_count, team, intel_score, analysis_failed_at')
       .eq('id', buyer.id)
       .single()
       .then(({ data }) => {
@@ -121,6 +124,8 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
           annual_revenue: data?.annual_revenue ?? null,
           employee_count: data?.employee_count ?? null,
           team: data?.team ?? null,
+          intel_score: (data?.intel_score ?? null) as number | null,
+          analysis_failed_at: (data?.analysis_failed_at ?? null) as string | null,
         });
         const parsed = parseIntelJson(data?.recent_news);
         setIntel(parsed);
@@ -287,10 +292,33 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
         <div className="px-6 py-4 border-b border-[#e3e8ee] flex items-start justify-between flex-shrink-0 bg-[#ffffff]">
           <div>
             <div className="text-base font-bold text-[#1a1f36]">{buyer.company}</div>
-            <div className="flex items-center gap-2 mt-1.5">
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <span className={`text-xs px-2 py-0.5 rounded font-semibold ${tierColor}`}>
                 {buyer.tier}
               </span>
+              {/* PR5: 인텔 품질 점수 배지 */}
+              {baseInfo?.intel_score != null && (
+                <span
+                  className={`text-xs px-2 py-0.5 rounded font-semibold ${
+                    baseInfo.intel_score >= 80
+                      ? 'bg-[#22c55e]/20 text-[#16a34a]'
+                      : baseInfo.intel_score >= 60
+                        ? 'bg-[#f59e0b]/20 text-[#b45309]'
+                        : 'bg-[#fef2f2] text-[#b91c1c]'
+                  }`}
+                  title="직원 C 인텔 품질 점수 (0~100). 60점 미만은 intel_failed로 분류되어 발송 대상에서 제외."
+                >
+                  인텔 {baseInfo.intel_score}/100
+                </span>
+              )}
+              {baseInfo?.analysis_failed_at && (
+                <span
+                  className="text-xs px-2 py-0.5 rounded font-semibold bg-[#fef2f2] text-[#b91c1c]"
+                  title={`분석 포기 시점: ${new Date(baseInfo.analysis_failed_at).toLocaleString('ko-KR')}`}
+                >
+                  인텔 미달
+                </span>
+              )}
               <span className="text-xs text-[#8792a2]">·</span>
               <span className="text-xs text-[#8792a2]">{buyer.region}</span>
               {buyer.website && (

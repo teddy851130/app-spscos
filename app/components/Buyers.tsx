@@ -108,6 +108,8 @@ export default function Buyers() {
               team: row.team || row.region || '',
               tier: row.tier || 'Tier2',
               tierDisplay: displayTier(row.tier || 'Tier2'),
+              // PR5: 인텔 품질 점수 (0~100, null=미분석)
+              intel_score: (row.intel_score ?? null) as number | null,
               website: row.website || '',
               lastSent: row.last_sent_at ? new Date(row.last_sent_at).toLocaleDateString('ko-KR') : '미발송',
               status: mapStatus(row.status),
@@ -190,7 +192,10 @@ export default function Buyers() {
   useEffect(() => { setPage(1); }, [search, region, tier, status, date]);
 
   const handleEmailClick = (buyer: any) => {
-    setSelectedBuyer(buyer);
+    // PR5: buyer 객체는 내부적으로 contactId(camelCase)로 보관. EmailComposeModal은
+    //   contact_id(snake_case)를 기대하므로 여기서 매핑. 매핑 누락 시 모달이 초안 조회를
+    //   영원히 스킵하여 빈 본문 상태로 열림.
+    setSelectedBuyer({ ...buyer, contact_id: buyer.contactId ?? null });
     setEmailModalOpen(true);
   };
 
@@ -538,6 +543,7 @@ export default function Buyers() {
                   <th className="text-center px-2 py-3 font-semibold text-[#8792a2]">사이트</th>
                   <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">리전</th>
                   <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">Tier</th>
+                  <th className="text-center px-2 py-3 font-semibold text-[#8792a2]" title="직원 C 인텔 품질 점수 (0~100)">인텔</th>
                   <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">담당자</th>
                   <th className="text-center px-2 py-3 font-semibold text-[#8792a2]">LinkedIn</th>
                   <th className="text-left px-4 py-3 font-semibold text-[#8792a2]">직책</th>
@@ -598,6 +604,25 @@ export default function Buyers() {
                       </td>
                       <td className="px-4 py-3 text-[#697386]">{buyer.region}</td>
                       <td className="px-4 py-3 text-[#697386]">{buyer.tierDisplay || buyer.tier}</td>
+                      <td className="px-2 py-3 text-center">
+                        {/* PR5: 인텔 점수 배지. 80+ 초록, 60-79 주황, <60 빨강, null 회색 */}
+                        {buyer.intel_score == null ? (
+                          <span className="text-xs text-[#8792a2]">—</span>
+                        ) : (
+                          <span
+                            className={`text-xs px-1.5 py-0.5 rounded font-semibold ${
+                              buyer.intel_score >= 80
+                                ? 'bg-[#22c55e]/20 text-[#16a34a]'
+                                : buyer.intel_score >= 60
+                                  ? 'bg-[#f59e0b]/20 text-[#b45309]'
+                                  : 'bg-[#fef2f2] text-[#b91c1c]'
+                            }`}
+                            title={`인텔 품질 점수: ${buyer.intel_score}/100`}
+                          >
+                            {buyer.intel_score}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-[#697386]">{buyer.contact}</td>
                       <td className="px-2 py-3 text-center">
                         {buyer.linkedin_url ? (

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Check, X, Send, Search, Bot, Building2, Lightbulb, FlaskConical, Target, Pencil, Sparkles, RefreshCw, Paperclip, CheckCircle } from 'lucide-react';
+import { Check, X, Send, Search, Bot, Building2, Lightbulb, FlaskConical, Target, Pencil, RefreshCw, Paperclip, CheckCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { parseIntelJson } from './BuyerIntelDrawer';
 
@@ -23,49 +23,16 @@ interface EmailComposeModalProps {
   };
 }
 
-const englishEmailTemplate = (firstName: string, company: string, region: string) => `Dear ${firstName},
-
-I hope this message finds you well. My name is Donghwan Shin, CEO of SPS International — a Korean cosmetics OEM/ODM specialist based in Seoul.
-
-Having followed ${company}'s impressive growth across the ${region} market, I believe there's a compelling opportunity for us to collaborate. We specialize in developing premium Korean beauty formulations tailored to specific regional preferences, with a proven track record of delivering high-quality products at competitive price points.
-
-Some highlights of our capabilities:
-• Full OEM/ODM service from formulation to packaging design
-• MOQ as low as 3,000 units per SKU
-• Regulatory compliance support for ${region} markets
-• 4–8 week sample development timeline
-
-Would you be open to a 20-minute call to explore potential synergies?
-
-Best regards,
-Donghwan Shin | CEO
-SPS International | spscos.com | +82-10-XXXX-XXXX`;
-
-const koreanEmailTemplate = (firstName: string, company: string, region: string) => `안녕하세요 ${firstName}님,
-
-SPS International의 CEO 신동환입니다. 한국 최고의 화장품 OEM/ODM 전문업체로서, 서울에 본사를 두고 있습니다.
-
-${company}의 ${region} 시장에서의 인상적인 성장을 주목하고 있으며, 이번 기회를 통해 함께 협력할 수 있는 방안을 제안드립니다. 저희는 각 지역의 특성에 맞춘 프리미엄 한방 미용 제품 개발을 전문으로 하고 있으며, 뛰어난 품질과 경쟁력 있는 가격대로 많은 고객사에 신뢰를 받고 있습니다.
-
-저희 서비스의 주요 특징:
-• 포뮬레이션부터 패키징 디자인까지 전체 OEM/ODM 서비스 제공
-• 최소 발주량(MOQ) 3,000개/SKU부터 가능
-• ${region} 시장 규제 준수 지원
-• 샘플 개발 기간: 4~8주
-
-혹시 20분 정도 시간을 내어 협력 방안에 대해 이야기 나눌 수 있을까요?
-
-감사합니다.
-신동환 | CEO
-SPS International | spscos.com | +82-10-XXXX-XXXX`;
+// PR5: 하드코딩 템플릿 완전 삭제.
+// 과거에는 인텔 없이도 변수 치환 템플릿으로 메일을 보낼 수 있었으나, 대표님 방침에 따라
+// 초개인화 인텔 기반 초안만 발송 가능. 초안은 직원 D가 email_drafts에 영문으로 저장.
+// 모달 열 때 email_drafts를 조회해 로드하고, 없으면 "파이프라인 먼저 실행" 안내.
 
 export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: EmailComposeModalProps) {
   const [currentTab, setCurrentTab] = useState<'en' | 'ko' | 'intel'>('en');
   const [emailBody, setEmailBody] = useState('');
   const [koreanBody, setKoreanBody] = useState('');
-  const [subject, setSubject] = useState('K-Beauty OEM Partnership Opportunity — SPS International');
-  const [showAIPrompts, setShowAIPrompts] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState('');
+  const [subject, setSubject] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [attachPDF1, setAttachPDF1] = useState(true);
@@ -75,6 +42,14 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
   const [intel, setIntel] = useState<any>(null);
   const [intelLoading, setIntelLoading] = useState(false);
   const [intelLoaded, setIntelLoaded] = useState(false);
+
+  // PR5: email_drafts 로드 상태
+  const [draftLoading, setDraftLoading] = useState(false);
+  const [draftExists, setDraftExists] = useState(false);
+  // 로드된 초안의 스팸 상태 ('pass'=통과, 'rewrite'=자동수정 통과). 투명성 배지용.
+  const [draftSpamStatus, setDraftSpamStatus] = useState<string | null>(null);
+  // 바이어가 intel_failed 또는 recent_news=null → 발송 차단
+  const [intelMissing, setIntelMissing] = useState(false);
 
   const fetchIntel = async () => {
     setIntelLoading(true);
@@ -97,46 +72,80 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
     }
   };
 
-  const regenerateWithIntel = async () => {
-    if (!intel) return;
-    const firstName = buyer.contact.split(' ')[0];
-    const companyStatus = intel.company_status || intel.overview || '';
-    const kbeautyInterest = intel.kbeauty_interest || intel.why_kbeauty || '';
-    const formula = Array.isArray(intel.recommended_formula)
-      ? intel.recommended_formula.join(', ')
-      : (intel.recommended_formula || '스킨케어, 화장품 OEM/ODM');
-    const angle = intel.proposal_angle || '';
-
-    // 국문 탭에만 반영 — 영문 탭(emailBody/subject)은 절대 건드리지 않음
-    const koBody = `안녕하세요 ${firstName}님,
-
-SPS Cosmetics(spscos.com) CEO 신동환입니다. 저희는 한국의 OEM/ODM 화장품 전문 제조사입니다.
-
-${companyStatus ? `${buyer.company}의 최근 동향을 주목하고 있습니다 — ${companyStatus} ` : ''}${kbeautyInterest ? `귀사의 ${kbeautyInterest}를 감안할 때, ` : ''}${formula} 분야에서의 협력이 적합할 것으로 판단됩니다.
-
-${angle || `저희는 K-beauty 포뮬라를 전문으로 하며 MOQ 3,000개부터 가능합니다. ${buyer.region} 시장에 새로운 제품 라인을 도입하기에 적합합니다.`}
-
-간단한 통화로 더 자세히 논의해볼 수 있을까요?
-
-감사합니다.
-신동환 | CEO
-SPS Cosmetics | spscos.com`;
-
-    setKoreanBody(koBody);
-    setCurrentTab('ko');
-    // NOTE: setEmailBody / setSubject 호출 금지 — 영문 발송본 보호
-  };
+  // PR5: regenerateWithIntel 하드코딩 국문 템플릿 제거.
+  // 초안 생성은 BuyerIntelDrawer의 "국문 초안 생성 → 영문 번역" 단일 경로로 통합.
+  // 이 모달은 email_drafts에 저장된 초안을 로드·검토·발송하는 역할만 수행.
 
   useEffect(() => {
     if (isOpen) {
-      // 기본값: 영문/국문 템플릿. Claude 초개인화는 "바이어 인텔" 탭의
-      // "이 인텔로 이메일 재생성" 버튼에서 별도 트리거됨 (모달 자동 호출 X).
-      const firstName = buyer.contact.split(' ')[0];
-      setEmailBody(englishEmailTemplate(firstName, buyer.company, buyer.region));
-      setKoreanBody(koreanEmailTemplate(firstName, buyer.company, buyer.region));
+      // PR5: 하드코딩 템플릿 제거. 모달 열면 초안/인텔을 DB에서 조회해 로드.
+      //   1. buyer.id로 recent_news + status 조회 → 인텔 존재 여부 판별
+      //   2. status='intel_failed' 또는 recent_news=null이면 intelMissing=true, 발송 차단
+      //   3. 인텔이 있으면 email_drafts에서 해당 컨택트의 미발송 초안 로드
+      //      - body_first(영문), subject_line_1을 emailBody/subject에 주입
+      //      - 초안이 없으면 빈 상태 + "초안 없음" 안내
+      setEmailBody('');
+      setKoreanBody('');
+      setSubject('');
       setIntel(null);
       setIntelLoaded(false);
+      setDraftExists(false);
+      setDraftSpamStatus(null);
+      setIntelMissing(false);
+      setDraftLoading(true);
       document.body.style.overflow = 'hidden';
+
+      (async () => {
+        const buyerId = (buyer as { id?: string }).id;
+        if (!buyerId) {
+          setIntelMissing(true);
+          setDraftLoading(false);
+          return;
+        }
+
+        // 1) 인텔 & status 확인
+        const { data: b } = await supabase
+          .from('buyers')
+          .select('recent_news, status')
+          .eq('id', buyerId)
+          .single();
+        const hasIntel = !!b?.recent_news && b?.status !== 'intel_failed';
+        if (!hasIntel) {
+          setIntelMissing(true);
+          setDraftLoading(false);
+          return;
+        }
+
+        // 2) 미발송 초안 로드 (컨택트별)
+        //    - email_count 기반으로 body 필드 선택: 0회 → body_first, 1회+ → body_followup
+        //    - spam_status는 'pass' 또는 'rewrite'(자동 수정 통과)만 발송 가능으로 간주.
+        //      null(미검증)/flag(위험)은 로드하되 배너로 안내.
+        const contactId = (buyer as { contact_id?: string | null }).contact_id;
+        if (contactId) {
+          const { data: draft } = await supabase
+            .from('email_drafts')
+            .select('subject_line_1, body_first, body_followup, spam_status')
+            .eq('buyer_contact_id', contactId)
+            .eq('is_sent', false)
+            .maybeSingle();
+          if (draft) {
+            const count = buyer.email_count ?? 0;
+            // 팔로업 이후 차수는 body_followup, 없으면 body_first 폴백
+            const body = count === 0
+              ? (draft.body_first || '')
+              : (draft.body_followup || draft.body_first || '');
+            const ss = draft.spam_status;
+            // 검증 통과 초안만 자동 로드. 미검증/flag는 draftExists=false로 처리 → "검증 미통과" 배너 표시.
+            if (body && (ss === 'pass' || ss === 'rewrite')) {
+              setSubject(draft.subject_line_1 || '');
+              setEmailBody(body);
+              setDraftExists(true);
+              setDraftSpamStatus(ss as string);
+            }
+          }
+        }
+        setDraftLoading(false);
+      })();
     } else {
       document.body.style.overflow = 'unset';
     }
@@ -157,8 +166,13 @@ SPS Cosmetics | spscos.com`;
       alert('이메일 주소가 없습니다. 바이어 DB를 확인해주세요.');
       return;
     }
+    // PR5: 인텔 없는 바이어는 발송 금지
+    if (intelMissing) {
+      alert('바이어 인텔이 없어 발송할 수 없습니다. 파이프라인을 먼저 실행하세요.');
+      return;
+    }
     if (!subject.trim() || !emailBody.trim()) {
-      alert('제목과 본문을 모두 입력해주세요.');
+      alert('제목과 본문을 모두 입력해주세요. (초안이 없으면 바이어 인텔 탭에서 생성)');
       return;
     }
     setIsLoading(true);
@@ -225,41 +239,47 @@ SPS Cosmetics | spscos.com`;
     }
   };
 
-  const applyAIPreset = (preset: string) => {
-    const firstName = buyer.contact.split(' ')[0];
-    if (preset === '더 짧게') {
-      setEmailBody(`Dear ${firstName},\n\nI'm Donghwan Shin, CEO of SPS International — a Korean cosmetics OEM/ODM specialist.\n\nWe'd love to explore a K-Beauty partnership with ${buyer.company}. MOQ from 3,000 units, 4–8 week sample timeline.\n\nOpen to a 20-minute call?\n\nBest,\nDonghwan Shin | SPS International | spscos.com`);
-    } else if (preset === '친근한 톤') {
-      setEmailBody(`Hi ${firstName}!\n\nHope you're doing well! I'm Donghwan from SPS International — we help brands like ${buyer.company} develop amazing K-Beauty products.\n\nWould love to chat about how we could work together. Quick 20-min call sometime this week?\n\nCheers,\nDonghwan Shin | SPS International`);
-    } else if (preset === '격식체') {
-      setEmailBody(`Dear ${firstName},\n\nI am writing to formally introduce SPS International, a leading Korean cosmetics OEM/ODM specialist with an established track record in the ${buyer.region} market.\n\nWe would welcome the opportunity to arrange a brief consultation at your earliest convenience to explore a potential partnership with ${buyer.company}.\n\nYours sincerely,\nDonghwan Shin | Chief Executive Officer\nSPS International | spscos.com`);
-    } else if (preset === 'CTA 강화') {
-      setEmailBody(`Dear ${firstName},\n\n${buyer.company} is exactly the kind of brand we've been hoping to work with. I'm Donghwan Shin, CEO of SPS International.\n\nI have 3 specific product concepts in mind for the ${buyer.region} market that I believe could drive significant growth for ${buyer.company} this year.\n\nCan we schedule 20 minutes this week — Tuesday or Wednesday? I'll send a calendar invite immediately.\n\nBest regards,\nDonghwan Shin | CEO\nSPS International | spscos.com | +82-10-XXXX-XXXX`);
-    } else if (aiPrompt) {
-      setEmailBody(`Dear ${firstName},\n\n[AI 수정 적용: ${aiPrompt}]\n\n` + emailBody);
-      setAiPrompt('');
-    }
-    setShowAIPrompts(false);
-    setCurrentTab('en');
-  };
+  // PR5: applyAIPreset 하드코딩 프리셋(더 짧게/친근한 톤/격식체/CTA 강화) 완전 삭제.
+  //   인텔 반영 여부와 무관하게 고정된 영문 템플릿을 덮어쓰는 기능이라 PR5 방침과 충돌.
+  //   톤 조정이 필요하면 BuyerIntelDrawer에서 국문 초안을 수정 → 영문 번역 경로 사용.
 
+  // 국문 → 영문 번역 (DB 저장 없음, emailBody/subject만 갱신).
+  // PR5: supabase.functions.invoke는 non-2xx 응답 본문을 버려 "non-2xx status code"라는 일반 오류만
+  //   노출 → Edge Function 로그까지 봐야 원인 특정 가능. 직접 fetch로 전환해 실제 에러 메시지 표시.
+  //
+  // TODO: 사용자가 textarea에서 emailBody/subject를 직접 수정해도 email_drafts 테이블에 동기화되지
+  //   않아 이후 팔로업 초안 생성 시 원본 기준으로 돌아감. 수정본 저장이 필요하면 별도 "초안 업데이트"
+  //   버튼을 두거나 onBlur에서 UPDATE 호출하는 방식으로 확장(현 범위는 로드→발송에 집중).
   const applyKoToEn = async () => {
+    if (isLoading) return; // 연타 방지
     if (!koreanBody.trim()) {
       alert('국문 탭 내용이 비어 있습니다.');
       return;
     }
     setIsLoading(true);
     try {
-      // generate-draft Edge Function의 translate_only 액션 호출 (DB 저장 없음)
-      const { data, error } = await supabase.functions.invoke('generate-draft', {
-        body: {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+      const res = await fetch(`${supabaseUrl}/functions/v1/generate-draft`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${supabaseAnonKey}`,
+          apikey: supabaseAnonKey,
+        },
+        body: JSON.stringify({
           action: 'translate_only',
           ko_subject: subject,
           ko_body: koreanBody,
-        },
+        }),
       });
 
-      if (error) throw new Error(error.message || 'Edge Function 호출 실패');
+      let data: { en_subject?: string; en_body?: string; error?: string; message?: string };
+      try { data = await res.json(); } catch { throw new Error(`응답 파싱 실패 (HTTP ${res.status})`); }
+
+      if (!res.ok) {
+        throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
+      }
       if (!data?.en_subject || !data?.en_body) {
         throw new Error(data?.error || '번역 응답 형식 오류');
       }
@@ -291,10 +311,16 @@ SPS Cosmetics | spscos.com`;
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#e3e8ee] flex-shrink-0">
               <div>
                 <div className="text-base font-bold text-[#1a1f36]">발송 전 최종 검토</div>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <span className="bg-[#635BFF]/15 text-[#635BFF] text-xs px-2 py-0.5 rounded">
                     <Check size={14} className="inline" /> 스팸 점수 85/100 — 안전
                   </span>
+                  {/* PR5: 자동수정 통과(rewrite) 초안임을 투명하게 표시 */}
+                  {draftSpamStatus === 'rewrite' && (
+                    <span className="bg-[#fef3c7] text-[#b45309] text-xs px-2 py-0.5 rounded" title="직원 E가 스팸 규칙 위반을 자동 수정한 뒤 통과 처리한 초안. 발송 전 본문 최종 확인 권장.">
+                      자동수정 통과
+                    </span>
+                  )}
                   {intel && (
                     <span className="bg-[#635BFF]/20 text-[#7A73FF] text-xs px-2 py-0.5 rounded">
                       <Search size={14} className="inline" /> 인텔 로드됨
@@ -311,6 +337,44 @@ SPS Cosmetics | spscos.com`;
             <div className="flex-1 flex min-h-0 overflow-hidden">
               {/* Left Panel */}
               <div className="flex-1 flex flex-col border-r border-[#e3e8ee] overflow-hidden">
+                {/* PR5: 인텔 없음 경고 — 발송 차단 안내 */}
+                {intelMissing && (
+                  <div className="bg-[#fef2f2] border-b border-[#fecaca] px-6 py-3 flex items-start gap-3">
+                    <div className="w-7 h-7 rounded-full bg-[#fee2e2] flex items-center justify-center flex-shrink-0">
+                      <AlertCircle size={14} className="text-[#b91c1c]" />
+                    </div>
+                    <div className="text-xs text-[#1a1f36] leading-relaxed flex-1">
+                      <div className="font-semibold mb-0.5">바이어 인텔이 없어 발송할 수 없습니다.</div>
+                      <div className="text-[#697386]">파이프라인을 먼저 실행하여 직원 C의 기업 분석을 완료하세요. 또는 이 바이어가 `intel_failed`로 마킹되어 있으면 품질 미달로 제외 상태입니다.</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* PR5: 초안 로드 안내 — 상황별 분리
+                    a) contactId가 null인 레거시 바이어(buyer_contacts에 row 없음) → 담당자 추가 안내
+                    b) contactId 있는데 초안 없음 → 파이프라인/BuyerIntelDrawer로 유도
+                    c) 초안은 있는데 검증 미통과(spam_status=null 또는 'flag') → 직원 E 재실행 안내 */}
+                {!intelMissing && !draftLoading && !draftExists && (
+                  <div className="bg-[#fffbeb] border-b border-[#fde68a] px-6 py-3 flex items-start gap-3">
+                    <div className="w-7 h-7 rounded-full bg-[#fef3c7] flex items-center justify-center flex-shrink-0">
+                      <AlertCircle size={14} className="text-[#b45309]" />
+                    </div>
+                    <div className="text-xs text-[#1a1f36] leading-relaxed flex-1">
+                      {!(buyer as { contact_id?: string | null }).contact_id ? (
+                        <>
+                          <div className="font-semibold mb-0.5">담당자 정보가 없어 초안을 로드할 수 없습니다.</div>
+                          <div className="text-[#697386]">바이어 인텔 패널에서 담당자를 먼저 추가한 뒤 초안을 생성하세요.</div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="font-semibold mb-0.5">발송 가능한 영문 초안이 없습니다.</div>
+                          <div className="text-[#697386]">파이프라인(직원 D)을 실행하거나 바이어 인텔 패널의 "국문 초안 생성 → 영문 번역" 경로로 초안을 만들고 스팸 검증(직원 E) 통과 후 발송 가능합니다.</div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Recipient Info */}
                 <div className="px-6 py-4 bg-[#f6f8fa] border-b border-[#e3e8ee] flex-shrink-0">
                   <div className="space-y-2 text-xs">
@@ -395,15 +459,6 @@ SPS Cosmetics | spscos.com`;
                         onChange={(e) => setEmailBody(e.target.value)}
                         className="w-full h-64 bg-[#f6f8fa] border border-[#e3e8ee] text-[#1a1f36] p-4 rounded-lg text-xs font-mono resize-none focus:outline-none focus:border-[#635BFF]"
                       />
-                      {intel && (
-                        <button
-                          onClick={regenerateWithIntel}
-                          disabled={isLoading}
-                          className="text-xs bg-[#635BFF]/20 text-[#7A73FF] px-3 py-1.5 rounded font-semibold hover:bg-[#635BFF]/30 transition disabled:opacity-50"
-                        >
-                          <Sparkles size={14} className="inline" /> 바이어 인텔로 메일 재생성
-                        </button>
-                      )}
                     </div>
                   )}
 
@@ -472,21 +527,16 @@ SPS Cosmetics | spscos.com`;
                             <p className="text-xs text-[#1a1f36] leading-relaxed whitespace-pre-wrap">{intel.tier_note || '정보 없음'}</p>
                           </div>
 
-                          {/* Regenerate button */}
+                          {/* PR5: "이 인텔로 이메일 재생성" 버튼 삭제.
+                              초안 생성은 BuyerIntelDrawer 단일 경로("국문 초안 생성 → 영문 번역")로 통합.
+                              인텔 새로고침만 남김. */}
                           <div className="flex gap-2 pt-1">
-                            <button
-                              onClick={regenerateWithIntel}
-                              disabled={isLoading}
-                              className="flex-1 text-xs bg-[#635BFF] text-white py-2 rounded-lg font-semibold hover:bg-[#5851DB] transition disabled:opacity-50"
-                            >
-                              {isLoading ? '생성 중...' : <><Sparkles size={14} className="inline" /> 이 인텔로 이메일 재생성</>}
-                            </button>
                             <button
                               onClick={() => { setIntelLoaded(false); setIntel(null); fetchIntel(); }}
                               disabled={intelLoading}
-                              className="text-xs border border-[#e3e8ee] text-[#8792a2] px-3 py-2 rounded-lg hover:bg-[#e3e8ee] transition"
+                              className="text-xs border border-[#e3e8ee] text-[#697386] px-3 py-2 rounded-lg hover:bg-[#e3e8ee] transition flex items-center gap-1"
                             >
-                              <RefreshCw size={14} />
+                              <RefreshCw size={14} /> 인텔 새로고침
                             </button>
                           </div>
                         </>
@@ -503,45 +553,8 @@ SPS Cosmetics | spscos.com`;
                   )}
                 </div>
 
-                {/* AI Prompts Section */}
-                <div className="px-6 py-3 border-t border-[#e3e8ee] flex-shrink-0">
-                  <button
-                    onClick={() => setShowAIPrompts(!showAIPrompts)}
-                    className="text-xs text-[#635BFF] hover:text-[#7A73FF] font-semibold"
-                  >
-                    <Sparkles size={14} className="inline" /> AI 수정 요청
-                  </button>
-
-                  {showAIPrompts && (
-                    <div className="mt-3 p-3 bg-[#f6f8fa] border border-[#e3e8ee] rounded-lg space-y-2">
-                      <div className="flex flex-wrap gap-2">
-                        {['더 짧게', '친근한 톤', '격식체', 'CTA 강화'].map((preset) => (
-                          <button
-                            key={preset}
-                            onClick={() => applyAIPreset(preset)}
-                            className="text-xs bg-[#e3e8ee] text-[#1a1f36] px-2 py-1 rounded hover:bg-[#8792a2]"
-                          >
-                            {preset}
-                          </button>
-                        ))}
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="커스텀 지시사항 (예: Ramadan 관련 내용 추가해줘)..."
-                        value={aiPrompt}
-                        onChange={(e) => setAiPrompt(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && applyAIPreset('custom')}
-                        className="w-full text-xs bg-[#ffffff] border border-[#e3e8ee] text-[#1a1f36] px-2 py-1 rounded placeholder-[#8792a2] focus:outline-none focus:border-[#635BFF]"
-                      />
-                      <button
-                        onClick={() => applyAIPreset('custom')}
-                        className="w-full text-xs bg-[#635BFF] text-white py-1 rounded hover:bg-[#5851DB] font-semibold"
-                      >
-                        적용
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {/* PR5: AI 프리셋 섹션 삭제 — 하드코딩 영문 템플릿 프리셋(더 짧게/친근한 톤 등)은 인텔 기반 발송 원칙에서 벗어남.
+                    톤 조정이 필요하면 BuyerIntelDrawer에서 국문 초안을 수정 후 영문으로 재번역. */}
 
                 {/* Edit Notice */}
                 <div className="px-6 py-3 bg-[#f6f8fa] text-xs text-[#8792a2] border-t border-[#e3e8ee] flex-shrink-0">
@@ -642,8 +655,9 @@ SPS Cosmetics | spscos.com`;
                 </button>
                 <button
                   onClick={handleSend}
-                  disabled={isLoading}
-                  className="px-4 py-2 bg-[#635BFF] text-white rounded-lg text-xs font-semibold hover:bg-[#5851DB] transition disabled:opacity-50"
+                  disabled={isLoading || intelMissing || !emailBody.trim() || !subject.trim()}
+                  title={intelMissing ? '인텔이 없어 발송할 수 없습니다' : (!emailBody.trim() || !subject.trim()) ? '초안이 비어 있습니다' : ''}
+                  className="px-4 py-2 bg-[#635BFF] text-white rounded-lg text-xs font-semibold hover:bg-[#5851DB] transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (
                     <span className="flex items-center gap-2">
