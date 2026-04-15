@@ -49,6 +49,8 @@ export default function Buyers() {
     if (s === 'Contacted' || s === '발송완료' || s === '발송됨') return '발송완료';
     if (s === 'Replied' || s === '회신받음') return '회신받음';
     if (s === 'Bounced' || s === '반송됨') return '반송됨';
+    // PR4: 인텔 품질 게이트 미통과 바이어 — 발송 대상에서 자동 제외 (read-only 표시)
+    if (s === 'intel_failed' || s === '인텔 미달') return '인텔 미달';
     return s;
   };
   // DB tier → display tier (add space for display)
@@ -65,6 +67,7 @@ export default function Buyers() {
     if (displayStatus === '발송완료') return 'Contacted';
     if (displayStatus === '회신받음') return 'Replied';
     if (displayStatus === '반송됨') return 'Bounced';
+    if (displayStatus === '인텔 미달') return 'intel_failed';
     return displayStatus; // Interested, Sample, Deal, Lost는 영어 그대로
   };
 
@@ -77,6 +80,7 @@ export default function Buyers() {
     if (s === 'Sample') return 'bg-[#a855f7]/20 text-[#a855f7]';
     if (s === 'Deal') return 'bg-[#22c55e]/20 text-[#22c55e]';
     if (s === 'Lost') return 'bg-[#8792a2]/20 text-[#8792a2]';
+    if (s === 'intel_failed' || s === '인텔 미달') return 'bg-[#fef2f2] text-[#b91c1c] border border-[#fecaca]';
     return 'bg-[#e3e8ee]/50 text-[#697386]'; // Cold/미발송
   };
 
@@ -622,16 +626,24 @@ export default function Buyers() {
                           className={`text-xs px-2 py-1 rounded border-0 cursor-pointer outline-none ${statusColorClass(buyer.status)}`}
                         >
                           {[
-                            { value: 'Cold', label: '미발송' },
-                            { value: 'Contacted', label: '발송완료' },
-                            { value: 'Replied', label: '회신받음' },
-                            { value: 'Bounced', label: '반송됨' },
-                            { value: 'Interested', label: '관심' },
-                            { value: 'Sample', label: '샘플' },
-                            { value: 'Deal', label: '딜' },
-                            { value: 'Lost', label: '탈락' },
+                            { value: 'Cold', label: '미발송', disabled: false },
+                            { value: 'Contacted', label: '발송완료', disabled: false },
+                            { value: 'Replied', label: '회신받음', disabled: false },
+                            { value: 'Bounced', label: '반송됨', disabled: false },
+                            { value: 'Interested', label: '관심', disabled: false },
+                            { value: 'Sample', label: '샘플', disabled: false },
+                            { value: 'Deal', label: '딜', disabled: false },
+                            { value: 'Lost', label: '탈락', disabled: false },
+                            // PR4: intel_failed는 직원 C가 자동 마킹하는 상태 (수동 선택 불가)
+                            // 하지만 select value와 매칭되어야 React 경고를 피할 수 있어 옵션 자체는 포함.
+                            { value: 'intel_failed', label: '인텔 미달', disabled: true },
                           ].map((opt) => (
-                            <option key={opt.value} value={opt.value} style={{ background: '#ffffff', color: '#1a1f36' }}>
+                            <option
+                              key={opt.value}
+                              value={opt.value}
+                              disabled={opt.disabled}
+                              style={{ background: '#ffffff', color: '#1a1f36' }}
+                            >
                               {opt.label}
                             </option>
                           ))}

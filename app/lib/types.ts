@@ -16,7 +16,10 @@ export interface Buyer {
   recent_news?: CompanyAnalysis | null
   team?: 'GCC' | 'USA' | 'Europe'
   k_beauty_flag: 'Y' | 'N' | 'Unknown'
-  status: 'Cold' | 'Contacted' | 'Replied' | 'Bounced' | 'Interested' | 'Sample' | 'Deal' | 'Lost'
+  status: 'Cold' | 'Contacted' | 'Replied' | 'Bounced' | 'Interested' | 'Sample' | 'Deal' | 'Lost' | 'intel_failed'
+  // PR4: 인텔 품질 게이트 결과
+  analysis_failed_at?: string | null
+  intel_score?: number | null
   is_blacklisted?: boolean
   discovered_at?: string
   job_id?: string

@@ -11,13 +11,15 @@
 
 export type BuyerStatus =
   | 'Cold' | 'Contacted' | 'Replied' | 'Bounced'
-  | 'Interested' | 'Sample' | 'Deal' | 'Lost';
+  | 'Interested' | 'Sample' | 'Deal' | 'Lost'
+  | 'intel_failed';  // PR4: 직원 C가 인텔 품질 게이트 통과하지 못한 바이어
 
 const STATUS_EN_TO_KO: Record<string, string> = {
   Cold: '미발송',
   Contacted: '발송완료',
   Replied: '회신받음',
   Bounced: '반송됨',
+  intel_failed: '인텔 미달',
 };
 
 const STATUS_KO_TO_EN: Record<string, BuyerStatus> = {
@@ -25,6 +27,7 @@ const STATUS_KO_TO_EN: Record<string, BuyerStatus> = {
   '발송완료': 'Contacted',
   '회신받음': 'Replied',
   '반송됨': 'Bounced',
+  '인텔 미달': 'intel_failed',
 };
 
 /**

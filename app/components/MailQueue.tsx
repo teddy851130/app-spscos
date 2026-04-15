@@ -163,7 +163,8 @@ export default function MailQueue() {
     const todayStartUtc = new Date(kstTodayStart.getTime() - kstOffset).toISOString();
     const todayEndUtc = new Date(kstTodayEnd.getTime() - kstOffset).toISOString();
 
-    const excludeStatuses = ['Lost', 'Deal', 'Bounced'];
+    // PR4: intel_failed 바이어는 인텔 품질 미달이라 발송 대상에서 자동 제외
+    const excludeStatuses = ['Lost', 'Deal', 'Bounced', 'intel_failed'];
 
     const { data, error } = await supabase
       .from('buyers')

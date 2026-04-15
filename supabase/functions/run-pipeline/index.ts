@@ -72,6 +72,34 @@ async function agentB(sb: SB, jobId: string, _team: string) {
   const ZB_KEY = Deno.env.get("ZEROBOUNCE_API_KEY");
   if (!ZB_KEY) { await log(sb, jobId, "B", "failed", "ZEROBOUNCE_API_KEY 없음"); return; }
 
+  // PR4: 크레딧 프리체크 — 0이면 무의미한 검증 호출을 피하고 즉시 종료.
+  // 401/402 등 인증 오류도 여기서 잡아 본 검증 루프 진입 전에 경고.
+  try {
+    const credRes = await fetch(`https://api.zerobounce.net/v2/getcredits?api_key=${ZB_KEY}`);
+    if (credRes.status === 401 || credRes.status === 403) {
+      await log(sb, jobId, "B", "failed", `ZeroBounce 인증 실패 (HTTP ${credRes.status}) — API 키 확인 필요`);
+      return;
+    }
+    if (credRes.status === 402) {
+      await log(sb, jobId, "B", "failed", "ZeroBounce 결제 필요 (HTTP 402) — 크레딧 충전 후 재실행");
+      return;
+    }
+    if (credRes.ok) {
+      const cd = await credRes.json();
+      const credits = Number(cd.Credits ?? 0);
+      if (credits <= 0) {
+        await log(sb, jobId, "B", "failed", "ZeroBounce 크레딧 0건 — 충전 후 재실행");
+        return;
+      }
+      // 정보성 로그 (직원 F가 200건 이하면 별도 경고 생성)
+      await log(sb, jobId, "B", "running", `ZeroBounce 크레딧 ${credits}건 사용 가능`);
+    }
+    // credRes.status가 5xx 등 일시 오류면 본 루프 진행 — 개별 호출에서 다시 처리됨
+  } catch (e) {
+    await log(sb, jobId, "B", "running",
+      `ZeroBounce 크레딧 사전 조회 실패: ${e instanceof Error ? e.message : String(e)} — 본 루프 진행`);
+  }
+
   const { data: contacts } = await sb.from("buyer_contacts")
     .select("id, contact_email, buyer_id")
     .is("email_status", null)
@@ -165,6 +193,41 @@ async function agentB(sb: SB, jobId: string, _team: string) {
 // ============================================
 // 직원 C: Claude API — 기업 분석
 // ============================================
+// PR4 인텔 품질 점수 계산 (0~100)
+// 4개 핵심 필드의 길이/구체성을 기반으로 채점.
+//   company_status: 최대 40점 (구체적 사실 언급이 핵심)
+//   kbeauty_interest: 최대 20점
+//   recommended_formula: 최대 20점 (3개 이상 품목)
+//   proposal_angle: 최대 20점
+// 임계값 60점. 단순 합산 시 "큰 필드 두 개만 차도 통과" 문제가 있어 라운드1 수정으로
+// 4개 필드 모두 최소 점수(부분 점수 포함) 이상이어야만 합격으로 본다.
+//   각 필드 1점 이상 = "최소한 형식 충족". 그 후 합산 점수가 임계값 이상이어야 합격.
+const INTEL_QUALITY_THRESHOLD = 60;
+
+function computeIntelScore(intel: Record<string, unknown>): number {
+  // 각 필드의 부분 점수 계산
+  const companyStatus = String(intel.company_status || "").trim();
+  const csScore = companyStatus.length >= 30 ? 40 : companyStatus.length >= 15 ? 20 : 0;
+
+  const kbeautyInterest = String(intel.kbeauty_interest || "").trim();
+  const kiScore = kbeautyInterest.length >= 20 ? 20 : kbeautyInterest.length >= 10 ? 10 : 0;
+
+  const rawFormula = intel.recommended_formula;
+  const formulas = Array.isArray(rawFormula)
+    ? rawFormula.map((x) => String(x).trim()).filter((x) => x.length > 0)
+    : String(rawFormula || "").split(/[,，、]/).map((x) => x.trim()).filter((x) => x.length > 0);
+  const fmScore = formulas.length >= 3 ? 20 : formulas.length >= 2 ? 10 : 0;
+
+  const proposalAngle = String(intel.proposal_angle || "").trim();
+  const paScore = proposalAngle.length >= 20 ? 20 : proposalAngle.length >= 10 ? 10 : 0;
+
+  // 4개 필드 중 하나라도 0점이면 전체 0점 (필드 누락은 불합격 확정).
+  // → "큰 필드 두 개만 차서 임계값 통과" 우회 차단.
+  if (csScore === 0 || kiScore === 0 || fmScore === 0 || paScore === 0) return 0;
+
+  return csScore + kiScore + fmScore + paScore;
+}
+
 async function agentC(sb: SB, jobId: string, _team: string) {
   await log(sb, jobId, "C", "running", "직원C 시작: 기업 분석");
 
@@ -181,8 +244,14 @@ async function agentC(sb: SB, jobId: string, _team: string) {
   }
 
   const validIds = [...new Set(validContacts.map((c: { buyer_id: string }) => c.buyer_id))];
+  // PR4: analysis_failed_at IS NULL 조건 추가 — 이전에 분석 포기한 바이어 재분석 차단 (무한 루프 방지).
+  //      또한 status='intel_failed' 바이어도 제외.
   const { data: buyers } = await sb.from("buyers").select("*")
-    .in("id", validIds).eq("is_blacklisted", false).is("recent_news", null);
+    .in("id", validIds)
+    .eq("is_blacklisted", false)
+    .is("recent_news", null)
+    .is("analysis_failed_at", null)
+    .neq("status", "intel_failed");
 
   if (!buyers || buyers.length === 0) {
     await log(sb, jobId, "C", "completed", "분석할 새 기업 없음"); return;
@@ -194,14 +263,25 @@ async function agentC(sb: SB, jobId: string, _team: string) {
   let rateLimitCount = 0;
   let sampleHttpError: string | null = null;
 
-  // 병렬 배치 처리 (10개씩) — Edge Function timeout 회피용
-  // 순차 처리 시 기업 수 × ~8초 → 50개 이상이면 400초 한계 초과 위험
-  const BATCH_SIZE_C = 5;
-  for (let batchStart = 0; batchStart < buyers.length; batchStart += BATCH_SIZE_C) {
-    const batch = buyers.slice(batchStart, batchStart + BATCH_SIZE_C);
-    await Promise.all(batch.map(async (b: Record<string, unknown>) => {
-      try {
-        const prompt = `당신은 한국 OEM/ODM 화장품 제조사 SPS Cosmetics(spscos.com)의 B2B 애널리스트입니다.
+  // PR4: 품질 게이트 통계 — 재시도·실패 카운트 추적
+  let retriedCount = 0;
+  let intelFailedCount = 0;
+
+  // Claude 기업 분석 호출 — 1차/재시도 프롬프트 분기
+  async function callClaudeIntel(
+    b: Record<string, unknown>,
+    retryMode: boolean,
+  ): Promise<{ json: Record<string, unknown> | null; cost: number; httpError?: string; rateLimited?: boolean }> {
+    const retryHint = retryMode
+      ? `\n\n[재시도] 이전 응답이 품질 기준(각 필드 구체성·풍부함) 미달이었습니다.
+- company_status는 최소 30자, 실제 구체적 사실(브랜드·캠페인·제품명 등) 포함
+- kbeauty_interest는 최소 20자, 판단 근거 명시
+- recommended_formula는 **3개 이상** 구체 품목
+- proposal_angle은 최소 20자, 실행 가능한 한 줄 제안
+각 필드를 반드시 채우되 추측성 내용 금지.`
+      : "";
+
+    const prompt = `당신은 한국 OEM/ODM 화장품 제조사 SPS Cosmetics(spscos.com)의 B2B 애널리스트입니다.
 아래 바이어 기업을 분석해주세요.
 
 기업명: ${b.company_name}
@@ -215,46 +295,102 @@ async function agentC(sb: SB, jobId: string, _team: string) {
   "kbeauty_interest": "한국 화장품 브랜드 이력 및 K-beauty 관심도 — 낮음/중간/높음 중 하나를 판단 근거와 함께 (한국어)",
   "recommended_formula": "SPS 카테고리 매칭 — 스킨케어(세럼/크림), 바디케어(로션/오일), 컬러(립/아이), 헤어케어(샴푸/트리트먼트) 중 3~5개 제품 구체 추천 (한국어, 쉼표 구분)",
   "proposal_angle": "이 기업에 접근할 한 줄 영업 제안 각도 (한국어)"
-}`;
+}${retryHint}`;
 
-        const res = await fetchClaudeWithRetry("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "x-api-key": API_KEY, "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "claude-haiku-4-5-20251001", max_tokens: 500,
-            messages: [{ role: "user", content: prompt }],
-          }),
-        });
+    const res = await fetchClaudeWithRetry("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": API_KEY!, "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001", max_tokens: retryMode ? 700 : 500,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
 
-        if (!res.ok) {
+    if (!res.ok) {
+      const rateLimited = res.status === 429;
+      return {
+        json: null, cost: 0, rateLimited,
+        httpError: `HTTP ${res.status}${rateLimited ? " (Claude 레이트 리밋)" : ""}`,
+      };
+    }
+
+    const result = await res.json();
+    const text = result.content?.[0]?.text || "";
+    const inTok = result.usage?.input_tokens || 0;
+    const outTok = result.usage?.output_tokens || 0;
+    const cost = (inTok * 0.0000008) + (outTok * 0.000004);
+
+    let json: Record<string, unknown> | null;
+    try {
+      const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      json = JSON.parse(cleaned);
+    } catch {
+      json = null;
+    }
+    return { json, cost };
+  }
+
+  // 병렬 배치 처리 (5개씩) — Edge Function timeout 회피용
+  const BATCH_SIZE_C = 5;
+  for (let batchStart = 0; batchStart < buyers.length; batchStart += BATCH_SIZE_C) {
+    const batch = buyers.slice(batchStart, batchStart + BATCH_SIZE_C);
+    await Promise.all(batch.map(async (b: Record<string, unknown>) => {
+      try {
+        // 1차 호출
+        const first = await callClaudeIntel(b, false);
+        totalCost += first.cost;
+        if (first.httpError) {
           httpErrorCount++;
-          if (res.status === 429) rateLimitCount++;
-          if (!sampleHttpError) sampleHttpError = `HTTP ${res.status}${res.status === 429 ? " (Claude 레이트 리밋)" : ""}`;
-          return;
+          if (first.rateLimited) rateLimitCount++;
+          if (!sampleHttpError) sampleHttpError = first.httpError;
+          return; // 네트워크 오류는 다음 파이프라인 실행에서 재시도
         }
 
-        const result = await res.json();
-        const text = result.content?.[0]?.text || "";
-        const inTok = result.usage?.input_tokens || 0;
-        const outTok = result.usage?.output_tokens || 0;
-        const cost = (inTok * 0.0000008) + (outTok * 0.000004);
-        totalCost += cost;
+        let finalJson = first.json;
+        let score = finalJson ? computeIntelScore(finalJson) : 0;
 
-        // Claude가 ```json ... ``` 마크다운으로 감쌀 수 있음 — 마커만 제거 후 JSON.parse
-        // 파싱 실패 시 null 저장 (raw 텍스트 저장 금지 — DB 오염 방지)
-        let json: Record<string, unknown> | null;
-        try {
-          const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-          json = JSON.parse(cleaned);
-        } catch {
-          json = null;
+        // 품질 미달(파싱 실패 또는 점수 < 임계값) → 재시도 1회
+        if (!finalJson || score < INTEL_QUALITY_THRESHOLD) {
+          retriedCount++;
+          const retry = await callClaudeIntel(b, true);
+          totalCost += retry.cost;
+          if (retry.httpError) {
+            httpErrorCount++;
+            if (retry.rateLimited) rateLimitCount++;
+            if (!sampleHttpError) sampleHttpError = retry.httpError;
+            // PR4 라운드1 수정: 재시도 네트워크 오류 시 무한 루프 방지.
+            //   1차 결과가 있으면 그것으로 최종 판정 진행 (아래 분기에서 intel_failed 또는 합격 결정).
+            //   1차도 없으면 다음 실행에서 재시도 허용 — recent_news/analysis_failed_at 모두 NULL이라 재진입 가능.
+            //   (1차도 없는 경우는 이론상 불가능: callClaudeIntel은 2xx 응답이면 json 또는 null을 반환)
+            if (!finalJson) return;
+          } else if (retry.json) {
+            const retryScore = computeIntelScore(retry.json);
+            if (retryScore >= score) { finalJson = retry.json; score = retryScore; }
+          }
         }
 
-        await sb.from("buyers").update({ recent_news: json }).eq("id", b.id);
-        if (json !== null) analyzed++;
+        // 최종 판정
+        if (finalJson && score >= INTEL_QUALITY_THRESHOLD) {
+          // 합격 — recent_news + intel_score 저장
+          await sb.from("buyers")
+            .update({ recent_news: finalJson, intel_score: score })
+            .eq("id", b.id);
+          analyzed++;
+        } else {
+          // 불합격 — intel_failed 마킹.
+          // 1차 응답이 있으면 recent_news에 보존하여 사용자가 "왜 실패했나" 확인 가능.
+          // 무한 재분석 차단을 위해 analysis_failed_at 기록.
+          await sb.from("buyers").update({
+            recent_news: finalJson, // 점수 미달 인텔도 진단용으로 보존
+            analysis_failed_at: new Date().toISOString(),
+            intel_score: score,
+            status: "intel_failed",
+          }).eq("id", b.id);
+          intelFailedCount++;
+        }
       } catch (e) {
         httpErrorCount++;
         if (!sampleHttpError) sampleHttpError = `fetch 실패: ${e instanceof Error ? e.message : String(e)}`;
@@ -269,7 +405,8 @@ async function agentC(sb: SB, jobId: string, _team: string) {
   }
 
   await log(sb, jobId, "C", "completed",
-    `직원C 완료: ${analyzed}개 기업 분석, API 비용 $${totalCost.toFixed(4)}`, 0, totalCost);
+    `직원C 완료: 합격 ${analyzed} · 재시도 ${retriedCount} · 불합격(intel_failed) ${intelFailedCount}, API $${totalCost.toFixed(4)}`,
+    0, totalCost);
 }
 
 // ============================================
@@ -303,7 +440,11 @@ async function agentD(sb: SB, jobId: string, _team: string) {
   }
 
   const buyerIds = [...new Set(newContacts.map((c: { buyer_id: string }) => c.buyer_id))];
-  const { data: buyers } = await sb.from("buyers").select("*").in("id", buyerIds).eq("is_blacklisted", false);
+  // PR4: status='intel_failed' 바이어는 인텔 품질 미달이므로 메일 초안 작성 대상에서 제외
+  const { data: buyers } = await sb.from("buyers").select("*")
+    .in("id", buyerIds)
+    .eq("is_blacklisted", false)
+    .neq("status", "intel_failed");
   const buyerMap = new Map((buyers || []).map((b: { id: string }) => [b.id, b]));
 
   let drafted = 0;
