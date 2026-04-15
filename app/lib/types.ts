@@ -16,7 +16,7 @@ export interface Buyer {
   recent_news?: CompanyAnalysis | null
   team?: 'GCC' | 'USA' | 'Europe'
   k_beauty_flag: 'Y' | 'N' | 'Unknown'
-  status: 'Cold' | 'Contacted' | 'Replied' | 'Interested' | 'Sample' | 'Deal' | 'Lost'
+  status: 'Cold' | 'Contacted' | 'Replied' | 'Bounced' | 'Interested' | 'Sample' | 'Deal' | 'Lost'
   is_blacklisted?: boolean
   discovered_at?: string
   job_id?: string
@@ -50,6 +50,9 @@ export interface BuyerContact {
 
 export interface EmailDraft {
   id: string
+  // PR1: buyer_id를 email_drafts에 직접 저장해 MailQueue "회사 미상" 버그 해결.
+  // DB 제약: NOT NULL (migration 008 참조).
+  buyer_id: string
   buyer_contact_id: string
   subject_line_1: string
   subject_line_2: string

@@ -175,15 +175,15 @@ Deno.serve(async (req: Request) => {
       if (error) throw error;
       logId = data?.id;
 
-      // 2) buyers.last_sent_at 갱신 + email_count 증가
-      // email_count는 RPC 없이 raw SQL을 쓸 수 없으므로, 현재 값 조회 후 +1
+      // 2) buyers 업데이트 — PR1 이후 원자적 RPC 사용
+      // 팔로업 날짜는 tier에 따라 다르므로 tier만 먼저 조회 (RPC 파라미터 계산용).
+      // email_count 증가 + last_sent_at + status 전이는 increment_email_sent RPC가 한 트랜잭션에서 처리.
       const { data: buyerData } = await sb
         .from("buyers")
-        .select("email_count, tier")
+        .select("tier")
         .eq("id", buyerId)
         .single();
 
-      const currentCount = buyerData?.email_count ?? 0;
       const tier = buyerData?.tier ?? "Tier2";
 
       // 팔로업 날짜 계산: Tier1은 5일 후, Tier2는 7일 후
@@ -196,24 +196,22 @@ Deno.serve(async (req: Request) => {
         nextFollowup = followupDate.toISOString();
       }
 
-      // status가 'Cold'(미발송)이면 'Contacted'(발송완료)로 변경
-      const { data: statusData } = await sb
-        .from("buyers")
-        .select("status")
-        .eq("id", buyerId)
-        .single();
-      const currentStatus = statusData?.status ?? "Cold";
-      const newStatus = currentStatus === "Cold" ? "Contacted" : currentStatus;
-
-      await sb
-        .from("buyers")
-        .update({
-          last_sent_at: now,
-          email_count: currentCount + 1,
-          next_followup_at: nextFollowup,
-          status: newStatus,
-        })
-        .eq("id", buyerId);
+      // 원자적 증감: email_count +1, last_sent_at, next_followup_at, status 전이를 한 번에.
+      // (migration 008에서 정의된 increment_email_sent RPC)
+      const { error: rpcError } = await sb.rpc("increment_email_sent", {
+        p_buyer_id: buyerId,
+        p_sent_at: now,
+        p_next_followup_at: nextFollowup,
+      });
+      if (rpcError) {
+        // P0002 = buyer 존재하지 않음. SMTP는 이미 나간 상태이므로 데이터 복구 불가.
+        // 운영 관찰성을 위해 명시적 로그를 남기고 상위 catch로 던짐.
+        const code = (rpcError as { code?: string }).code;
+        if (code === "P0002") {
+          console.error(`[send-email] 치명적: RPC P0002 — buyer=${buyerId} 존재하지 않음. SMTP는 이미 발송됨.`);
+        }
+        throw rpcError;
+      }
 
       // 3) buyer_activities에 활동 기록
       const emailTypeLabel: Record<string, string> = {

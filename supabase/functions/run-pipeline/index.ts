@@ -289,8 +289,12 @@ async function agentD(sb: SB, jobId: string, _team: string) {
     await log(sb, jobId, "D", "completed", "이메일 작성할 담당자 없음"); return;
   }
 
-  // 이미 초안이 있는 contact 제외
-  const { data: existing } = await sb.from("email_drafts").select("buyer_contact_id");
+  // 미발송 초안이 있는 contact만 제외 (발송된 초안이 있는 컨택트는 팔로업 초안 생성 대상)
+  // PR1 이전에는 is_sent 필터 없이 전부 제외해서 과거 발송된 컨택트가 영원히 재생성 안 되는 버그 존재.
+  const { data: existing } = await sb
+    .from("email_drafts")
+    .select("buyer_contact_id")
+    .eq("is_sent", false);
   const existingSet = new Set((existing || []).map((d: { buyer_contact_id: string }) => d.buyer_contact_id));
   const newContacts = contacts.filter((c: { id: string }) => !existingSet.has(c.id));
 
@@ -356,13 +360,19 @@ Proposal Angle: ${proposalAngle}
 
 Sales Strategy: ${salesAngle}
 
+CRITICAL LANGUAGE RULES:
+- The entire email (subject AND body) MUST be written in English only.
+- Even if the intelligence above contains Korean phrases, translate them to English before using.
+- Do NOT include any Korean characters (한글), Hanja, or non-Latin scripts anywhere.
+- Company names may remain in their original spelling, but all prose must be English.
+
 Return ONLY a JSON object (no markdown):
 {
   "subject_line_1": "Company name + product category from recommended_formula (e.g., '${buyer.company_name} x K-Beauty ${recommendedFormula.split(",")[0]}')",
   "subject_line_2": "Reference company_status news/campaign (e.g., 'Re: ${buyer.company_name}'s ${companyStatus.slice(0, 30)}...')",
   "subject_line_3": "K-beauty trend angle (e.g., 'The K-beauty formula trending with ${buyer.region} buyers')",
-  "body_first": "EXACTLY 120-150 words. Structure: Opening hook (1 sentence) → Relevance using title '${c.contact_title}', company '${buyer.company_name}', company_status AND proposal_angle (2 sentences) → SPS value prop mentioning recommended_formula (2 sentences) → CTA (1 sentence). Max 2 spscos.com links, max 1 external link. Sign off as Teddy Shin, CEO, SPS Cosmetics. NO spam words.",
-  "body_followup": "EXACTLY 80-100 words. Reference first email → New angle using kbeauty_interest → Soft CTA. ${tier === "Tier1" ? "Note: send 5 days after first email" : "Note: send 7 days after first email"}. Sign off as Teddy."
+  "body_first": "EXACTLY 120-150 words, ENGLISH ONLY. Structure: Opening hook (1 sentence) → Relevance using title '${c.contact_title}', company '${buyer.company_name}', company_status AND proposal_angle (2 sentences) → SPS value prop mentioning recommended_formula (2 sentences) → CTA (1 sentence). Max 2 spscos.com links, max 1 external link. Sign off as Teddy Shin, CEO, SPS Cosmetics. NO spam words.",
+  "body_followup": "EXACTLY 80-100 words, ENGLISH ONLY. Reference first email → New angle using kbeauty_interest → Soft CTA. ${tier === "Tier1" ? "Note: send 5 days after first email" : "Note: send 7 days after first email"}. Sign off as Teddy."
 }`;
 
         const res = await fetchClaudeWithRetry("https://api.anthropic.com/v1/messages", {
@@ -397,13 +407,40 @@ Return ONLY a JSON object (no markdown):
         } catch { json = null; }
         if (!json) return;
 
-        await sb.from("email_drafts").insert({
+        // 한글 혼입 방지 최종 가드 — Claude가 지시를 어기고 한글을 섞어 반환한 경우 스킵.
+        // body_first와 body_followup에 한글(가~힣) 또는 한자가 포함되면 저장하지 않음.
+        const nonLatinRe = /[\u3131-\uD79D\u4E00-\u9FFF]/;
+        const subj = String(json.subject_line_1 || "");
+        const bodyFirst = String(json.body_first || "");
+        const bodyFollow = String(json.body_followup || "");
+        if (nonLatinRe.test(subj) || nonLatinRe.test(bodyFirst) || nonLatinRe.test(bodyFollow)) {
+          pendingIntel++; // 재시도 대상으로 처리
+          return;
+        }
+
+        // email_drafts INSERT — buyer_id 포함 (PR1 NOT NULL 제약)
+        // UNIQUE(buyer_contact_id) WHERE is_sent=false 위반(23505) 시: 동시에 다른 경로에서
+        // 초안이 먼저 생성된 것이므로 조용히 스킵 (배치 병렬 또는 generate-draft와 동시 실행 케이스).
+        const { error: dInsErr } = await sb.from("email_drafts").insert({
+          buyer_id: c.buyer_id,
           buyer_contact_id: c.id,
-          subject_line_1: json.subject_line_1 || "", subject_line_2: json.subject_line_2 || "",
+          subject_line_1: subj, subject_line_2: json.subject_line_2 || "",
           subject_line_3: json.subject_line_3 || "",
-          body_first: json.body_first || "", body_followup: json.body_followup || "",
+          body_first: bodyFirst, body_followup: bodyFollow,
           tier,
         });
+
+        if (dInsErr) {
+          const code = (dInsErr as { code?: string }).code;
+          if (code === "23505") {
+            // 동시 INSERT로 UNIQUE 위반 — 경합 상대가 초안을 이미 저장함. 정상 케이스.
+            return;
+          }
+          // 그 외 DB 오류는 httpErrorCount로 집계 (상위 catch에서 처리되지 않으므로 여기서 명시)
+          httpErrorCount++;
+          if (!sampleHttpError) sampleHttpError = `DB INSERT 실패: ${dInsErr.message}`;
+          return;
+        }
 
         drafted++;
       } catch (e) {

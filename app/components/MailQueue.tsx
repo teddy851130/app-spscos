@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { displayTier, spamLevel } from '../lib/enumMap';
 import EmailComposeModal from './EmailComposeModal';
 import { Mail, Clock, AlertCircle, FileText, ChevronDown, ChevronUp, Send, Eye, CheckCircle } from 'lucide-react';
 
@@ -53,6 +54,12 @@ interface SpamCheckResult {
   issues: string[];      // 감지된 문제 목록
 }
 
+// 서버(run-pipeline 직원 E)의 checkSpamRules / autoFixSpam 규칙과 동일 조건 + 동일 스케일.
+// 스케일: 1~10 (10=안전, 1=위험). 이슈 1개당 -2점, 최저 1.
+// level 라벨은 "위험 수준"을 나타내며 score 값과 일관됨:
+//   score 8+  → level '낮음' (위험 낮음 = 안전)
+//   score 5~7 → level '보통'
+//   score 1~4 → level '높음' (위험 높음)
 function checkSpamClient(text: string): SpamCheckResult {
   const issues: string[] = [];
   const lower = text.toLowerCase();
@@ -76,7 +83,6 @@ function checkSpamClient(text: string): SpamCheckResult {
   // 5. 느낌표 2개+
   if (/!!/.test(text)) issues.push('느낌표 연속 사용');
 
-  // 점수 계산: 이슈 없으면 10, 이슈당 -2
   const score = Math.max(1, 10 - issues.length * 2);
   const level = score >= 8 ? '낮음' : score >= 5 ? '보통' : '높음';
 
@@ -84,14 +90,7 @@ function checkSpamClient(text: string): SpamCheckResult {
 }
 
 // ── 헬퍼 함수 ──
-
-// DB tier → 표시용 (공백 추가)
-const displayTier = (t: string) => {
-  if (t === 'Tier1') return 'Tier 1';
-  if (t === 'Tier2') return 'Tier 2';
-  if (t === 'Tier3') return 'Tier 3';
-  return t;
-};
+// displayTier / spamLevel은 app/lib/enumMap.ts에서 import.
 
 // email_count 기반 메일 유형 결정
 const getEmailType = (count: number): string => {
@@ -208,10 +207,17 @@ export default function MailQueue() {
   }
 
   // 섹션 2: 미발송 초안 조회
+  // PR1 이후: email_drafts에 buyer_id 직접 저장 → 1단계 조인으로 company_name 취득.
+  // buyer_contacts는 contact_name/contact_email 용도로만 조인.
   async function fetchDrafts() {
     const { data: rawDrafts, error } = await supabase
       .from('email_drafts')
-      .select('id, subject_line_1, body_first, body_followup, spam_score, spam_status, tier, buyer_contacts(contact_name, contact_email, buyer_id)')
+      .select(`
+        id, subject_line_1, body_first, body_followup,
+        spam_score, spam_status, tier, buyer_id,
+        buyers:buyer_id ( company_name ),
+        buyer_contacts:buyer_contact_id ( contact_name, contact_email )
+      `)
       .eq('is_sent', false)
       .order('created_at', { ascending: false });
 
@@ -225,29 +231,9 @@ export default function MailQueue() {
       return;
     }
 
-    // buyer 정보 조인 (회사명 가져오기)
-    const contactData = rawDrafts
-      .map((d: Record<string, unknown>) => d.buyer_contacts as Record<string, unknown>)
-      .filter(Boolean);
-    const buyerIds = [...new Set(
-      contactData.map((c) => c?.buyer_id).filter(Boolean)
-    )] as string[];
-
-    let buyerNameMap = new Map<string, string>();
-    if (buyerIds.length > 0) {
-      const { data: buyers } = await supabase
-        .from('buyers')
-        .select('id, company_name')
-        .in('id', buyerIds);
-
-      buyerNameMap = new Map(
-        (buyers || []).map((b: { id: string; company_name: string }) => [b.id, b.company_name])
-      );
-    }
-
     const enriched: DraftItem[] = rawDrafts.map((d: Record<string, unknown>) => {
-      const contact = d.buyer_contacts as Record<string, unknown> | null;
-      const buyerId = (contact?.buyer_id as string) || '';
+      const buyerRel = d.buyers as { company_name?: string } | null;
+      const contactRel = d.buyer_contacts as { contact_name?: string; contact_email?: string } | null;
       return {
         id: d.id as string,
         subject_line_1: (d.subject_line_1 as string) || '',
@@ -256,10 +242,10 @@ export default function MailQueue() {
         spam_score: d.spam_score as number | null,
         spam_status: d.spam_status as string | null,
         tier: d.tier as string | null,
-        company_name: buyerNameMap.get(buyerId) || '',
-        contact_name: (contact?.contact_name as string) || '',
-        contact_email: (contact?.contact_email as string) || '',
-        buyer_id: buyerId,
+        company_name: buyerRel?.company_name || '',
+        contact_name: contactRel?.contact_name || '',
+        contact_email: contactRel?.contact_email || '',
+        buyer_id: (d.buyer_id as string) || '',
       };
     });
 
@@ -290,7 +276,12 @@ export default function MailQueue() {
   // ── 표시 데이터 (상위 20건 제한) ──
   const displayedFollowups = showAllFollowups ? followups : followups.slice(0, DISPLAY_LIMIT);
   const displayedDrafts = showAllDrafts ? drafts : drafts.slice(0, DISPLAY_LIMIT);
-  const totalCount = followups.length + drafts.length;
+  // 중복 제거: 같은 buyer가 팔로업 큐와 미발송 초안에 동시에 있으면 1건으로 카운트.
+  // "오늘 보낼 메일" 의미는 "오늘 작업해야 할 바이어 수"이므로 고유 buyer 수가 올바름.
+  const uniqueBuyerIds = new Set<string>();
+  followups.forEach((f) => uniqueBuyerIds.add(f.id));
+  drafts.forEach((d) => { if (d.buyer_id) uniqueBuyerIds.add(d.buyer_id); });
+  const totalCount = uniqueBuyerIds.size;
 
   // ── 로딩 ──
   if (loading) {
@@ -447,18 +438,20 @@ export default function MailQueue() {
                       제목: {draft.subject_line_1 ? draft.subject_line_1.slice(0, 40) + (draft.subject_line_1.length > 40 ? '...' : '') : '-'}
                     </span>
 
-                    {/* 스팸 점수 */}
-                    {draft.spam_score !== null && (
-                      <span className={`text-xs px-2 py-0.5 rounded shrink-0 ${
-                        draft.spam_score >= 5
-                          ? 'bg-red-500/20 text-red-400'
-                          : draft.spam_score >= 3
-                            ? 'bg-amber-500/20 text-amber-400'
-                            : 'bg-green-500/20 text-green-400'
-                      }`}>
-                        스팸: {draft.spam_score.toFixed(1)}
-                      </span>
-                    )}
+                    {/* 스팸 점수 (DB 스케일: 10=안전, 1=위험) */}
+                    {draft.spam_score !== null && (() => {
+                      const level = spamLevel(draft.spam_score);
+                      const cls = level === 'safe'
+                        ? 'bg-green-500/20 text-green-600'
+                        : level === 'warning'
+                          ? 'bg-amber-500/20 text-amber-600'
+                          : 'bg-red-500/20 text-red-600';
+                      return (
+                        <span className={`text-xs px-2 py-0.5 rounded shrink-0 ${cls}`}>
+                          스팸: {draft.spam_score.toFixed(1)}/10
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   {/* 초안 보기 버튼 */}

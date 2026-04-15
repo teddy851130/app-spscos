@@ -148,6 +148,13 @@ JSON 형식으로만 응답 (마크다운 금지):
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+      // buyer_id는 email_drafts.buyer_id NOT NULL 제약 때문에 필수
+      if (!buyer.id) {
+        return new Response(
+          JSON.stringify({ error: "buyer.id 필요 (email_drafts.buyer_id NOT NULL)" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
       const prompt = `Translate the following Korean B2B cold email draft into natural, professional English.
 Preserve the structure, tone, and all specific details (product categories, company references, CTAs).
@@ -172,27 +179,136 @@ Return ONLY a JSON object (no markdown):
         );
       }
 
-      // email_drafts INSERT
+      // email_drafts 저장 — 미발송 초안 UNIQUE(buyer_contact_id) WHERE is_sent=false 제약 존중.
+      // 부분 UNIQUE 인덱스는 PostgREST ON CONFLICT 추론이 불안정하므로 명시적으로
+      // 조회 → UPDATE/INSERT 분기. 같은 컨택트에 미발송 초안이 있으면 본문을 덮어쓴다.
+      //
+      // 덮어쓰기 가드: 직원 E가 'pass'로 검증 완료한 초안(발송 준비 완료)은 덮어쓰지 않는다.
+      //   사용자가 MailQueue에서 공들여 다듬은 뒤 저장한 결과를 BuyerIntelDrawer 재클릭으로 날리지 않기 위함.
+      //   덮어쓰기를 원하면 먼저 해당 초안을 삭제하거나 발송해야 함.
       const sb = getSupabase();
-      const { data: inserted, error: insertError } = await sb
+      const { data: existing } = await sb
         .from("email_drafts")
-        .insert({
-          buyer_contact_id: contact.id,
-          subject_line_1: json.en_subject,
-          subject_line_2: "",
-          subject_line_3: "",
-          body_first: json.en_body,
-          body_followup: "",
-          tier: buyer.tier,
-        })
-        .select("id")
-        .single();
+        .select("id, spam_status")
+        .eq("buyer_contact_id", contact.id)
+        .eq("is_sent", false)
+        .maybeSingle();
 
-      if (insertError) {
-        return new Response(
-          JSON.stringify({ success: false, message: `DB INSERT 실패: ${insertError.message}` }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      let inserted: { id: string } | null = null;
+      if (existing?.id) {
+        if (existing.spam_status === "pass") {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              message: "이미 검증 완료된(pass) 미발송 초안이 있습니다. 기존 초안을 먼저 발송하거나 삭제하세요.",
+              code: "DRAFT_PASS_EXISTS",
+              draft_id: existing.id,
+            }),
+            { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const { data: updated, error: updErr } = await sb
+          .from("email_drafts")
+          .update({
+            buyer_id: buyer.id,
+            subject_line_1: json.en_subject,
+            subject_line_2: "",
+            subject_line_3: "",
+            body_first: json.en_body,
+            body_followup: "",
+            tier: buyer.tier,
+            // 본문이 바뀌었으므로 스팸 검사 결과는 무효화 → 직원 E가 재검증하게 함
+            spam_score: null,
+            spam_status: null,
+          })
+          .eq("id", existing.id)
+          .select("id")
+          .single();
+        if (updErr) {
+          return new Response(
+            JSON.stringify({ success: false, message: `DB UPDATE 실패: ${updErr.message}` }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        inserted = updated;
+      } else {
+        // INSERT 경로 — 동시 호출 TOCTOU로 UNIQUE 위반이 발생하면 UPDATE로 폴백.
+        // Postgres UNIQUE 위반 SQLSTATE는 '23505'. PostgREST는 이를 code 필드에 전달.
+        const { data: created, error: insErr } = await sb
+          .from("email_drafts")
+          .insert({
+            buyer_id: buyer.id,
+            buyer_contact_id: contact.id,
+            subject_line_1: json.en_subject,
+            subject_line_2: "",
+            subject_line_3: "",
+            body_first: json.en_body,
+            body_followup: "",
+            tier: buyer.tier,
+            is_sent: false,
+          })
+          .select("id")
+          .single();
+
+        if (insErr) {
+          const code = (insErr as { code?: string }).code;
+          if (code === "23505") {
+            // 동시 호출로 다른 요청이 먼저 초안을 INSERT함 → UPDATE 폴백
+            const { data: existingAfter } = await sb
+              .from("email_drafts")
+              .select("id, spam_status")
+              .eq("buyer_contact_id", contact.id)
+              .eq("is_sent", false)
+              .maybeSingle();
+            if (!existingAfter?.id) {
+              return new Response(
+                JSON.stringify({ success: false, message: "UNIQUE 위반 후 재조회 실패" }),
+                { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
+            if (existingAfter.spam_status === "pass") {
+              return new Response(
+                JSON.stringify({
+                  success: false,
+                  message: "동시에 검증 완료된 초안이 생성되었습니다. 기존 초안을 먼저 처리하세요.",
+                  code: "DRAFT_PASS_EXISTS",
+                  draft_id: existingAfter.id,
+                }),
+                { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
+            const { data: updated, error: updErr2 } = await sb
+              .from("email_drafts")
+              .update({
+                buyer_id: buyer.id,
+                subject_line_1: json.en_subject,
+                subject_line_2: "",
+                subject_line_3: "",
+                body_first: json.en_body,
+                body_followup: "",
+                tier: buyer.tier,
+                spam_score: null,
+                spam_status: null,
+              })
+              .eq("id", existingAfter.id)
+              .select("id")
+              .single();
+            if (updErr2) {
+              return new Response(
+                JSON.stringify({ success: false, message: `UNIQUE 위반 후 UPDATE 실패: ${updErr2.message}` }),
+                { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
+            inserted = updated;
+          } else {
+            return new Response(
+              JSON.stringify({ success: false, message: `DB INSERT 실패: ${insErr.message}` }),
+              { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        } else {
+          inserted = created;
+        }
       }
 
       return new Response(

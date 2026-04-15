@@ -276,32 +276,32 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
           });
         }
 
-        // Email drafts 로드
+        // Email drafts 로드 — PR1 이후: buyer_id 직접 조인으로 1단계 join.
         const { data: drafts } = await supabase
           .from('email_drafts')
-          .select('*, buyer_contacts(contact_name, contact_email, buyer_id)')
+          .select(`
+            *,
+            buyers:buyer_id ( company_name ),
+            buyer_contacts:buyer_contact_id ( contact_name, contact_email )
+          `)
           .order('created_at', { ascending: false })
           .limit(20);
 
         if (drafts && drafts.length > 0) {
-          // buyer 정보 조인
-          const contactData = drafts.map((d: Record<string, unknown>) => d.buyer_contacts as Record<string, unknown>).filter(Boolean);
-          const buyerIds = [...new Set(contactData.map((c) => (c as Record<string, unknown>)?.buyer_id).filter(Boolean))] as string[];
+          const enrichedDrafts = drafts.map((d: Record<string, unknown>) => {
+            const buyerRel = d.buyers as { company_name?: string } | null;
+            const contactRel = d.buyer_contacts as { contact_name?: string; contact_email?: string } | null;
+            return {
+              ...d,
+              contact_name: contactRel?.contact_name || '',
+              company_name: buyerRel?.company_name || '',
+            };
+          }) as (EmailDraft & { contact_name?: string; company_name?: string })[];
 
-          const { data: draftBuyers } = await supabase
-            .from('buyers')
-            .select('id, company_name')
-            .in('id', buyerIds);
-
-          const buyerNameMap = new Map((draftBuyers || []).map((b: { id: string; company_name: string }) => [b.id, b.company_name]));
-
-          const enrichedDrafts = drafts.map((d: Record<string, unknown>) => ({
-            ...d,
-            contact_name: (d.buyer_contacts as Record<string, unknown>)?.contact_name || '',
-            company_name: buyerNameMap.get((d.buyer_contacts as Record<string, unknown>)?.buyer_id as string) || '',
-          })) as (EmailDraft & { contact_name?: string; company_name?: string })[];
-
-          setEmailDrafts(enrichedDrafts.filter((d) => d.spam_status !== 'flag' && d.spam_status !== 'pending_intel'));
+          // 발송 준비 완료(pass) 초안만 정상 섹션에 표시.
+          // spam_status=null은 직원 E 미검증 상태(새로 생성되거나 UPDATE로 리셋된 초안)이므로
+          // 정상 섹션에 섞이면 미검증 발송 위험 → 별도 섹션에 두지 않고 조용히 제외.
+          setEmailDrafts(enrichedDrafts.filter((d) => d.spam_status === 'pass' || d.spam_status === 'rewrite'));
           setFlaggedDrafts(enrichedDrafts.filter((d) => d.spam_status === 'flag'));
           setPendingIntelDrafts(enrichedDrafts.filter((d) => (d.spam_status as string) === 'pending_intel'));
         }
