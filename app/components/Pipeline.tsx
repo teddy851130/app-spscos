@@ -457,7 +457,8 @@ export default function Pipeline() {
     try {
       const jobs: PipelineJob[] = [];
 
-      // 3개 팀 동시에 pipeline_jobs INSERT + Edge Function 호출
+      // 3개 팀 순차로 pipeline_jobs INSERT + Edge Function 호출
+      // invoke를 await하지 않으면 fire-and-forget이 되어 일부 요청이 브라우저에서 드롭될 수 있음
       for (const t of TEAMS) {
         const { data: job } = await supabase
           .from('pipeline_jobs')
@@ -466,8 +467,11 @@ export default function Pipeline() {
 
         if (job) {
           jobs.push(job);
-          // Edge Function 트리거
-          supabase.functions.invoke('run-pipeline', { body: { jobId: job.id } }).catch(() => {});
+          try {
+            await supabase.functions.invoke('run-pipeline', { body: { jobId: job.id } });
+          } catch (err) {
+            console.error(`파이프라인 호출 실패 (${t.key}):`, err);
+          }
         }
       }
 
