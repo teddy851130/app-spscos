@@ -36,6 +36,30 @@ async function log(
 }
 
 // ============================================
+// Claude API 호출 헬퍼 — 429 (rate limit) 시 자동 재시도
+// ============================================
+// 3개 팀 병렬 실행 + 배치 10개 병렬 → 순간적으로 Claude 분당 한계 초과 발생.
+// 429는 일시적이므로 짧은 대기 후 재시도하면 대부분 해결됨.
+// 최대 3회 시도 (즉시 + 2초 후 + 4초 후). 여전히 429면 호출자가 처리.
+async function fetchClaudeWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries = 2,
+): Promise<Response> {
+  let lastRes: Response | null = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const res = await fetch(url, options);
+    if (res.status !== 429) return res;
+    lastRes = res;
+    if (attempt < maxRetries) {
+      const delayMs = 2000 * Math.pow(2, attempt); // 2초 → 4초
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  return lastRes!;
+}
+
+// ============================================
 // 직원 B: ZeroBounce — 이메일 유효성 검증
 // ============================================
 async function agentB(sb: SB, jobId: string, _team: string) {
@@ -189,7 +213,7 @@ async function agentC(sb: SB, jobId: string, _team: string) {
   "proposal_angle": "이 기업에 접근할 한 줄 영업 제안 각도 (한국어)"
 }`;
 
-        const res = await fetch("https://api.anthropic.com/v1/messages", {
+        const res = await fetchClaudeWithRetry("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
             "x-api-key": API_KEY, "anthropic-version": "2023-06-01",
@@ -337,7 +361,7 @@ Return ONLY a JSON object (no markdown):
   "body_followup": "EXACTLY 80-100 words. Reference first email → New angle using kbeauty_interest → Soft CTA. ${tier === "Tier1" ? "Note: send 5 days after first email" : "Note: send 7 days after first email"}. Sign off as Teddy."
 }`;
 
-        const res = await fetch("https://api.anthropic.com/v1/messages", {
+        const res = await fetchClaudeWithRetry("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
             "x-api-key": API_KEY, "anthropic-version": "2023-06-01",
@@ -506,7 +530,7 @@ async function agentE(sb: SB, jobId: string, _team: string) {
 
           if (API_KEY) {
             try {
-              const res = await fetch("https://api.anthropic.com/v1/messages", {
+              const res = await fetchClaudeWithRetry("https://api.anthropic.com/v1/messages", {
                 method: "POST",
                 headers: {
                   "x-api-key": API_KEY, "anthropic-version": "2023-06-01",
