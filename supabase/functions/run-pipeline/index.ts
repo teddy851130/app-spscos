@@ -794,7 +794,7 @@ Deno.serve(async (req: Request) => {
 
     if (!jobId) {
       return new Response(
-        JSON.stringify({ error: "jobId is required" }),
+        JSON.stringify({ success: false, error: "jobId is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -804,17 +804,18 @@ Deno.serve(async (req: Request) => {
 
     if (jobError || !job) {
       return new Response(
-        JSON.stringify({ error: "Job not found" }),
+        JSON.stringify({ success: false, error: "Job not found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const backgroundTask = (async () => {
       let failed = false;
+      let failureMessage: string | null = null;  // error_log에 저장할 요약 (UI 표시용)
 
       try {
         await sb.from("pipeline_jobs")
-          .update({ status: "running", started_at: new Date().toISOString(), current_agent: "B" })
+          .update({ status: "running", started_at: new Date().toISOString(), current_agent: "B", error_log: null })
           .eq("id", jobId);
 
         // 바이어 발굴(구 직원 A)은 CSV 업로드로 대체됨 — B부터 실행
@@ -832,26 +833,29 @@ Deno.serve(async (req: Request) => {
           try {
             await agent.fn(sb, jobId, job.team);
           } catch (error) {
-            await log(sb, jobId, agent.name, "failed",
-              `치명적 오류: ${error instanceof Error ? error.message : String(error)}`);
+            const errMsg = error instanceof Error ? error.message : String(error);
+            await log(sb, jobId, agent.name, "failed", `치명적 오류: ${errMsg}`);
             failed = true;
+            failureMessage = `직원 ${agent.name} 치명적 오류: ${errMsg}`;
             break;
           }
         }
       } catch (error) {
         // backgroundTask 자체의 예기치 못한 예외 처리
         failed = true;
+        failureMessage = `파이프라인 예외 종료: ${error instanceof Error ? error.message : String(error)}`;
         try {
-          await log(sb, jobId, "F", "failed",
-            `파이프라인 예외 종료: ${error instanceof Error ? error.message : String(error)}`);
+          await log(sb, jobId, "F", "failed", failureMessage);
         } catch { /* log 실패는 무시 */ }
       } finally {
-        // 어떤 상황에서도 status를 반드시 완료 상태로 업데이트
+        // 어떤 상황에서도 status를 반드시 완료 상태로 업데이트.
+        // 실패 시 error_log에 요약 저장 → 클라이언트가 UI에 표시할 수 있음.
         try {
           await sb.from("pipeline_jobs").update({
             status: failed ? "failed" : "completed",
             completed_at: new Date().toISOString(),
             current_agent: null,
+            error_log: failed ? failureMessage : null,
           }).eq("id", jobId);
         } catch { /* DB 업데이트 실패는 무시 */ }
       }
@@ -875,7 +879,7 @@ Deno.serve(async (req: Request) => {
     );
   } catch (error) {
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

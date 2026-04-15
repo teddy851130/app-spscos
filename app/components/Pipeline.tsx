@@ -65,6 +65,19 @@ export default function Pipeline() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [recentJobs, setRecentJobs] = useState<PipelineJob[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
+  // PR3: 10분 이상 running/pending 상태 지속되는 job을 "응답 없음"으로 간주
+  // Edge Function 타임아웃·네트워크 단절·예기치 못한 서버 중단으로 finally 블록까지 못 간 경우를 위한 안전장치.
+  // 렌더 트리거가 필요해 state로 유지하지만, 폴링 useEffect에 deps로 넣으면 interval이 재설정되어 재생성 비용이
+  // 있으므로 최신 값은 ref로도 동기 유지 — useEffect는 ref를 통해 deps 변경 없이 최신값 참조.
+  const [timedOutJobIds, setTimedOutJobIds] = useState<Set<string>>(new Set());
+  const timedOutJobIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => { timedOutJobIdsRef.current = timedOutJobIds; }, [timedOutJobIds]);
+  // 어떤 팀의 재시도가 진행 중인지 — 중복 클릭 방지
+  const [retryingTeams, setRetryingTeams] = useState<Set<string>>(new Set());
+  // 최근 실행 기록에서 에러 상세 펼쳐 보기
+  const [expandedErrorJobId, setExpandedErrorJobId] = useState<string | null>(null);
+
+  const POLL_TIMEOUT_MS = 10 * 60 * 1000; // 10분
 
   // Check if there are already uploaded buyers with no pipeline run
   useEffect(() => {
@@ -419,10 +432,33 @@ export default function Pipeline() {
   // Poll active jobs
   useEffect(() => {
     if (activeJobs.length === 0) return;
-    const anyRunning = activeJobs.some((j) => j.status === 'running' || j.status === 'pending');
-    if (!anyRunning) return;
+    const anyActive = activeJobs.some(
+      (j) => (j.status === 'running' || j.status === 'pending') && !timedOutJobIdsRef.current.has(j.id)
+    );
+    if (!anyActive) return;
 
     const interval = setInterval(async () => {
+      // PR3: 서버 시간(started_at || created_at) 기준 10분 초과한 running/pending job → 타임아웃 표시.
+      // started_at은 Edge Function이 "running"으로 전환한 시점이라 더 정확. 없으면 created_at 폴백.
+      const now = Date.now();
+      const currentTimedOut = timedOutJobIdsRef.current;
+      const newlyTimedOut: string[] = [];
+      for (const j of activeJobs) {
+        if ((j.status === 'running' || j.status === 'pending') && !currentTimedOut.has(j.id)) {
+          const refTime = j.started_at ? new Date(j.started_at).getTime() : new Date(j.created_at).getTime();
+          if (now - refTime > POLL_TIMEOUT_MS) {
+            newlyTimedOut.push(j.id);
+          }
+        }
+      }
+      if (newlyTimedOut.length > 0) {
+        setTimedOutJobIds((prev) => {
+          const next = new Set(prev);
+          newlyTimedOut.forEach((id) => next.add(id));
+          return next;
+        });
+      }
+
       const jobIds = activeJobs.map((j) => j.id);
       const { data: updated } = await supabase
         .from('pipeline_jobs').select('*').in('id', jobIds);
@@ -468,6 +504,88 @@ export default function Pipeline() {
 
     return () => clearInterval(interval);
   }, [activeJobs, loadRecentJobs, loadTeamProgress]);
+
+  // PR3: 타임아웃 또는 실패한 특정 팀 재시도. 새 pipeline_jobs row 생성 + Edge Function 재호출.
+  // 옛 job이 뒤늦게 completed로 돌아오는 race condition 방지 — 옛 running/pending job을
+  // 명시적으로 'failed' + error_log로 잠가서 UI에 "재시도로 중단됨" 메시지가 남도록 함.
+  async function handleRetryTeam(team: string) {
+    if (retryingTeams.has(team)) return;
+    setRetryingTeams((prev) => new Set(prev).add(team));
+    try {
+      // 1) 옛 해당 팀 running/pending job id 수집 (이벤트 핸들러 클로저의 activeJobs는 최신 렌더 기준)
+      const oldJobIds = activeJobs
+        .filter((j) => j.team === team && (j.status === 'running' || j.status === 'pending'))
+        .map((j) => j.id);
+
+      // 2) 옛 job을 DB에서 명시적 failed 마킹. 실패 시 사용자에게 안내 후 조기 반환.
+      if (oldJobIds.length > 0) {
+        const { error: updateError } = await supabase
+          .from('pipeline_jobs')
+          .update({
+            status: 'failed',
+            error_log: '사용자가 재시도하여 중단됨',
+            completed_at: new Date().toISOString(),
+          })
+          .in('id', oldJobIds);
+        if (updateError) {
+          console.error(`옛 job 잠금 실패 (${team}):`, updateError);
+          setSuccessMessage(`오류: ${team} 팀 재시도 실패 (DB 업데이트 불가). 새로고침 후 다시 시도하세요.`);
+          return;
+        }
+      }
+
+      // 3) 새 job 생성 + Edge Function 호출. 호출 실패 시 새 job을 failed로 잠그고 안내.
+      const { data: newJob, error: insertError } = await supabase
+        .from('pipeline_jobs')
+        .insert({ team, status: 'pending' })
+        .select('*').single();
+      if (insertError || !newJob) {
+        setSuccessMessage(`오류: ${team} 팀 새 파이프라인 생성 실패. ${insertError?.message || '알 수 없는 DB 오류'}`);
+        return;
+      }
+
+      try {
+        await invokePipeline(newJob.id);
+      } catch (err) {
+        console.error(`재시도 호출 실패 (${team}):`, err);
+        // Edge Function 호출 실패 — 새 job이 영원히 pending 잔존하지 않도록 즉시 failed 마킹
+        const { error: lockError } = await supabase
+          .from('pipeline_jobs')
+          .update({
+            status: 'failed',
+            error_log: `Edge Function 호출 실패: ${err instanceof Error ? err.message : String(err)}`,
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', newJob.id);
+        if (lockError) {
+          // 이중 실패 — DB도 안 됨. 사용자가 수동 새로고침해야 함.
+          console.error(`새 job failed 잠금 실패 (${team}, ${newJob.id}):`, lockError);
+        }
+        setSuccessMessage(`오류: ${team} 팀 Edge Function 호출 실패. Edge Function 배포 상태를 확인하세요.`);
+        loadRecentJobs();
+        return;
+      }
+
+      // 4) activeJobs 교체 + 타임아웃 마크 해제 (oldJobIds 기준, stale-free)
+      setActiveJobs((prev) => [
+        newJob,
+        ...prev.filter((j) => !(j.team === team && (j.status === 'running' || j.status === 'pending'))),
+      ]);
+      setTimedOutJobIds((prev) => {
+        const next = new Set(prev);
+        oldJobIds.forEach((id) => next.delete(id));
+        return next;
+      });
+      setSuccessMessage(`${team} 팀 파이프라인을 재시작했습니다.`);
+      loadRecentJobs();
+    } finally {
+      setRetryingTeams((prev) => {
+        const next = new Set(prev);
+        next.delete(team);
+        return next;
+      });
+    }
+  }
 
   async function handleStartPipeline() {
     setIsStarting(true);
@@ -525,7 +643,10 @@ export default function Pipeline() {
     return { color: 'bg-[#ef4444]', text: 'text-[#ef4444]', label: '오류', pulse: false };
   };
 
-  const isRunning = activeJobs.some((j) => j.status === 'running' || j.status === 'pending');
+  // 타임아웃 마크된 job은 "실행 중"에서 제외 → 파이프라인 실행 버튼 재활성화
+  const isRunning = activeJobs.some(
+    (j) => (j.status === 'running' || j.status === 'pending') && !timedOutJobIds.has(j.id)
+  );
 
   // Overall progress
   const totalSteps = TEAMS.length * PIPELINE_STEPS.length;
@@ -836,31 +957,73 @@ export default function Pipeline() {
               {recentJobs.length === 0 ? (
                 <div className="text-xs text-[#8792a2] p-3 text-center">아직 실행 기록이 없습니다</div>
               ) : (
-                recentJobs.map((job) => (
-                  <div key={job.id} className="flex items-center justify-between p-3 bg-[#f6f8fa]/50 rounded-lg border border-[#e3e8ee]">
-                    <div className="flex items-center gap-3">
-                      <span className={`w-2 h-2 rounded-full ${
-                        job.status === 'completed' ? 'bg-[#22c55e]' :
-                        job.status === 'running' ? 'bg-[#f59e0b] animate-pulse' :
-                        job.status === 'failed' ? 'bg-[#ef4444]' : 'bg-[#8792a2]'
-                      }`} />
-                      <div>
-                        <div className="text-xs font-semibold text-[#1a1f36]">{job.team} 팀</div>
-                        <div className="text-xs text-[#8792a2]">
-                          {new Date(job.created_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                recentJobs.map((job) => {
+                  const isTimedOut = timedOutJobIds.has(job.id);
+                  const effectiveStatus = isTimedOut ? 'timeout' : job.status;
+                  const canRetry = effectiveStatus === 'failed' || effectiveStatus === 'timeout';
+                  const isExpanded = expandedErrorJobId === job.id;
+                  const hasErrorDetail = job.error_log && (job.status === 'failed' || isTimedOut);
+                  return (
+                    <div key={job.id} className="bg-[#f6f8fa]/50 rounded-lg border border-[#e3e8ee] overflow-hidden">
+                      <div className="flex items-center justify-between p-3">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                            effectiveStatus === 'completed' ? 'bg-[#22c55e]' :
+                            effectiveStatus === 'running' ? 'bg-[#f59e0b] animate-pulse' :
+                            effectiveStatus === 'failed' ? 'bg-[#ef4444]' :
+                            effectiveStatus === 'timeout' ? 'bg-[#ef4444]' : 'bg-[#8792a2]'
+                          }`} />
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold text-[#1a1f36]">{job.team} 팀</div>
+                            <div className="text-xs text-[#8792a2]">
+                              {new Date(job.created_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className={`text-xs px-2 py-0.5 rounded font-semibold ${
+                            effectiveStatus === 'completed' ? 'bg-[#22c55e]/20 text-[#22c55e]' :
+                            effectiveStatus === 'running' ? 'bg-[#f59e0b]/20 text-[#f59e0b]' :
+                            effectiveStatus === 'failed' ? 'bg-[#ef4444]/20 text-[#ef4444]' :
+                            effectiveStatus === 'timeout' ? 'bg-[#ef4444]/20 text-[#ef4444]' :
+                            'bg-[#8792a2]/20 text-[#8792a2]'
+                          }`}>
+                            {effectiveStatus === 'completed' ? '완료' :
+                             effectiveStatus === 'running' ? '실행 중' :
+                             effectiveStatus === 'failed' ? '실패' :
+                             effectiveStatus === 'timeout' ? '응답 없음' : '대기'}
+                          </span>
+                          {hasErrorDetail && (
+                            <button
+                              onClick={() => setExpandedErrorJobId(isExpanded ? null : job.id)}
+                              className="text-xs text-[#635BFF] hover:underline"
+                            >
+                              {isExpanded ? '접기' : '상세'}
+                            </button>
+                          )}
+                          {canRetry && (
+                            <button
+                              onClick={() => handleRetryTeam(job.team)}
+                              disabled={retryingTeams.has(job.team)}
+                              className="text-xs px-2 py-0.5 bg-[#635BFF] text-white rounded hover:bg-[#5851DB] disabled:opacity-50 transition"
+                            >
+                              {retryingTeams.has(job.team) ? '재시작 중...' : '재시도'}
+                            </button>
+                          )}
                         </div>
                       </div>
+                      {isExpanded && hasErrorDetail && (
+                        <div className="px-3 pb-3 pt-0">
+                          <div className="bg-[#fef2f2] border border-[#fecaca] rounded p-2 text-xs text-[#b91c1c] leading-relaxed break-all">
+                            {isTimedOut && !job.error_log
+                              ? '10분 이상 응답이 없습니다. Edge Function 로그를 확인하거나 재시도하세요.'
+                              : job.error_log}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded font-semibold ${
-                      job.status === 'completed' ? 'bg-[#22c55e]/20 text-[#22c55e]' :
-                      job.status === 'running' ? 'bg-[#f59e0b]/20 text-[#f59e0b]' :
-                      job.status === 'failed' ? 'bg-[#ef4444]/20 text-[#ef4444]' :
-                      'bg-[#8792a2]/20 text-[#8792a2]'
-                    }`}>
-                      {job.status === 'completed' ? '완료' : job.status === 'running' ? '실행 중' : job.status === 'failed' ? '실패' : '대기'}
-                    </span>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
