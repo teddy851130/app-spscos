@@ -10,7 +10,6 @@ import KPIReport from './components/KPIReport';
 import Domain from './components/Domain';
 import MailQueue from './components/MailQueue';
 import PipelineRunModal from './components/PipelineRunModal';
-import CSVUploadModal from './components/CSVUploadModal';
 import { supabase } from './lib/supabase';
 import AuthGuard from './components/AuthGuard';
 import { Bell, MailOpen, AlertTriangle, Info, Play } from 'lucide-react';
@@ -49,7 +48,6 @@ function timeAgo(isoStr: string): string {
 export default function Home() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [pipelineModalOpen, setPipelineModalOpen] = useState(false);
-  const [csvUploadModalOpen, setCsvUploadModalOpen] = useState(false);
   // CSV 업로드 후 Buyers 컴포넌트를 강제 재마운트해 fetch를 다시 트리거하기 위한 key
   const [buyersRefreshKey, setBuyersRefreshKey] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -168,10 +166,10 @@ export default function Home() {
     setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n));
   };
 
-  const handleCSVImport = (_importedBuyers: any[]) => {
-    // CSV 업로드는 이미 DB에 INSERT 완료된 상태로 콜백됨.
-    // Buyers 페이지로 이동하면서 컴포넌트를 강제 재마운트해 새 데이터 fetch.
-    setCurrentPage('buyers');
+  // PR2: CSV 업로드는 Pipeline 페이지에서 단일 경로로 처리. 우측 상단 "바이어 추가" 버튼은
+  // Pipeline 페이지로 네비게이트만 한다. (구식 CSVUploadModal 제거 — 컬럼 매핑 불일치 해결)
+  const handleGoToCsvUpload = () => {
+    setCurrentPage('pipeline');
     setBuyersRefreshKey((k) => k + 1);
   };
 
@@ -194,10 +192,11 @@ export default function Home() {
               <Play size={12} className="inline mr-1" />파이프라인 실행
             </button>
             <button
-              onClick={() => setCsvUploadModalOpen(true)}
+              onClick={handleGoToCsvUpload}
               className="px-3 py-1.5 bg-[#635BFF] text-white rounded-lg text-xs font-semibold hover:bg-[#5851DB] transition"
+              title="파이프라인 페이지에서 CSV 파일 업로드"
             >
-              + 바이어 추가
+              + CSV 업로드
             </button>
 
             {/* Bell icon with notification panel */}
@@ -308,11 +307,6 @@ export default function Home() {
             setPipelineModalOpen(false);
             setCurrentPage('pipeline');
           }}
-        />
-        <CSVUploadModal
-          isOpen={csvUploadModalOpen}
-          onClose={() => setCsvUploadModalOpen(false)}
-          onImport={handleCSVImport}
         />
       </main>
     </div>

@@ -503,7 +503,7 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
                 {/* K-beauty 관심도 (kbeauty_interest) */}
                 <div className="bg-[#f0f0ff30] border border-[#635BFF40] rounded-lg p-4">
                   <div className="text-xs font-semibold text-[#7A73FF] uppercase tracking-wide mb-2"><Lightbulb size={14} className="inline text-[#f59e0b]" /> K-beauty 관심도</div>
-                  <p className="text-xs text-[#93c5fd] leading-relaxed whitespace-pre-wrap">
+                  <p className="text-xs text-[#1a1f36] leading-relaxed whitespace-pre-wrap">
                     {intel.why_kbeauty || '정보 없음'}
                   </p>
                 </div>
@@ -552,7 +552,7 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
                     <div className="flex items-center justify-between">
                       <div className="text-xs font-semibold text-[#7A73FF]"><FileText size={14} className="inline" /> 국문 초안 확인</div>
                       {draftSaved && (
-                        <span className="text-xs bg-[#22c55e]/20 text-[#22c55e] px-2 py-0.5 rounded"><Check size={14} className="inline" /> 영문 저장 완료</span>
+                        <span className="text-xs bg-[#635BFF]/15 text-[#635BFF] px-2 py-0.5 rounded"><Check size={14} className="inline" /> 영문 저장 완료</span>
                       )}
                     </div>
                     <div>
@@ -569,7 +569,7 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
                       <button
                         onClick={handleTranslateSave}
                         disabled={translating}
-                        className="w-full text-xs bg-[#22c55e] text-white py-2 rounded font-semibold hover:bg-[#16a34a] disabled:opacity-50 transition"
+                        className="w-full text-xs bg-[#635BFF] text-white py-2 rounded font-semibold hover:bg-[#5851DB] disabled:opacity-50 transition"
                       >
                         {translating ? '영문 번역 중...' : '영문에 반영 (email_drafts 저장)'}
                       </button>
@@ -579,7 +579,7 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
 
                 {draftError && (
                   <div className="bg-[#ef4444]/10 border border-[#ef4444]/40 rounded-lg p-3">
-                    <div className="text-xs text-[#fca5a5]">오류: {draftError}</div>
+                    <div className="text-xs text-[#b91c1c]">오류: {draftError}</div>
                   </div>
                 )}
               </div>

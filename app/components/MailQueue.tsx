@@ -406,12 +406,15 @@ export default function MailQueue() {
       )}
 
       {/* ── 섹션 2: 미발송 초안 ── */}
-      {drafts.length > 0 && (
+      {drafts.length > 0 && (() => {
+        // 한 바이어에 담당자가 여러 명이면 초안도 담당자별로 생성됨. 라벨에 둘 다 명시.
+        const uniqueDraftBuyers = new Set(drafts.map((d) => d.buyer_id).filter(Boolean));
+        return (
         <div className="bg-[#ffffff] rounded-xl border border-[#e3e8ee] overflow-hidden">
           <div className="px-4 py-3 border-b border-[#e3e8ee] flex items-center gap-2">
             <FileText className="w-4 h-4 text-[#635BFF]" />
             <h3 className="text-sm font-semibold text-[#1a1f36]">
-              미발송 초안 ({drafts.length}건)
+              미발송 초안 ({drafts.length}건 · 바이어 {uniqueDraftBuyers.size}개)
             </h3>
           </div>
 
@@ -616,7 +619,8 @@ export default function MailQueue() {
             </button>
           )}
         </div>
-      )}
+        );
+      })()}
 
       {/* ── EmailComposeModal (Buyers.tsx와 동일 패턴) ── */}
       {selectedBuyer && (

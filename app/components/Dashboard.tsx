@@ -400,19 +400,21 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
     <div className="flex-1 overflow-y-auto h-full">
       <div className="p-6 space-y-6">
 
-        {/* Alert Banner — only if low reply rate team exists and not dismissed */}
+        {/* KPI 경고 배너 — 라이트 톤 red (다크 테마 잔재 제거) */}
         {alertTeam && !alertDismissed && (
-          <div className="bg-[#7f1d1d]/20 border border-[#ef4444]/25 rounded-xl p-4 flex items-start gap-3">
-            <span className="text-xl flex-shrink-0"><AlertTriangle size={16} className="inline text-[#f59e0b]" /></span>
+          <div className="bg-[#fef2f2] border border-[#fecaca] rounded-lg p-4 flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-[#fee2e2] flex items-center justify-center flex-shrink-0">
+              <AlertTriangle size={16} className="text-[#b91c1c]" />
+            </div>
             <div className="flex-1 min-w-0">
-              <div className="font-semibold text-[#fca5a5] text-sm">KPI 경고: {alertTeam} 팀 회신율 저조</div>
-              <p className="text-xs text-[#fca5a5] mt-1">
+              <div className="font-semibold text-[#1a1f36] text-sm">KPI 경고: {alertTeam} 팀 회신율 저조</div>
+              <p className="text-xs text-[#697386] mt-1 leading-relaxed">
                 {alertTeam} 팀 회신율이 목표(10%) 미달입니다. 이메일 제목 A/B 테스트 및 개인화 강화를 권장합니다.
               </p>
             </div>
             <button
               onClick={() => setAlertDismissed(true)}
-              className="text-xs text-[#1a1f36] px-3 py-1 bg-[#e3e8ee] rounded hover:bg-[#8792a2] transition whitespace-nowrap flex-shrink-0"
+              className="text-xs text-[#697386] px-3 py-1 bg-white border border-[#e3e8ee] rounded hover:bg-[#f6f8fa] transition whitespace-nowrap flex-shrink-0"
             >
               닫기
             </button>
@@ -693,14 +695,16 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
           </div>
         </div>
 
-        {/* 시스템 경고 배너 (직원 F) */}
+        {/* 시스템 경고 배너 (직원 F) — 라이트 테마 화이트 카드 */}
         {systemWarnings.length > 0 && (
-          <div className="bg-[#f59e0b10] border border-[#f59e0b40] rounded-lg p-3 flex items-start gap-3">
-            <AlertTriangle size={16} className="text-[#f59e0b] flex-shrink-0 mt-0.5" />
-            <div>
-              <span className="text-xs font-semibold text-[#f59e0b]">시스템 경고 (직원 F)</span>
+          <div className="bg-white border border-[#e3e8ee] rounded-lg p-3 flex items-start gap-3 shadow-sm">
+            <div className="w-7 h-7 rounded-full bg-[#fef3c7] flex items-center justify-center flex-shrink-0">
+              <AlertTriangle size={14} className="text-[#b45309]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-xs font-semibold text-[#1a1f36]">시스템 경고 (직원 F)</span>
               {systemWarnings.map((w, i) => (
-                <div key={i} className="text-xs text-[#f59e0b] mt-1">• {w}</div>
+                <div key={i} className="text-xs text-[#697386] mt-0.5 leading-relaxed">• {w}</div>
               ))}
             </div>
           </div>

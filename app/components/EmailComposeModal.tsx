@@ -172,8 +172,18 @@ SPS Cosmetics | spscos.com`;
         : count === 2 ? 'followup2'
         : 'breakup';
 
-      const { data, error } = await supabase.functions.invoke('send-email', {
-        body: {
+      // PR2: supabase.functions.invoke()는 non-2xx 응답 본문을 버리고 "non-2xx status code"라는
+      // 일반 오류만 던져 진단이 어렵다. 직접 fetch로 호출해 실제 서버 error 메시지를 노출.
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+      const res = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${supabaseAnonKey}`,
+          apikey: supabaseAnonKey,
+        },
+        body: JSON.stringify({
           to: buyer.email,
           toName: buyer.contact,
           subject,
@@ -181,15 +191,21 @@ SPS Cosmetics | spscos.com`;
           buyerId: buyer.id || null,
           contactId: buyer.contact_id || null,
           emailType: autoEmailType,
-        },
+        }),
       });
 
-      if (error) {
-        // Edge Function 호출 자체 실패 (네트워크, 함수 미배포 등)
-        throw new Error(error.message || 'Edge Function 호출 실패');
+      let data: { success?: boolean; error?: string; warning?: string; message?: string };
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(`응답 파싱 실패 (HTTP ${res.status})`);
+      }
+
+      if (!res.ok) {
+        // Edge Function이 4xx/5xx 반환 — body의 error 필드를 그대로 보여줌
+        throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
       }
       if (!data?.success) {
-        // Edge Function은 응답했지만 발송 실패
         throw new Error(data?.error || '알 수 없는 발송 오류');
       }
 
@@ -276,7 +292,7 @@ SPS Cosmetics | spscos.com`;
               <div>
                 <div className="text-base font-bold text-[#1a1f36]">발송 전 최종 검토</div>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="bg-[#22c55e]/20 text-[#22c55e] text-xs px-2 py-0.5 rounded">
+                  <span className="bg-[#635BFF]/15 text-[#635BFF] text-xs px-2 py-0.5 rounded">
                     <Check size={14} className="inline" /> 스팸 점수 85/100 — 안전
                   </span>
                   {intel && (
@@ -312,7 +328,7 @@ SPS Cosmetics | spscos.com`;
                       <span className="text-[#8792a2]">숨은참조</span>
                       <div className="flex items-center gap-2">
                         <span className="text-[#1a1f36]">spscos@pipedrivemail.com</span>
-                        <span className="bg-[#22c55e]/20 text-[#22c55e] text-xs px-2 py-0.5 rounded">
+                        <span className="bg-[#635BFF]/15 text-[#635BFF] text-xs px-2 py-0.5 rounded">
                           Pipedrive 자동연동
                         </span>
                       </div>
@@ -365,7 +381,7 @@ SPS Cosmetics | spscos.com`;
                   >
                     <Search size={14} className="inline" /> 바이어 인텔
                     {intel && !intelLoading && (
-                      <span className="absolute top-2 right-3 w-1.5 h-1.5 bg-[#22c55e] rounded-full" />
+                      <span className="absolute top-2 right-3 w-1.5 h-1.5 bg-[#635BFF] rounded-full" />
                     )}
                   </button>
                 </div>
@@ -431,7 +447,7 @@ SPS Cosmetics | spscos.com`;
                           {/* K-beauty 관심도 (kbeauty_interest) */}
                           <div className="bg-[#f0f0ff30] border border-[#635BFF40] rounded-lg p-4">
                             <div className="text-xs font-semibold text-[#7A73FF] uppercase tracking-wide mb-2"><Lightbulb size={14} className="inline text-[#f59e0b]" /> K-beauty 관심도</div>
-                            <p className="text-xs text-[#93c5fd] leading-relaxed whitespace-pre-wrap">{intel.why_kbeauty || '정보 없음'}</p>
+                            <p className="text-xs text-[#1a1f36] leading-relaxed whitespace-pre-wrap">{intel.why_kbeauty || '정보 없음'}</p>
                           </div>
 
                           {/* 추천 포뮬라 (recommended_formula) */}
@@ -553,7 +569,7 @@ SPS Cosmetics | spscos.com`;
                             <div className="text-xs text-[#8792a2]">2.4MB</div>
                           </div>
                         </div>
-                        {attachPDF1 && <span className="text-xs text-[#22c55e]"><Check size={14} className="inline" /> 첨부됨</span>}
+                        {attachPDF1 && <span className="text-xs text-[#635BFF]"><Check size={14} className="inline" /> 첨부됨</span>}
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -568,7 +584,7 @@ SPS Cosmetics | spscos.com`;
                             <div className="text-xs text-[#8792a2]">5.1MB</div>
                           </div>
                         </div>
-                        {attachPDF2 && <span className="text-xs text-[#22c55e]"><Check size={14} className="inline" /> 첨부됨</span>}
+                        {attachPDF2 && <span className="text-xs text-[#635BFF]"><Check size={14} className="inline" /> 첨부됨</span>}
                       </div>
                     </div>
                     <div className="mt-3 border-2 border-dashed border-[#e3e8ee] rounded-lg p-4 text-center cursor-pointer hover:border-[#635BFF] transition">
@@ -577,15 +593,15 @@ SPS Cosmetics | spscos.com`;
                     </div>
                   </div>
 
-                  {/* 발송 전 체크 */}
+                  {/* 발송 전 체크 — Stripe 스타일 화이트 카드 + 체크 아이콘만 색상 강조 */}
                   <div className="px-4 py-4 border-b border-[#e3e8ee]">
-                    <div className="bg-[#14532d20] border border-[#16a34a30] rounded-lg p-3">
-                      <div className="text-xs font-semibold text-[#22c55e] mb-2">발송 전 체크</div>
-                      <div className="space-y-2 text-xs text-[#4ade80]">
-                        <div className="flex items-center gap-2"><Check size={14} /><span>스팸점수 85/100</span></div>
-                        <div className="flex items-center gap-2"><Check size={14} /><span>Gmail인박스율 100%</span></div>
-                        <div className="flex items-center gap-2"><Check size={14} /><span>도메인평판 HIGH</span></div>
-                        <div className="flex items-center gap-2"><Check size={14} /><span>SPF/DKIM</span></div>
+                    <div className="bg-white border border-[#e3e8ee] rounded-lg p-3">
+                      <div className="text-xs font-semibold text-[#1a1f36] mb-2">발송 전 체크</div>
+                      <div className="space-y-1.5 text-xs text-[#697386]">
+                        <div className="flex items-center gap-2"><Check size={14} className="text-[#635BFF]" /><span>스팸점수 85/100</span></div>
+                        <div className="flex items-center gap-2"><Check size={14} className="text-[#635BFF]" /><span>Gmail 인박스율 100%</span></div>
+                        <div className="flex items-center gap-2"><Check size={14} className="text-[#635BFF]" /><span>도메인 평판 HIGH</span></div>
+                        <div className="flex items-center gap-2"><Check size={14} className="text-[#635BFF]" /><span>SPF / DKIM 통과</span></div>
                       </div>
                     </div>
                   </div>
@@ -647,7 +663,7 @@ SPS Cosmetics | spscos.com`;
       {/* Toast */}
       {showToast && (
         <div className="fixed bottom-6 right-6 bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-4 z-50 shadow-lg max-w-sm">
-          <div className="text-sm font-semibold text-[#22c55e] mb-1"><CheckCircle size={16} className="inline" /> 이메일 발송 완료</div>
+          <div className="text-sm font-semibold text-[#635BFF] mb-1"><CheckCircle size={16} className="inline" /> 이메일 발송 완료</div>
           <div className="text-xs text-[#1a1f36] mb-2">
             {buyer.contact} ({buyer.company})에게 발송되었습니다.
           </div>

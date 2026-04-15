@@ -153,6 +153,23 @@ export default function Pipeline() {
         }
       }
 
+      // PR2: buyer_contacts를 기존 buyer 단위로 한 번에 배치 로드 (N+1 해결)
+      // 기존에는 행마다 supabase.from('buyer_contacts').select(...).eq(buyer_id) 호출 → 100행 업로드 시 100+ 쿼리.
+      // 로컬 Map으로 contactsByBuyerId를 미리 채우고, 신규 INSERT도 Map에 반영해 마지막까지 일관 유지.
+      const existingBuyerIds = [...existingByDomain.values()].map((v) => v.id);
+      const contactsByBuyerId = new Map<string, { contact_email: string | null }[]>();
+      if (existingBuyerIds.length > 0) {
+        const { data: allContacts } = await supabase
+          .from('buyer_contacts')
+          .select('buyer_id, contact_email')
+          .in('buyer_id', existingBuyerIds);
+        for (const c of (allContacts || []) as { buyer_id: string; contact_email: string | null }[]) {
+          const arr = contactsByBuyerId.get(c.buyer_id) || [];
+          arr.push({ contact_email: c.contact_email });
+          contactsByBuyerId.set(c.buyer_id, arr);
+        }
+      }
+
       // tier 정규화: '1'/1 → 'Tier1', '2'/2 → 'Tier2', '3'/3 → 'Tier3' (CHECK 제약: Tier1/Tier2/Tier3)
       const normalizeTier = (raw: string | number): 'Tier1' | 'Tier2' | 'Tier3' => {
         const t = (raw ?? '').toString().replace(/\s+/g, '').toLowerCase();
@@ -211,17 +228,13 @@ export default function Pipeline() {
           }
 
           // 현재 담당자 수 + 이메일 중복 체크 (최대 3명 유지 → 현재 2명 이하일 때 추가)
-          const { data: currentContacts } = await supabase
-            .from('buyer_contacts')
-            .select('contact_email')
-            .eq('buyer_id', existingBuyer.id);
-          const contactCount = currentContacts?.length || 0;
-          if (contactCount >= 3) { skipped++; continue; }
+          // PR2: 배치 로드된 contactsByBuyerId Map에서 조회 (per-row 쿼리 제거).
+          const currentContacts = contactsByBuyerId.get(existingBuyer.id) || [];
+          if (currentContacts.length >= 3) { skipped++; continue; }
 
           const emailLower = row.contact_email.toLowerCase();
-          const dup = (currentContacts || []).some(
-            (c: { contact_email: string | null }) =>
-              (c.contact_email || '').toLowerCase() === emailLower
+          const dup = currentContacts.some(
+            (c) => (c.contact_email || '').toLowerCase() === emailLower
           );
           if (dup) { skipped++; continue; }
 
@@ -240,6 +253,11 @@ export default function Pipeline() {
             skipped++;
             continue;
           }
+          // 로컬 Map 갱신 — 같은 실행 내에서 동일 기업 담당자 추가 시 중복/카운트 정확히 반영
+          contactsByBuyerId.set(existingBuyer.id, [
+            ...currentContacts,
+            { contact_email: row.contact_email },
+          ]);
           addedContacts++;
           continue;
         }
@@ -288,6 +306,10 @@ export default function Pipeline() {
           if (contactError) {
             console.error('buyer_contacts INSERT 실패:', contactError, 'row:', row);
             if (!firstError) firstError = `buyer_contacts: ${contactError.message}`;
+          } else {
+            // 동일 CSV 실행 내 후속 행이 같은 회사의 추가 담당자로 들어올 때 중복 체크가
+            // 정확히 동작하도록 Map에 primary contact 반영.
+            contactsByBuyerId.set(newBuyer.id, [{ contact_email: row.contact_email }]);
           }
         }
 
@@ -519,24 +541,29 @@ export default function Pipeline() {
     <div className="flex-1 overflow-y-auto h-full">
       <div className="p-6 space-y-6">
 
-        {/* 메시지 배너 */}
+        {/* 메시지 배너 — 성공은 primary 보라, 오류는 red (녹색 과다 제거) */}
         {successMessage && (
-          <div className={`p-4 rounded-lg border text-sm font-semibold ${
+          <div className={`p-3 rounded-lg border text-sm ${
             successMessage.startsWith('오류') || successMessage.startsWith('CSV 오류')
-              ? 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]'
-              : 'bg-[#22c55e]/10 border-[#22c55e]/30 text-[#22c55e]'
+              ? 'bg-[#fef2f2] border-[#fecaca] text-[#b91c1c]'
+              : 'bg-[#635BFF]/5 border-[#635BFF]/30 text-[#1a1f36]'
           }`}>
             {successMessage}
           </div>
         )}
 
-        {/* 경고 배너 */}
+        {/* 경고 배너 — 라이트 테마 친화: 화이트 카드 + 좌측 경고 아이콘 + 짙은 텍스트 */}
         {warnings.length > 0 && (
-          <div className="p-4 rounded-lg border bg-[#f59e0b]/10 border-[#f59e0b]/30">
-            <div className="text-sm font-semibold text-[#f59e0b] mb-2"><AlertTriangle size={16} className="inline text-[#f59e0b]" /> 시스템 경고</div>
-            {warnings.map((w, i) => (
-              <div key={i} className="text-xs text-[#fbbf24] mt-1">• {w}</div>
-            ))}
+          <div className="bg-white border border-[#e3e8ee] rounded-lg p-4 flex items-start gap-3 shadow-sm">
+            <div className="w-8 h-8 rounded-full bg-[#fef3c7] flex items-center justify-center flex-shrink-0">
+              <AlertTriangle size={16} className="text-[#b45309]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-[#1a1f36] mb-1">시스템 경고</div>
+              {warnings.map((w, i) => (
+                <div key={i} className="text-xs text-[#697386] mt-0.5 leading-relaxed">• {w}</div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -604,16 +631,16 @@ export default function Pipeline() {
                 isDragging
                   ? 'border-[#635BFF] bg-[#635BFF]/15 scale-[1.01] shadow-lg shadow-[#635BFF]/20'
                   : uploadedFile
-                    ? 'border-[#22c55e] bg-[#22c55e]/10 hover:bg-[#22c55e]/15'
+                    ? 'border-[#635BFF]/50 bg-[#635BFF]/5 hover:bg-[#635BFF]/10'
                     : 'border-[#8792a2] bg-[#f6f8fa] hover:border-[#635BFF]/60 hover:bg-[#f6f8fa]/80'
               } ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {uploadedFile && !isDragging && !isUploading ? (
                 // 업로드 성공 상태 — 파일 카드 + X 버튼
                 <div className="flex items-center justify-center gap-3">
-                  <div className="text-3xl" style={{ pointerEvents: 'none' }}><FileText size={28} className="text-[#22c55e]" /></div>
+                  <div className="text-3xl" style={{ pointerEvents: 'none' }}><FileText size={28} className="text-[#635BFF]" /></div>
                   <div className="text-left" style={{ pointerEvents: 'none' }}>
-                    <div className="text-sm font-semibold text-[#22c55e] break-all">
+                    <div className="text-sm font-semibold text-[#635BFF] break-all">
                       {uploadedFile.name}
                     </div>
                     <div className="text-xs text-[#8792a2]">
@@ -668,7 +695,7 @@ export default function Pipeline() {
           {uploadResult && (
             <div className="bg-[#f6f8fa] border border-[#e3e8ee] rounded-lg p-3 mb-4">
               <div className="flex items-center gap-4 text-xs">
-                <span className="text-[#22c55e] font-semibold">추가: {uploadResult.added}개</span>
+                <span className="text-[#635BFF] font-semibold">추가: {uploadResult.added}개</span>
                 <span className="text-[#8792a2]">건너뜀: {uploadResult.skipped}개</span>
                 <span className="text-[#8792a2]">전체: {uploadResult.total}행</span>
                 <span className="text-[#8792a2]">|</span>
@@ -688,7 +715,7 @@ export default function Pipeline() {
               </div>
               <div className="h-2 bg-[#e3e8ee] rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-[#635BFF] to-[#22c55e] transition-all duration-500"
+                  className="h-full bg-gradient-to-r from-[#635BFF] to-[#7A73FF] transition-all duration-500"
                   style={{ width: `${overallProgress}%` }}
                 />
               </div>

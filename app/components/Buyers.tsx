@@ -654,7 +654,7 @@ export default function Buyers() {
 
           {/* Footer */}
           <div className="border-t border-[#e3e8ee] px-4 py-3 flex justify-between items-center text-xs text-[#8792a2]">
-            <span>총 {totalCount}개 바이어 · {displayCount}개 필터 · {PAGE_SIZE}개씩 표시</span>
+            <span>총 {totalCount}개 바이어 · 담당자 {buyers.length}명 · 필터 후 {displayCount}행 · 페이지당 {PAGE_SIZE}</span>
             <div className="flex gap-2 items-center">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
