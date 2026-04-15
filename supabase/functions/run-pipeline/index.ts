@@ -166,9 +166,14 @@ async function agentC(sb: SB, jobId: string, _team: string) {
   let rateLimitCount = 0;
   let sampleHttpError: string | null = null;
 
-  for (const b of buyers) {
-    try {
-      const prompt = `당신은 한국 OEM/ODM 화장품 제조사 SPS Cosmetics(spscos.com)의 B2B 애널리스트입니다.
+  // 병렬 배치 처리 (10개씩) — Edge Function timeout 회피용
+  // 순차 처리 시 기업 수 × ~8초 → 50개 이상이면 400초 한계 초과 위험
+  const BATCH_SIZE_C = 10;
+  for (let batchStart = 0; batchStart < buyers.length; batchStart += BATCH_SIZE_C) {
+    const batch = buyers.slice(batchStart, batchStart + BATCH_SIZE_C);
+    await Promise.all(batch.map(async (b: Record<string, unknown>) => {
+      try {
+        const prompt = `당신은 한국 OEM/ODM 화장품 제조사 SPS Cosmetics(spscos.com)의 B2B 애널리스트입니다.
 아래 바이어 기업을 분석해주세요.
 
 기업명: ${b.company_name}
@@ -184,48 +189,49 @@ async function agentC(sb: SB, jobId: string, _team: string) {
   "proposal_angle": "이 기업에 접근할 한 줄 영업 제안 각도 (한국어)"
 }`;
 
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": API_KEY, "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001", max_tokens: 500,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": API_KEY, "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "claude-haiku-4-5-20251001", max_tokens: 500,
+            messages: [{ role: "user", content: prompt }],
+          }),
+        });
 
-      if (!res.ok) {
+        if (!res.ok) {
+          httpErrorCount++;
+          if (res.status === 429) rateLimitCount++;
+          if (!sampleHttpError) sampleHttpError = `HTTP ${res.status}${res.status === 429 ? " (Claude 레이트 리밋)" : ""}`;
+          return;
+        }
+
+        const result = await res.json();
+        const text = result.content?.[0]?.text || "";
+        const inTok = result.usage?.input_tokens || 0;
+        const outTok = result.usage?.output_tokens || 0;
+        const cost = (inTok * 0.0000008) + (outTok * 0.000004);
+        totalCost += cost;
+
+        // Claude가 ```json ... ``` 마크다운으로 감쌀 수 있음 — 마커만 제거 후 JSON.parse
+        // 파싱 실패 시 null 저장 (raw 텍스트 저장 금지 — DB 오염 방지)
+        let json: Record<string, unknown> | null;
+        try {
+          const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          json = JSON.parse(cleaned);
+        } catch {
+          json = null;
+        }
+
+        await sb.from("buyers").update({ recent_news: json }).eq("id", b.id);
+        if (json !== null) analyzed++;
+      } catch (e) {
         httpErrorCount++;
-        if (res.status === 429) rateLimitCount++;
-        if (!sampleHttpError) sampleHttpError = `HTTP ${res.status}${res.status === 429 ? " (Claude 레이트 리밋)" : ""}`;
-        continue;
+        if (!sampleHttpError) sampleHttpError = `fetch 실패: ${e instanceof Error ? e.message : String(e)}`;
       }
-
-      const result = await res.json();
-      const text = result.content?.[0]?.text || "";
-      const inTok = result.usage?.input_tokens || 0;
-      const outTok = result.usage?.output_tokens || 0;
-      const cost = (inTok * 0.0000008) + (outTok * 0.000004);
-      totalCost += cost;
-
-      // Claude가 ```json ... ``` 마크다운으로 감쌀 수 있음 — 마커만 제거 후 JSON.parse
-      // 파싱 실패 시 null 저장 (raw 텍스트 저장 금지 — DB 오염 방지)
-      let json: Record<string, unknown> | null;
-      try {
-        const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        json = JSON.parse(cleaned);
-      } catch {
-        json = null;
-      }
-
-      await sb.from("buyers").update({ recent_news: json }).eq("id", b.id);
-      if (json !== null) analyzed++;
-    } catch (e) {
-      httpErrorCount++;
-      if (!sampleHttpError) sampleHttpError = `fetch 실패: ${e instanceof Error ? e.message : String(e)}`;
-    }
+    }));
   }
 
   if (httpErrorCount > 0) {
@@ -275,35 +281,39 @@ async function agentD(sb: SB, jobId: string, _team: string) {
   let rateLimitCount = 0;
   let sampleHttpError: string | null = null;
 
-  for (const c of newContacts) {
-    const buyer = buyerMap.get(c.buyer_id) as Record<string, unknown> | undefined;
-    if (!buyer) continue;
+  // 병렬 배치 처리 (10개씩) — Edge Function timeout 회피용
+  // 순차 처리 시 담당자 × ~10초 → 40명만 넘어도 400초 한계 초과 (기존 Europe 고착 원인)
+  const BATCH_SIZE_D = 10;
+  for (let batchStart = 0; batchStart < newContacts.length; batchStart += BATCH_SIZE_D) {
+    const batch = newContacts.slice(batchStart, batchStart + BATCH_SIZE_D);
+    await Promise.all(batch.map(async (c: Record<string, unknown>) => {
+      const buyer = buyerMap.get(c.buyer_id as string) as Record<string, unknown> | undefined;
+      if (!buyer) return;
 
-    const tier = buyer.tier as string;
-    const analysis = buyer.recent_news as Record<string, unknown> | null;
+      const tier = buyer.tier as string;
+      const analysis = buyer.recent_news as Record<string, unknown> | null;
 
-    // recent_news NULL 이면 이메일 작성 건너뜀 (row 만들지 않음)
-    // 나중에 C가 recent_news 채우면 다음 D 실행에서 자연스럽게 처리됨
-    if (!analysis || !analysis.company_status) {
-      pendingIntel++;
-      continue;
-    }
+      // recent_news NULL 이면 이메일 작성 건너뜀 (row 만들지 않음)
+      // 나중에 C가 recent_news 채우면 다음 D 실행에서 자연스럽게 처리됨
+      if (!analysis || !analysis.company_status) {
+        pendingIntel++;
+        return;
+      }
 
-    // 인텔 데이터에서 필수 필드 추출
-    const companyStatus = String(analysis.company_status || "");
-    const kbeautyInterest = String(analysis.kbeauty_interest || "");
-    const recommendedFormula = Array.isArray(analysis.recommended_formula)
-      ? (analysis.recommended_formula as string[]).join(", ")
-      : String(analysis.recommended_formula || "skincare, cosmetics");
-    const proposalAngle = String(analysis.proposal_angle || "K-beauty OEM/ODM partnership opportunity");
+      // 인텔 데이터에서 필수 필드 추출
+      const companyStatus = String(analysis.company_status || "");
+      const kbeautyInterest = String(analysis.kbeauty_interest || "");
+      const recommendedFormula = Array.isArray(analysis.recommended_formula)
+        ? (analysis.recommended_formula as string[]).join(", ")
+        : String(analysis.recommended_formula || "skincare, cosmetics");
+      const proposalAngle = String(analysis.proposal_angle || "K-beauty OEM/ODM partnership opportunity");
 
-    const followupDays = tier === "Tier1" ? 5 : 7;
-    const salesAngle = tier === "Tier1"
-      ? "Strategic partnership angle — position SPS as a long-term K-beauty OEM/ODM partner for their premium portfolio"
-      : "Test order angle — low-risk 3,000 unit MOQ trial to test K-beauty products in their market";
+      const salesAngle = tier === "Tier1"
+        ? "Strategic partnership angle — position SPS as a long-term K-beauty OEM/ODM partner for their premium portfolio"
+        : "Test order angle — low-risk 3,000 unit MOQ trial to test K-beauty products in their market";
 
-    try {
-      const prompt = `You write B2B cold emails for SPS Cosmetics (spscos.com), a Korean OEM/ODM manufacturer.
+      try {
+        const prompt = `You write B2B cold emails for SPS Cosmetics (spscos.com), a Korean OEM/ODM manufacturer.
 CEO: Teddy Shin (teddy@spscos.com) | MOQ: 3,000 units
 
 Contact: ${c.contact_name} | Title: ${c.contact_title} | Company: ${buyer.company_name}
@@ -327,51 +337,52 @@ Return ONLY a JSON object (no markdown):
   "body_followup": "EXACTLY 80-100 words. Reference first email → New angle using kbeauty_interest → Soft CTA. ${tier === "Tier1" ? "Note: send 5 days after first email" : "Note: send 7 days after first email"}. Sign off as Teddy."
 }`;
 
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": API_KEY, "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001", max_tokens: 900,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": API_KEY, "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "claude-haiku-4-5-20251001", max_tokens: 900,
+            messages: [{ role: "user", content: prompt }],
+          }),
+        });
 
-      if (!res.ok) {
+        if (!res.ok) {
+          httpErrorCount++;
+          if (res.status === 429) rateLimitCount++;
+          if (!sampleHttpError) sampleHttpError = `HTTP ${res.status}${res.status === 429 ? " (Claude 레이트 리밋)" : ""}`;
+          return;
+        }
+
+        const result = await res.json();
+        const text = result.content?.[0]?.text || "";
+        const inTok = result.usage?.input_tokens || 0;
+        const outTok = result.usage?.output_tokens || 0;
+        totalCost += (inTok * 0.0000008) + (outTok * 0.000004);
+
+        let json;
+        try {
+          const m = text.match(/\{[\s\S]*\}/);
+          json = m ? JSON.parse(m[0]) : null;
+        } catch { json = null; }
+        if (!json) return;
+
+        await sb.from("email_drafts").insert({
+          buyer_contact_id: c.id,
+          subject_line_1: json.subject_line_1 || "", subject_line_2: json.subject_line_2 || "",
+          subject_line_3: json.subject_line_3 || "",
+          body_first: json.body_first || "", body_followup: json.body_followup || "",
+          tier,
+        });
+
+        drafted++;
+      } catch (e) {
         httpErrorCount++;
-        if (res.status === 429) rateLimitCount++;
-        if (!sampleHttpError) sampleHttpError = `HTTP ${res.status}${res.status === 429 ? " (Claude 레이트 리밋)" : ""}`;
-        continue;
+        if (!sampleHttpError) sampleHttpError = `fetch 실패: ${e instanceof Error ? e.message : String(e)}`;
       }
-
-      const result = await res.json();
-      const text = result.content?.[0]?.text || "";
-      const inTok = result.usage?.input_tokens || 0;
-      const outTok = result.usage?.output_tokens || 0;
-      totalCost += (inTok * 0.0000008) + (outTok * 0.000004);
-
-      let json;
-      try {
-        const m = text.match(/\{[\s\S]*\}/);
-        json = m ? JSON.parse(m[0]) : null;
-      } catch { json = null; }
-      if (!json) continue;
-
-      await sb.from("email_drafts").insert({
-        buyer_contact_id: c.id,
-        subject_line_1: json.subject_line_1 || "", subject_line_2: json.subject_line_2 || "",
-        subject_line_3: json.subject_line_3 || "",
-        body_first: json.body_first || "", body_followup: json.body_followup || "",
-        tier,
-      });
-
-      drafted++;
-    } catch (e) {
-      httpErrorCount++;
-      if (!sampleHttpError) sampleHttpError = `fetch 실패: ${e instanceof Error ? e.message : String(e)}`;
-    }
+    }));
   }
 
   if (httpErrorCount > 0) {
@@ -480,70 +491,76 @@ async function agentE(sb: SB, jobId: string, _team: string) {
   let rateLimitCount = 0;
   let sampleHttpError: string | null = null;
 
-  for (const d of drafts) {
-    try {
-      const issues = checkSpamRules(d.subject_line_1, d.body_first);
+  // 병렬 배치 처리 (10개씩) — Edge Function timeout 회피용
+  // 순차 처리 시 초안 × ~4초 → 100건 이상이면 한계 근접
+  const BATCH_SIZE_E = 10;
+  for (let batchStart = 0; batchStart < drafts.length; batchStart += BATCH_SIZE_E) {
+    const batch = drafts.slice(batchStart, batchStart + BATCH_SIZE_E);
+    await Promise.all(batch.map(async (d: Record<string, unknown>) => {
+      try {
+        const issues = checkSpamRules(d.subject_line_1 as string, d.body_first as string);
 
-      if (issues.length === 0) {
-        // 규칙 통과 → Claude 보조 검증
-        let score = 10;
+        if (issues.length === 0) {
+          // 규칙 통과 → Claude 보조 검증
+          let score = 10;
 
-        if (API_KEY) {
-          try {
-            const res = await fetch("https://api.anthropic.com/v1/messages", {
-              method: "POST",
-              headers: {
-                "x-api-key": API_KEY, "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-              },
-              body: JSON.stringify({
-                model: "claude-haiku-4-5-20251001", max_tokens: 50,
-                messages: [{
-                  role: "user",
-                  content: `Rate this B2B email spam risk 1-10 (10=safe). Reply ONLY the number.\n\nSubject: ${d.subject_line_1}\n\n${d.body_first}`,
-                }],
-              }),
-            });
-            if (res.ok) {
-              const r = await res.json();
-              const s = parseInt((r.content?.[0]?.text || "").trim());
-              if (!isNaN(s) && s >= 1 && s <= 10) score = s;
-              totalCost += (r.usage?.input_tokens || 0) * 0.0000008 + (r.usage?.output_tokens || 0) * 0.000004;
-            } else {
+          if (API_KEY) {
+            try {
+              const res = await fetch("https://api.anthropic.com/v1/messages", {
+                method: "POST",
+                headers: {
+                  "x-api-key": API_KEY, "anthropic-version": "2023-06-01",
+                  "content-type": "application/json",
+                },
+                body: JSON.stringify({
+                  model: "claude-haiku-4-5-20251001", max_tokens: 50,
+                  messages: [{
+                    role: "user",
+                    content: `Rate this B2B email spam risk 1-10 (10=safe). Reply ONLY the number.\n\nSubject: ${d.subject_line_1}\n\n${d.body_first}`,
+                  }],
+                }),
+              });
+              if (res.ok) {
+                const r = await res.json();
+                const s = parseInt((r.content?.[0]?.text || "").trim());
+                if (!isNaN(s) && s >= 1 && s <= 10) score = s;
+                totalCost += (r.usage?.input_tokens || 0) * 0.0000008 + (r.usage?.output_tokens || 0) * 0.000004;
+              } else {
+                httpErrorCount++;
+                if (res.status === 429) rateLimitCount++;
+                if (!sampleHttpError) sampleHttpError = `HTTP ${res.status}${res.status === 429 ? " (Claude 레이트 리밋)" : ""}`;
+              }
+            } catch (e) {
               httpErrorCount++;
-              if (res.status === 429) rateLimitCount++;
-              if (!sampleHttpError) sampleHttpError = `HTTP ${res.status}${res.status === 429 ? " (Claude 레이트 리밋)" : ""}`;
+              if (!sampleHttpError) sampleHttpError = `fetch 실패: ${e instanceof Error ? e.message : String(e)}`;
             }
-          } catch (e) {
-            httpErrorCount++;
-            if (!sampleHttpError) sampleHttpError = `fetch 실패: ${e instanceof Error ? e.message : String(e)}`;
+          }
+
+          if (score >= 8) {
+            await sb.from("email_drafts").update({ spam_score: score, spam_status: "pass" }).eq("id", d.id);
+            passed++;
+          } else {
+            await sb.from("email_drafts").update({ spam_score: score, spam_status: "flag" }).eq("id", d.id);
+            flagged++;
+          }
+        } else {
+          // 규칙 위반 → 자동 수정 (최대 1회)
+          const { fixed, fixes } = autoFixSpam(d.body_first as string);
+          const retryIssues = checkSpamRules(d.subject_line_1 as string, fixed);
+
+          if (retryIssues.length === 0) {
+            await sb.from("email_drafts").update({ body_first: fixed, spam_score: 8, spam_status: "rewrite" }).eq("id", d.id);
+            rewritten++;
+            await log(sb, jobId, "E", "running", `수정통과 (${(d.id as string).slice(0, 8)}): ${fixes.join(", ")}`);
+          } else {
+            await sb.from("email_drafts").update({ body_first: fixed, spam_score: 5, spam_status: "flag" }).eq("id", d.id);
+            flagged++;
+            await log(sb, jobId, "E", "running", `검토필요 (${(d.id as string).slice(0, 8)}): ${retryIssues.join(", ")}`);
           }
         }
-
-        if (score >= 8) {
-          await sb.from("email_drafts").update({ spam_score: score, spam_status: "pass" }).eq("id", d.id);
-          passed++;
-        } else {
-          await sb.from("email_drafts").update({ spam_score: score, spam_status: "flag" }).eq("id", d.id);
-          flagged++;
-        }
-      } else {
-        // 규칙 위반 → 자동 수정 (최대 1회)
-        const { fixed, fixes } = autoFixSpam(d.body_first);
-        const retryIssues = checkSpamRules(d.subject_line_1, fixed);
-
-        if (retryIssues.length === 0) {
-          await sb.from("email_drafts").update({ body_first: fixed, spam_score: 8, spam_status: "rewrite" }).eq("id", d.id);
-          rewritten++;
-          await log(sb, jobId, "E", "running", `수정통과 (${d.id.slice(0, 8)}): ${fixes.join(", ")}`);
-        } else {
-          await sb.from("email_drafts").update({ body_first: fixed, spam_score: 5, spam_status: "flag" }).eq("id", d.id);
-          flagged++;
-          await log(sb, jobId, "E", "running", `검토필요 (${d.id.slice(0, 8)}): ${retryIssues.join(", ")}`);
-        }
-      }
-      checked++;
-    } catch { /* 규칙 체크 자체는 로컬이라 실패 가능성 낮음 */ }
+        checked++;
+      } catch { /* 규칙 체크 자체는 로컬이라 실패 가능성 낮음 */ }
+    }));
   }
 
   if (httpErrorCount > 0) {
