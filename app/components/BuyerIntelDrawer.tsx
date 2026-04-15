@@ -82,10 +82,6 @@ interface BuyerBaseInfo {
   analysis_failed_at: string | null;
 }
 
-interface DraftDrafts {
-  subject: string;
-  body: string;
-}
 
 export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick }: BuyerIntelDrawerProps) {
   const [intel, setIntel] = useState<any>(null);
@@ -97,20 +93,10 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
   const [newContact, setNewContact] = useState({ contact_name: '', contact_title: '', contact_email: '', contact_linkedin: '' });
   const [savingContact, setSavingContact] = useState(false);
 
-  // 국문 초안 → 영문 번역 플로우 (#6)
-  const [draftKo, setDraftKo] = useState<DraftDrafts | null>(null);
-  const [generatingKo, setGeneratingKo] = useState(false);
-  const [translating, setTranslating] = useState(false);
-  const [draftError, setDraftError] = useState<string | null>(null);
-  const [draftSaved, setDraftSaved] = useState(false);
+  // PR5.3: 초안 생성은 EmailComposeModal로 단일화. Drawer는 인텔·담당자 관리 전용.
 
   useEffect(() => {
     if (!isOpen || !buyer) return;
-
-    // Reset draft flow state on open
-    setDraftKo(null);
-    setDraftError(null);
-    setDraftSaved(false);
 
     // Load intel + base info from buyers (Agent C 분석 결과 + 기본 정보)
     setLoading(true);
@@ -190,76 +176,7 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
     }
   };
 
-  // 국문 초안 생성 — generate-draft Edge Function 호출 (action=generate_ko)
-  const handleGenerateKo = async () => {
-    if (!intel || contacts.length === 0) return;
-    setGeneratingKo(true);
-    setDraftError(null);
-    setDraftKo(null);
-    setDraftSaved(false);
-    try {
-      const primaryContact = contacts.find((c) => c.is_primary) || contacts[0];
-      const { data, error } = await supabase.functions.invoke('generate-draft', {
-        body: {
-          action: 'generate_ko',
-          buyer: {
-            id: buyer.id,
-            company_name: buyer.company,
-            region: buyer.region,
-            tier: buyer.tier,
-            website: buyer.website,
-            annual_revenue: baseInfo?.annual_revenue,
-            employee_count: baseInfo?.employee_count,
-          },
-          contact: {
-            contact_name: primaryContact.contact_name,
-            contact_title: primaryContact.contact_title,
-            contact_email: primaryContact.contact_email,
-          },
-          intel: intel.raw || {},
-        },
-      });
-      if (error) throw new Error(error.message || 'Edge Function 호출 실패');
-      if (!data?.ko_subject || !data?.ko_body) throw new Error('국문 초안 응답 형식 오류');
-      setDraftKo({ subject: data.ko_subject, body: data.ko_body });
-    } catch (e) {
-      setDraftError(e instanceof Error ? e.message : '국문 초안 생성 실패');
-    } finally {
-      setGeneratingKo(false);
-    }
-  };
-
-  // 영문 번역 + email_drafts INSERT — generate-draft Edge Function 호출 (action=translate_save)
-  const handleTranslateSave = async () => {
-    if (!draftKo || contacts.length === 0) return;
-    setTranslating(true);
-    setDraftError(null);
-    try {
-      const primaryContact = contacts.find((c) => c.is_primary) || contacts[0];
-      const { data, error } = await supabase.functions.invoke('generate-draft', {
-        body: {
-          action: 'translate_save',
-          buyer: {
-            id: buyer.id,
-            company_name: buyer.company,
-            tier: buyer.tier,
-          },
-          contact: {
-            id: primaryContact.id,
-            contact_name: primaryContact.contact_name,
-          },
-          ko_draft: draftKo,
-        },
-      });
-      if (error) throw new Error(error.message || 'Edge Function 호출 실패');
-      if (!data?.success) throw new Error(data?.message || '번역/저장 실패');
-      setDraftSaved(true);
-    } catch (e) {
-      setDraftError(e instanceof Error ? e.message : '영문 번역/저장 실패');
-    } finally {
-      setTranslating(false);
-    }
-  };
+  // PR5.3: handleGenerateKo / handleTranslateSave 제거. 초안 생성 경로는 EmailComposeModal 단일화.
 
   const handleDeleteContact = async (contactId: string | undefined, idx: number) => {
     if (!contactId) {
@@ -560,56 +477,14 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
                   </p>
                 </div>
 
-                {/* "이 인텔로 이메일 생성" 버튼 (#6) */}
-                <div className="pt-2">
-                  <button
-                    onClick={handleGenerateKo}
-                    disabled={generatingKo || contacts.length === 0 || draftKo !== null}
-                    className="w-full text-xs bg-[#635BFF] text-white py-2.5 rounded-lg font-semibold hover:bg-[#5851DB] disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  >
-                    {generatingKo ? '국문 초안 생성 중...' : draftKo ? '국문 초안 생성됨 ↓' : <><MailOpen size={14} className="inline" /> 국문 초안 생성</>}
-                  </button>
-                  {contacts.length === 0 && (
-                    <div className="text-xs text-[#f59e0b] mt-2 text-center">담당자 정보가 먼저 필요합니다</div>
-                  )}
+                {/* PR5.3: 초안 생성 경로를 EmailComposeModal("메일 작성" 버튼)로 단일화.
+                    Drawer는 인텔 검토·담당자 관리 역할만 수행. 초안 생성은 헤더의 "메일 작성"
+                    버튼을 눌러 모달에서 → 바이어 인텔 탭 → "국문 초안 생성" 플로우. */}
+                <div className="bg-[#f6f8fa] border border-[#e3e8ee] rounded-lg p-3 text-xs text-[#697386] leading-relaxed">
+                  <div className="font-semibold text-[#1a1f36] mb-1">초안 생성은 메일 작성 창에서</div>
+                  상단 <span className="text-[#635BFF] font-semibold">메일 작성</span> 버튼을 누르면 "바이어 인텔" 탭에서
+                  국문 초안 생성 → 영문 번역·저장을 한 번에 진행할 수 있습니다.
                 </div>
-
-                {/* 국문 초안 확인 화면 */}
-                {draftKo && (
-                  <div className="bg-[#f6f8fa] border border-[#635BFF]/40 rounded-lg p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs font-semibold text-[#7A73FF]"><FileText size={14} className="inline" /> 국문 초안 확인</div>
-                      {draftSaved && (
-                        <span className="text-xs bg-[#635BFF]/15 text-[#635BFF] px-2 py-0.5 rounded"><Check size={14} className="inline" /> 영문 저장 완료</span>
-                      )}
-                    </div>
-                    <div>
-                      <div className="text-xs text-[#8792a2] mb-1">제목</div>
-                      <div className="text-xs text-[#1a1f36] bg-[#ffffff] border border-[#e3e8ee] rounded px-3 py-2">{draftKo.subject}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-[#8792a2] mb-1">본문</div>
-                      <div className="text-xs text-[#1a1f36] bg-[#ffffff] border border-[#e3e8ee] rounded px-3 py-2 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto">
-                        {draftKo.body}
-                      </div>
-                    </div>
-                    {!draftSaved && (
-                      <button
-                        onClick={handleTranslateSave}
-                        disabled={translating}
-                        className="w-full text-xs bg-[#635BFF] text-white py-2 rounded font-semibold hover:bg-[#5851DB] disabled:opacity-50 transition"
-                      >
-                        {translating ? '영문 번역 중...' : '영문에 반영 (email_drafts 저장)'}
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {draftError && (
-                  <div className="bg-[#ef4444]/10 border border-[#ef4444]/40 rounded-lg p-3">
-                    <div className="text-xs text-[#b91c1c]">오류: {draftError}</div>
-                  </div>
-                )}
               </div>
             ) : (
               <div className="text-center py-8">

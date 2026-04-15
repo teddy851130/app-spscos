@@ -80,7 +80,8 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
     }
   };
 
-  // PR5.2: 모달에서 직접 국문 초안 생성 (generate-draft generate_ko 액션)
+  // PR5.3: generate_ko 호출을 direct fetch로 전환 — supabase.functions.invoke가 non-2xx 본문을
+  //   버려 "non-2xx status code"만 노출되던 문제 해결. 실제 서버 에러 메시지 노출.
   const handleGenerateKo = async () => {
     if (generatingKo || !intel) return;
     const buyerId = (buyer as { id?: string }).id;
@@ -89,12 +90,25 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
       setGenerateError('바이어/담당자 ID가 없어 초안을 생성할 수 없습니다.');
       return;
     }
+    // intel.raw가 비어 있으면 generate-draft가 "buyer/contact/intel 필요"로 400 반환 → 미리 차단.
+    if (!intel.raw || typeof intel.raw !== 'object' || Object.keys(intel.raw).length === 0) {
+      setGenerateError('인텔 원본 데이터(intel.raw)가 없어 초안을 생성할 수 없습니다. 인텔 새로고침을 먼저 시도하세요.');
+      return;
+    }
     setGeneratingKo(true);
     setGenerateError(null);
     setDraftKo(null);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-draft', {
-        body: {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+      const res = await fetch(`${supabaseUrl}/functions/v1/generate-draft`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${supabaseAnonKey}`,
+          apikey: supabaseAnonKey,
+        },
+        body: JSON.stringify({
           action: 'generate_ko',
           buyer: {
             id: buyerId,
@@ -107,11 +121,16 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
             contact_title: (buyer as { title?: string }).title || '',
             contact_email: buyer.email,
           },
-          intel: intel.raw || {},
-        },
+          intel: intel.raw,
+        }),
       });
-      if (error) throw new Error(error.message || 'Edge Function 호출 실패');
-      if (!data?.ko_subject || !data?.ko_body) throw new Error('국문 초안 응답 형식 오류');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
+      }
+      if (!data?.ko_subject || !data?.ko_body) {
+        throw new Error('국문 초안 응답 형식 오류');
+      }
       setDraftKo({ subject: data.ko_subject, body: data.ko_body });
       setKoreanBody(data.ko_body);
     } catch (e) {
@@ -359,6 +378,9 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
       alert('국문 탭 내용이 비어 있습니다.');
       return;
     }
+    // translate_only 액션은 ko_subject + ko_body 모두 필수. subject(영문 제목)가 비어 있으면
+    //   draftKo.subject(국문 제목) 폴백, 그것도 없으면 회사명 기반 기본 제목 사용.
+    const koSubject = subject.trim() || draftKo?.subject || `${buyer.company} — K-Beauty OEM/ODM 제안`;
     setIsLoading(true);
     try {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -372,7 +394,7 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
         },
         body: JSON.stringify({
           action: 'translate_only',
-          ko_subject: subject,
+          ko_subject: koSubject,
           ko_body: koreanBody,
         }),
       });
