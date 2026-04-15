@@ -567,7 +567,7 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
                     disabled={generatingKo || contacts.length === 0 || draftKo !== null}
                     className="w-full text-xs bg-[#635BFF] text-white py-2.5 rounded-lg font-semibold hover:bg-[#5851DB] disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
-                    {generatingKo ? '국문 초안 생성 중...' : draftKo ? '국문 초안 생성됨 ↓' : <><MailOpen size={14} className="inline" /> 이 인텔로 이메일 생성</>}
+                    {generatingKo ? '국문 초안 생성 중...' : draftKo ? '국문 초안 생성됨 ↓' : <><MailOpen size={14} className="inline" /> 국문 초안 생성</>}
                   </button>
                   {contacts.length === 0 && (
                     <div className="text-xs text-[#f59e0b] mt-2 text-center">담당자 정보가 먼저 필요합니다</div>
