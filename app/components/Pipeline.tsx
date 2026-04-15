@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, invokePipeline } from '../lib/supabase';
 import type { PipelineJob, PipelineLog } from '../lib/types';
 import { MailOpen, BarChart3, Shield, ClipboardList, AlertTriangle, Play, Check, X, PenTool, FileText, Download } from 'lucide-react';
 
@@ -468,7 +468,7 @@ export default function Pipeline() {
         if (job) {
           jobs.push(job);
           try {
-            await supabase.functions.invoke('run-pipeline', { body: { jobId: job.id } });
+            await invokePipeline(job.id);
           } catch (err) {
             console.error(`파이프라인 호출 실패 (${t.key}):`, err);
           }

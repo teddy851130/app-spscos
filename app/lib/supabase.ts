@@ -6,16 +6,26 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Edge Function 호출 헬퍼
+// supabase.functions.invoke는 현재 로그인 세션의 JWT를 Authorization 헤더로 보내는데,
+// 세션이 만료됐거나 자동 갱신이 실패하면 401 Unauthorized로 떨어짐.
+// anon key를 직접 명시해서 세션 상태와 무관하게 항상 유효한 JWT로 호출.
 export async function invokePipeline(jobId: string): Promise<{ success: boolean; message: string }> {
-  const { data, error } = await supabase.functions.invoke('run-pipeline', {
-    body: { jobId },
+  const res = await fetch(`${supabaseUrl}/functions/v1/run-pipeline`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${supabaseAnonKey}`,
+      apikey: supabaseAnonKey,
+    },
+    body: JSON.stringify({ jobId }),
   })
 
-  if (error) {
-    throw new Error(error.message || 'Edge Function 호출 실패')
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Edge Function 호출 실패: HTTP ${res.status} ${body}`)
   }
 
-  return data
+  return await res.json()
 }
 
 // 파이프라인 실행 요청 생성 + Edge Function 트리거
