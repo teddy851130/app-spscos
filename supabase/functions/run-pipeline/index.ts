@@ -728,39 +728,51 @@ Deno.serve(async (req: Request) => {
     }
 
     const backgroundTask = (async () => {
-      await sb.from("pipeline_jobs")
-        .update({ status: "running", started_at: new Date().toISOString(), current_agent: "B" })
-        .eq("id", jobId);
-
-      // 바이어 발굴(구 직원 A)은 CSV 업로드로 대체됨 — B부터 실행
-      // B는 내부적으로 buyer_contacts.email_status IS NULL 인 담당자를 직접 조회함
-      const agents = [
-        { name: "B", fn: agentB },
-        { name: "C", fn: agentC },
-        { name: "D", fn: agentD },
-        { name: "E", fn: agentE },
-        { name: "F", fn: agentF },
-      ];
-
       let failed = false;
 
-      for (const agent of agents) {
-        await sb.from("pipeline_jobs").update({ current_agent: agent.name }).eq("id", jobId);
-        try {
-          await agent.fn(sb, jobId, job.team);
-        } catch (error) {
-          await log(sb, jobId, agent.name, "failed",
-            `치명적 오류: ${error instanceof Error ? error.message : String(error)}`);
-          failed = true;
-          break;
-        }
-      }
+      try {
+        await sb.from("pipeline_jobs")
+          .update({ status: "running", started_at: new Date().toISOString(), current_agent: "B" })
+          .eq("id", jobId);
 
-      await sb.from("pipeline_jobs").update({
-        status: failed ? "failed" : "completed",
-        completed_at: new Date().toISOString(),
-        current_agent: null,
-      }).eq("id", jobId);
+        // 바이어 발굴(구 직원 A)은 CSV 업로드로 대체됨 — B부터 실행
+        // B는 내부적으로 buyer_contacts.email_status IS NULL 인 담당자를 직접 조회함
+        const agents = [
+          { name: "B", fn: agentB },
+          { name: "C", fn: agentC },
+          { name: "D", fn: agentD },
+          { name: "E", fn: agentE },
+          { name: "F", fn: agentF },
+        ];
+
+        for (const agent of agents) {
+          await sb.from("pipeline_jobs").update({ current_agent: agent.name }).eq("id", jobId);
+          try {
+            await agent.fn(sb, jobId, job.team);
+          } catch (error) {
+            await log(sb, jobId, agent.name, "failed",
+              `치명적 오류: ${error instanceof Error ? error.message : String(error)}`);
+            failed = true;
+            break;
+          }
+        }
+      } catch (error) {
+        // backgroundTask 자체의 예기치 못한 예외 처리
+        failed = true;
+        try {
+          await log(sb, jobId, "F", "failed",
+            `파이프라인 예외 종료: ${error instanceof Error ? error.message : String(error)}`);
+        } catch { /* log 실패는 무시 */ }
+      } finally {
+        // 어떤 상황에서도 status를 반드시 완료 상태로 업데이트
+        try {
+          await sb.from("pipeline_jobs").update({
+            status: failed ? "failed" : "completed",
+            completed_at: new Date().toISOString(),
+            current_agent: null,
+          }).eq("id", jobId);
+        } catch { /* DB 업데이트 실패는 무시 */ }
+      }
     })();
 
     // @ts-ignore: EdgeRuntime available in Supabase Edge Functions

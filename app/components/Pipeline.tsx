@@ -79,6 +79,21 @@ export default function Pipeline() {
     checkExistingBuyers();
   }, []);
 
+  // 페이지 로드 시 DB에 running/pending 중인 job이 있으면 activeJobs에 복구 (폴링 자동 시작)
+  useEffect(() => {
+    async function checkRunningJobs() {
+      const { data } = await supabase
+        .from('pipeline_jobs')
+        .select('*')
+        .in('status', ['running', 'pending'])
+        .order('created_at', { ascending: false });
+      if (data && data.length > 0) {
+        setActiveJobs(data);
+      }
+    }
+    checkRunningJobs();
+  }, []);
+
   // ─── CSV Upload ───
   function parseCSV(text: string): Record<string, string>[] {
     const lines = text.split(/\r?\n/).filter((l) => l.trim());
