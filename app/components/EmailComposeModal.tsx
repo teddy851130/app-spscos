@@ -315,6 +315,12 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
       alert('제목과 본문을 모두 입력해주세요. (초안이 없으면 바이어 인텔 탭에서 생성)');
       return;
     }
+    // PR6.1: 검증 미통과(null/flag) 초안 발송 차단. 직원 E가 'pass' 또는 'rewrite'(자동수정 통과) 처리한 초안만 발송 허용.
+    //   Step 4 force 재생성 후 spam_status=null 상태로 emailBody가 채워지는 경로에서 이 가드가 실제로 발동.
+    if (draftExists && draftSpamStatus !== 'pass' && draftSpamStatus !== 'rewrite') {
+      alert('직원 E가 스팸 검증을 완료한 초안만 발송할 수 있습니다. 다음 파이프라인 실행 시 검증이 완료된 후 발송하세요.');
+      return;
+    }
     setIsLoading(true);
     try {
       // Supabase Edge Function 'send-email' 호출 (Gmail SMTP 발송 + email_logs 기록)
@@ -436,6 +442,9 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
       setIsLoading(false);
     }
   };
+
+  // PR6.1: 발송 버튼 비활성화 + 툴팁 판단용. handleSend의 가드와 동일 조건 — 단일 진실 유지.
+  const draftValidationPending = draftExists && draftSpamStatus !== 'pass' && draftSpamStatus !== 'rewrite';
 
   if (!isOpen && !showToast) return null;
 
@@ -847,8 +856,13 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
                 </button>
                 <button
                   onClick={handleSend}
-                  disabled={isLoading || intelMissing || !emailBody.trim() || !subject.trim()}
-                  title={intelMissing ? '인텔이 없어 발송할 수 없습니다' : (!emailBody.trim() || !subject.trim()) ? '초안이 비어 있습니다' : ''}
+                  disabled={isLoading || intelMissing || !emailBody.trim() || !subject.trim() || draftValidationPending}
+                  title={
+                    intelMissing ? '인텔이 없어 발송할 수 없습니다'
+                    : (!emailBody.trim() || !subject.trim()) ? '초안이 비어 있습니다'
+                    : draftValidationPending ? '스팸 검증 대기 중 — 직원 E 검증 완료 후 발송 가능'
+                    : ''
+                  }
                   className="px-4 py-2 bg-[#635BFF] text-white rounded-lg text-xs font-semibold hover:bg-[#5851DB] transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (
