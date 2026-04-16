@@ -110,6 +110,30 @@
 
 ---
 
+## ADR-013: 영구 문서 + Claude Code 프로젝트 설정 인프라
+**날짜**: 2026-04-16 (세션 간 인수인계 개선)
+**결정**:
+1. **레포 영구 문서 3종** (`docs/ARCHITECTURE.md` · `docs/DECISIONS.md` · `docs/RUNBOOK.md`) 신설. 코드와 함께 버전 관리.
+2. **프로젝트 `CLAUDE.md` 확장** — 사업/스택/Do-Not/배포/도메인 규칙을 한 파일에서 자동 로드.
+3. **`.mcp.json`** — Supabase MCP 서버를 프로젝트 scope로 정의 (project_ref=hoerrdwupqhmqyyvwefg). 토큰은 `SUPABASE_ACCESS_TOKEN` 환경변수에서 주입 (하드코딩 금지).
+4. **`.claude/settings.json`** — `PreCompact` 훅(memory 저장 리마인더) + `SessionStart` 훅(세션 시작 안내) + MCP 자동 승인.
+
+**이유**:
+- 세션 간 인수인계 사건 발생 (2026-04-16 새 세션 Claude가 "PR7 큐 재설계 본 작업 범위 어디 있나요?" 질문). 원인: 초기 세션 대화 본문에만 기록하고 영구 저장 누락.
+- **영구 지식 = 레포 `docs/`**, **동적 상태 = `memory/`** 원칙 정립.
+- 프로젝트별 Claude Code 설정(`<project>/.claude/`, `<project>/.mcp.json`)은 자연스럽게 프로젝트 scope로 격리됨 → 다른 프로젝트에 영향 없음.
+
+**대안 기각**: Memory 파일에만 기록 — 세션 간 유지되지만 팀에 공유 안 되고 대표님 PC 의존. 레포 문서가 더 신뢰 가능.
+
+**결과**:
+- 새 세션에서 Claude가 즉시 맥락 파악 (CLAUDE.md 자동 로드 + docs 참조)
+- 다른 PC에서도 동일 설정 자동 적용 (레포 clone 시)
+- 세션 종료 전 습관: "오늘 결정 memory와 docs에 저장해줘" 한 문장
+
+**관련**: 커밋 `cbeb34d` (docs 신설), `8d4aada` (MCP + 훅)
+
+---
+
 ## ADR 작성 템플릿
 
 ```markdown

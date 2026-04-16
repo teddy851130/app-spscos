@@ -48,6 +48,40 @@
 
 ---
 
+## Claude Code 프로젝트 설정 (1회성)
+
+### Supabase MCP PAT 발급 + 환경변수
+
+프로젝트 레포에 `.mcp.json` + `.claude/settings.json` 이 포함되어 있어 VS Code에서 이 폴더를 열면 자동 활성. 단 **Supabase Access Token은 대표님 PC에 환경변수로 설정**해야 MCP가 실제로 동작.
+
+**1. PAT 발급**
+- https://supabase.com/dashboard/account/tokens → "Generate new token" → 이름 `claude-code-sps` → `sbp_xxxxx` 토큰 복사 (한 번만 표시)
+
+**2. Windows 환경변수 설정**
+- PowerShell (영구 저장):
+  ```powershell
+  [Environment]::SetEnvironmentVariable('SUPABASE_ACCESS_TOKEN', 'sbp_xxx실제토큰', 'User')
+  ```
+- 또는 Win+R → `sysdm.cpl` → 고급 → 환경 변수 → 사용자 변수 → 새로 만들기: `SUPABASE_ACCESS_TOKEN` / `sbp_xxx`
+
+**3. VS Code 재시작**
+- File → Open Folder → `app-spscos` (프로젝트 폴더 자체)
+- Claude Code 사이드바 재시작
+- "Allow Supabase MCP?" 프롬프트 → Allow
+- 세션 시작 시 "🧠 SPS 바이어 웹앱 세션 시작..." 안내 메시지 확인
+
+**4. 동작 확인**
+- Claude에게 "Supabase MCP 연결됐어? `buyers` 테이블 행 수 확인해줘" 요청
+- MCP 응답이 돌아오면 셋업 완료
+
+### 셋업 완료 후 가능한 것
+- Migration 자동 실행 (SQL Editor 붙여넣기 불필요)
+- `SELECT` 쿼리로 실시간 데이터 조회
+- `NOTIFY pgrst, 'reload schema';` 자동 실행
+- Edge Function 재배포는 여전히 수동 (Dashboard 필요)
+
+---
+
 ## 환경변수 (Supabase Secrets)
 
 Edge Functions 필수:
