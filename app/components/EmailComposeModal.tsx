@@ -29,9 +29,9 @@ interface EmailComposeModalProps {
 // 모달 열 때 email_drafts를 조회해 로드하고, 없으면 "파이프라인 먼저 실행" 안내.
 
 export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: EmailComposeModalProps) {
-  const [currentTab, setCurrentTab] = useState<'en' | 'ko' | 'intel'>('en');
+  // PR6.3: 국문 수정 탭 제거. 국문 초안 생성·수정은 바이어 인텔 탭에서 단일화.
+  const [currentTab, setCurrentTab] = useState<'en' | 'intel'>('en');
   const [emailBody, setEmailBody] = useState('');
-  const [koreanBody, setKoreanBody] = useState('');
   const [subject, setSubject] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showToast, setShowToast] = useState(false);
@@ -140,7 +140,6 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
         throw new Error('국문 초안 응답 형식 오류');
       }
       setDraftKo({ subject: data.ko_subject, body: data.ko_body });
-      setKoreanBody(data.ko_body);
     } catch (e) {
       setGenerateError(e instanceof Error ? e.message : '국문 초안 생성 실패');
     } finally {
@@ -224,9 +223,12 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
     }
   };
 
-  // PR6.2: 모달에서 제목·본문을 직접 수정한 경우 email_drafts에 UPDATE + spam_status=null 초기화.
-  //   직원 E 재검증 대상으로 편입. 이 버튼을 눌러야 수정본이 DB 반영되며, 누르기 전엔 발송 차단.
-  //   다음 파이프라인 실행 시 직원 E가 spam_status=null 초안을 일괄 재검증.
+  // PR6.3: 모달에서 수정한 제목·본문을 DB에 UPDATE한 뒤 validate-draft Edge Function으로
+  //   직원 E 스팸 검증을 즉시 실행. 다음 파이프라인까지 기다리지 않고 바로 발송 가능 상태로 전환.
+  //   결과:
+  //     - pass: 발송 가능
+  //     - rewrite: 자동수정 통과(본문이 일부 변경됨) — 영문 탭에서 최종 확인 후 발송
+  //     - flag: 스팸 위험으로 차단. 사용자가 본문 수정 후 재시도 필요.
   const handleSaveDraft = async () => {
     if (savingDraft) return;
     const contactId = (buyer as { contact_id?: string | null }).contact_id;
@@ -237,7 +239,8 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
     setSavingDraft(true);
     setDraftSaveError(null);
     try {
-      const { error } = await supabase
+      // 1) email_drafts UPDATE + spam_status 초기화. select('id')로 draft_id를 validate-draft에 전달.
+      const { data: saved, error } = await supabase
         .from('email_drafts')
         .update({
           subject_line_1: subject,
@@ -246,14 +249,54 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
           spam_score: null,
         })
         .eq('buyer_contact_id', contactId)
-        .eq('is_sent', false);
+        .eq('is_sent', false)
+        .select('id')
+        .maybeSingle();
       if (error) throw error;
-      // 저장 성공 → 현재 값이 새 원본. draftDirty 해제.
+      if (!saved?.id) throw new Error('저장된 초안을 찾을 수 없습니다.');
+
+      // 2) validate-draft 호출 — 규칙 검사 + 자동수정 + Claude 점수 → pass/rewrite/flag 판정
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+      const vres = await fetch(`${supabaseUrl}/functions/v1/validate-draft`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${supabaseAnonKey}`,
+          apikey: supabaseAnonKey,
+        },
+        body: JSON.stringify({ draft_id: saved.id }),
+      });
+      const vdata = await vres.json().catch(() => ({}));
+      if (!vres.ok || !vdata?.success) {
+        throw new Error(vdata?.error || `검증 실패 (HTTP ${vres.status})`);
+      }
+
+      // 3) 응답 반영. rewrite면 validate-draft가 body_first를 자동수정본으로 UPDATE했으므로 state도 동기화.
+      const newStatus = vdata.spam_status as string;
+      if (newStatus === 'rewrite' && typeof vdata.body_first === 'string') {
+        setEmailBody(vdata.body_first);
+        setDraftBodyOriginal(vdata.body_first);
+      } else {
+        setDraftBodyOriginal(emailBody);
+      }
       setDraftSubjectOriginal(subject);
-      setDraftBodyOriginal(emailBody);
-      setDraftSpamStatus(null); // 재검증 요청 상태 — "검증 대기 중" 배지 표시 + PR6.1 발송 가드 작동
+      setDraftSpamStatus(newStatus);
+
+      // 4) 사용자 피드백 — 결과별로 다음 행동 명시
+      if (newStatus === 'pass') {
+        alert(`검증 통과 (점수 ${vdata.spam_score}/10). 바로 발송할 수 있습니다.`);
+      } else if (newStatus === 'rewrite') {
+        const fixesText = (vdata.fixes || []).join('\n• ');
+        alert(`자동 수정 후 통과:\n• ${fixesText}\n\n본문이 일부 자동 수정되었습니다. 영문 탭에서 최종 확인 후 발송하세요.`);
+      } else {
+        alert(`스팸 위험으로 판정되어 발송이 차단됐습니다.\n본문을 수정한 뒤 "저장 및 재검증"을 다시 눌러주세요.`);
+      }
     } catch (e) {
-      setDraftSaveError(e instanceof Error ? e.message : '초안 저장 실패');
+      setDraftSaveError(e instanceof Error ? e.message : '저장/검증 실패');
+      // PR6.3: DB UPDATE가 먼저 성공하고 validate-draft fetch가 실패한 경우
+      //   email_drafts.spam_status는 이미 null로 저장됨 → client state도 null로 맞춰 DB와 일관성 유지.
+      setDraftSpamStatus(null);
     } finally {
       setSavingDraft(false);
     }
@@ -268,7 +311,6 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
       //      - body_first(영문), subject_line_1을 emailBody/subject에 주입
       //      - 초안이 없으면 빈 상태 + "초안 없음" 안내
       setEmailBody('');
-      setKoreanBody('');
       setSubject('');
       setIntel(null);
       setIntelLoaded(false);
@@ -448,59 +490,8 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
   //   인텔 반영 여부와 무관하게 고정된 영문 템플릿을 덮어쓰는 기능이라 PR5 방침과 충돌.
   //   톤 조정이 필요하면 BuyerIntelDrawer에서 국문 초안을 수정 → 영문 번역 경로 사용.
 
-  // 국문 → 영문 번역 (DB 저장 없음, emailBody/subject만 갱신).
-  // PR5: supabase.functions.invoke는 non-2xx 응답 본문을 버려 "non-2xx status code"라는 일반 오류만
-  //   노출 → Edge Function 로그까지 봐야 원인 특정 가능. 직접 fetch로 전환해 실제 에러 메시지 표시.
-  //
-  // TODO: 사용자가 textarea에서 emailBody/subject를 직접 수정해도 email_drafts 테이블에 동기화되지
-  //   않아 이후 팔로업 초안 생성 시 원본 기준으로 돌아감. 수정본 저장이 필요하면 별도 "초안 업데이트"
-  //   버튼을 두거나 onBlur에서 UPDATE 호출하는 방식으로 확장(현 범위는 로드→발송에 집중).
-  const applyKoToEn = async () => {
-    if (isLoading) return; // 연타 방지
-    if (!koreanBody.trim()) {
-      alert('국문 탭 내용이 비어 있습니다.');
-      return;
-    }
-    // translate_only 액션은 ko_subject + ko_body 모두 필수. subject(영문 제목)가 비어 있으면
-    //   draftKo.subject(국문 제목) 폴백, 그것도 없으면 회사명 기반 기본 제목 사용.
-    const koSubject = subject.trim() || draftKo?.subject || `${buyer.company} — K-Beauty OEM/ODM 제안`;
-    setIsLoading(true);
-    try {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-      const res = await fetch(`${supabaseUrl}/functions/v1/generate-draft`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${supabaseAnonKey}`,
-          apikey: supabaseAnonKey,
-        },
-        body: JSON.stringify({
-          action: 'translate_only',
-          ko_subject: koSubject,
-          ko_body: koreanBody,
-        }),
-      });
-
-      let data: { en_subject?: string; en_body?: string; error?: string; message?: string };
-      try { data = await res.json(); } catch { throw new Error(`응답 파싱 실패 (HTTP ${res.status})`); }
-
-      if (!res.ok) {
-        throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
-      }
-      if (!data?.en_subject || !data?.en_body) {
-        throw new Error(data?.error || '번역 응답 형식 오류');
-      }
-
-      setSubject(data.en_subject);
-      setEmailBody(data.en_body);
-      setCurrentTab('en');
-    } catch (e) {
-      alert('영문 번역 실패: ' + (e instanceof Error ? e.message : String(e)));
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // PR6.3: applyKoToEn / "국문 수정" 탭 제거. 국문 초안 생성→수정→영문 번역은
+  //   바이어 인텔 탭의 handleGenerateKo + handleTranslateAndSave 경로로 단일화.
 
   // PR6.1: 발송 버튼 비활성화 + 툴팁 판단용. handleSend의 가드와 동일 조건 — 단일 진실 유지.
   const draftValidationPending = draftExists && draftSpamStatus !== 'pass' && draftSpamStatus !== 'rewrite';
@@ -508,7 +499,10 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
   const draftDirty = draftExists && (subject !== draftSubjectOriginal || emailBody !== draftBodyOriginal);
 
   // PR6.2: 모달 닫기 시 저장 안 된 변경사항 보호. onClose 호출 지점들이 모두 이 래퍼 경유.
+  // PR6.3: 저장/검증 진행 중(savingDraft)이면 닫기 차단. fetch pending 상태에서 언마운트 후
+  //   setState 호출 방지 + 사용자가 검증 결과 알림을 놓치지 않도록.
   const handleClose = () => {
+    if (savingDraft) return;
     if (draftDirty) {
       const ok = window.confirm(
         '저장되지 않은 변경사항이 있습니다. 계속 닫으면 수정한 내용이 사라집니다.\n\n정말 닫으시겠습니까?'
@@ -658,16 +652,6 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
                     🇺🇸 영문(발송본)
                   </button>
                   <button
-                    onClick={() => setCurrentTab('ko')}
-                    className={`flex-1 px-4 py-3 text-xs font-semibold border-b-2 transition ${
-                      currentTab === 'ko'
-                        ? 'text-[#635BFF] border-[#635BFF]'
-                        : 'text-[#8792a2] border-transparent hover:text-[#697386]'
-                    }`}
-                  >
-                    🇰🇷 국문 수정
-                  </button>
-                  <button
                     onClick={() => setCurrentTab('intel')}
                     className={`flex-1 px-4 py-3 text-xs font-semibold border-b-2 transition relative ${
                       currentTab === 'intel'
@@ -691,39 +675,26 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
                         onChange={(e) => setEmailBody(e.target.value)}
                         className="w-full h-64 bg-[#f6f8fa] border border-[#e3e8ee] text-[#1a1f36] p-4 rounded-lg text-xs font-mono resize-none focus:outline-none focus:border-[#635BFF]"
                       />
-                      {/* PR6.2: textarea 편집 감지 → 명시적 저장 버튼. 저장하면 spam_status=null로 초기화되어
-                          직원 E 재검증 대상이 됨. 누르기 전엔 발송 차단. */}
+                      {/* PR6.3: textarea 편집 감지 → "저장 및 재검증" 버튼. 클릭 시 DB UPDATE 후
+                          validate-draft Edge Function이 직원 E 스팸 검증을 즉시 실행. 파이프라인 대기 없음. */}
                       {draftExists && (
                         <div className="flex items-center gap-3 flex-wrap">
                           <button
                             onClick={handleSaveDraft}
                             disabled={!draftDirty || savingDraft}
                             className="text-xs bg-[#635BFF] text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-[#5851DB] disabled:opacity-50 disabled:cursor-not-allowed transition"
-                            title={!draftDirty ? '변경사항 없음' : '현재 수정본을 저장하고 직원 E 재검증 요청'}
+                            title={!draftDirty ? '변경사항 없음' : '현재 수정본을 저장하고 직원 E 스팸 검증 즉시 실행'}
                           >
-                            {savingDraft ? '저장 중...' : '초안 저장 (재검증 요청)'}
+                            {savingDraft ? '저장·검증 중...' : '저장 및 재검증'}
                           </button>
                           {draftDirty && (
                             <span className="text-xs text-[#b45309]">저장되지 않은 변경사항이 있습니다</span>
                           )}
                           {draftSaveError && (
-                            <span className="text-xs text-[#b91c1c]">저장 실패: {draftSaveError}</span>
+                            <span className="text-xs text-[#b91c1c]">실패: {draftSaveError}</span>
                           )}
                         </div>
                       )}
-                    </div>
-                  )}
-
-                  {currentTab === 'ko' && (
-                    <div className="space-y-3">
-                      <textarea
-                        value={koreanBody}
-                        onChange={(e) => setKoreanBody(e.target.value)}
-                        className="w-full h-64 bg-[#f6f8fa] border border-[#e3e8ee] text-[#1a1f36] p-4 rounded-lg text-xs font-mono resize-none focus:outline-none focus:border-[#635BFF]"
-                      />
-                      <button onClick={applyKoToEn} className="text-xs text-[#635BFF] hover:text-[#7A73FF] font-semibold">
-                        → 영문에 반영
-                      </button>
                     </div>
                   )}
 
