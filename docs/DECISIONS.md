@@ -134,6 +134,65 @@
 
 ---
 
+## ADR-014: PR6 발송 가드 3겹 + 즉시 검증 Edge Function
+**날짜**: 2026-04-16 (PR6 메인 + hotfix 6.1~6.4)
+**결정**: EmailComposeModal 발송 경로에 가드를 3겹으로 쌓고, 파이프라인 대기 없이 즉시 스팸 검증이 가능하도록 `validate-draft` Edge Function 신설.
+- **가드 1 (PR6.1)**: `draftExists && draftSpamStatus !== 'pass' && !== 'rewrite'` → 검증 미통과 초안 발송 차단. `spam_status=null` 또는 `'flag'` 상태에서 발송 버튼 disabled.
+- **가드 2 (PR6.2)**: `draftDirty` — textarea 편집본이 DB에 반영 안 된 상태면 발송 차단. "초안 저장" 먼저 요구. 원본 캐시(`draftSubjectOriginal`/`draftBodyOriginal`)로 편집 감지.
+- **가드 3**: 기존 빈값 체크 `!subject.trim() || !emailBody.trim()`.
+- **validate-draft Edge Function (PR6.3)**: 단일 `draft_id`에 대해 `checkSpamRules` + `autoFixSpam` + Claude 점수 질의 → `pass`/`rewrite`/`flag` 판정 + DB UPDATE. 기존 `run-pipeline.agentE` 헬퍼를 복사(중복). PR7에서 agent-e 분리 시 공용 모듈로 통합 예정.
+- **통합 경로 (PR6.4)**: 바이어 인텔 탭의 "영문에 반영 및 검증" 버튼이 `translate_save` 성공 직후 `validate-draft` 자동 호출. 국문 수정 후 파이프라인 대기 없이 원샷 완료. 영문 탭의 "저장 및 재검증" 버튼도 동일 로직 (draftValidationPending일 때도 활성화).
+
+**이유**:
+- PR5까지: textarea 편집본은 DB 반영 안 됨 → 검증 안 된 수정본이 그대로 발송될 수 있던 구조적 구멍 (Teddy 지적).
+- 파이프라인 다음 실행까지 기다려야 검증 완료 → 실전 사용 마찰 심각.
+**대안 기각**:
+- A. 발송 시 서버측 재검증: 네트워크 1회 더 + 사용자가 결과 못 봄 → 실패 시 혼란.
+- B. agentE 공용 모듈 선행 추출 (PR7 일부 차용): run-pipeline까지 건드려야 → scope 확장.
+**관련**: PR6 커밋 `7885fe1`, `a08fafc`, `b805e0e`, `33dafb9`, `afee809`, `EmailComposeModal.tsx`, `validate-draft/index.ts`
+
+---
+
+## ADR-015: Claude 번역 프롬프트 "2축 분리" (내용 보존 + 스타일 의역)
+**날짜**: 2026-04-16 (PR6.5~6.6)
+**결정**: `generate-draft` translate_save 프롬프트를 **두 축으로 명시적 분리**:
+- **Axis 1 — CONTENT PRESERVATION (strict)**: 모든 문장·클레임·디테일 1:1 번역. Claude가 "부적절"하다고 판단해도 임의 삭제·재구성·병합 금지.
+- **Axis 2 — STYLE POLISH (encouraged)**: 비원어민 사용자 대상 → 어휘·어조·flow를 자연스러운 B2B 영어로 의역 허용. 단 의미 변경 금지.
+
+**이유**:
+- Teddy가 국문 본문 중간에 "저는 당신을 미워합니다" 삽입 후 "영문에 반영 및 검증" → 이 문장이 번역에서 통째로 누락됨. Claude가 B2B 맥락상 "부적절"로 판단해 자체 제거.
+- 처음 PR6.5 수정에서는 "의역 금지" 일변도로 너무 엄격 → Teddy: "영어 유창하지 않아 의역은 필요함". PR6.6에서 두 축을 프롬프트에 분리 명시.
+**대안 기각**:
+- 번역 엄격화 100%: 비원어민 UX 악화 (어색한 직역체).
+- 의역 자유화: 내용 누락 재발 위험.
+**관련**: PR6.5 커밋 `785019d`, PR6.6 커밋 `a2f3936`, `generate-draft/index.ts`
+
+---
+
+## ADR-016: autoFixSpam 줄바꿈 보존 (\s → [ \t])
+**날짜**: 2026-04-16 (PR6.7)
+**결정**: `validate-draft` + `run-pipeline.agentE`의 `autoFixSpam` 함수에서 공백 압축 정규식 `\s{2,}` → `[ \t]{2,}`로 변경.
+**이유**: `\s`는 `\n`까지 포함 → 스팸 단어 제거 후 공백 압축 시 문단 구분(빈 줄)·signature 분리까지 단일 공백으로 합쳐버림. rewrite 통과 시 본문이 "텍스트 나열" 상태로 파괴되던 오래된 설계 결함. Teddy 실전 테스트 중 발견.
+**영향**: validate-draft + run-pipeline 둘 다 수정 (같은 로직 복사본이므로 양쪽 동기화). PR7 공용 모듈화 시 단일 지점으로 통합.
+**관련**: PR6.7 커밋 `ddd9bd0`, `validate-draft/index.ts`, `run-pipeline/index.ts`
+
+---
+
+## ADR-017: 발송 전 UI 정직성 — 하드코딩 측정값 제거, 사용자 체크리스트로 대체
+**날짜**: 2026-04-16 (PR6.8)
+**결정**:
+- **상단 배지 동적화**: `"스팸 점수 85/100 — 안전"` 하드코딩 제거. 실제 `spam_status` + `spam_score`에 따라 pass/rewrite/flag/검증대기중 배지를 조건부 렌더링. 초안 없을 때는 배지 없음.
+- **오른쪽 "발송 전 체크" 섹션 재설계**: Gmail 인박스율 / 도메인 평판 / SPF/DKIM 등 실측 불가·비연동 항목 4개 전부 제거. 사용자가 직접 확인해야 할 체크리스트 4개로 교체: 첨부 파일 누락 / 제목·본문 검토 / 중복 발송 / 수신자 이메일 정확성.
+- `validate-draft` 응답 확장: flag 시 `issues`(규칙 위반 목록) + `reason`(Claude 한국어 이유) 추가 → 프론트 alert에 표시. Claude 프롬프트를 `{score, reason}` JSON으로 변경.
+
+**이유**:
+- 기존 UI는 PR5 프로토타입 당시 "그럴듯하게" 표기한 측정값이 그대로 남아 있었음. 실제 검증과 전혀 연동되지 않아 "초안 작성 전에도 85/100 표시" → misleading.
+- flag 경고가 "스팸 위험" 문구만 있고 어느 부분·왜 위험한지 정보 부재 → 사용자가 기준 없이 수정 반복해야 함.
+**결과**: 정직한 UX. 배지가 표시되면 실제 검증 결과. 체크리스트는 사용자 직접 확인 항목임을 명확히.
+**관련**: PR6.8 커밋 `ea120e5`, `EmailComposeModal.tsx`, `validate-draft/index.ts`
+
+---
+
 ## ADR 작성 템플릿
 
 ```markdown

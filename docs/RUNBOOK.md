@@ -132,7 +132,22 @@ Vercel 필수:
 
 ### EmailComposeModal "발송 가능한 영문 초안 없음" 배너
 - **원인**: 직원 D가 초안 미생성 OR spam_status != 'pass'/'rewrite'
-- **해결**: 모달의 **"바이어 인텔" 탭** → "국문 초안 생성" → "영문에 반영 (DB 저장)"
+- **해결**: 모달의 **"바이어 인텔" 탭** → "국문 초안 생성" → "영문에 반영 및 검증"
+
+### "검증 대기 중" 배지가 지속됨
+- **원인**: `email_drafts.spam_status = null` 상태. 직원 E가 아직 검증 안 함.
+- **즉시 해결**: 영문 탭의 **"저장 및 재검증"** 버튼 클릭 (validate-draft Edge Function 호출).
+- **일괄 해결**: Pipeline 페이지에서 파이프라인 실행 → agentE가 `spam_status=null` 초안 일괄 처리.
+
+### 국문에서 수정한 내용이 영문에 반영 안 됨 / 일부 누락
+- **원인**: Claude가 B2B 맥락상 "부적절"로 판단한 문장을 자체 제거 (PR6.5 사례: "저는 당신을 미워합니다" 누락).
+- **완화**: PR6.6에서 generate-draft 프롬프트를 "Axis 1 CONTENT PRESERVATION strict" + "Axis 2 STYLE POLISH" 2축 분리로 강화. 그래도 Claude 안전 정책상 명백한 hateful 표현은 제거될 수 있음.
+- **임시 우회**: 해당 문장을 영문 탭에서 직접 편집 → "저장 및 재검증".
+
+### rewrite 후 영문 본문 문단 구조(줄바꿈) 파괴
+- **원인**: PR6.7 이전의 `autoFixSpam` 정규식 `\s{2,}`가 `\n`까지 압축 → 빈 줄·signature가 단일 공백으로 평탄화.
+- **해결**: PR6.7에서 `[ \t]{2,}`로 변경. **Edge Function 재배포 필수** (validate-draft + run-pipeline 둘 다).
+- **확인**: rewrite 케이스 재현 (본문에 "free" 같은 스팸 단어 포함 → 저장 및 재검증) → 문단 유지되면 OK.
 
 ### 스키마 변경 후 프론트에서 컬럼 못 찾음
 - **원인**: PostgREST 스키마 캐시 미갱신

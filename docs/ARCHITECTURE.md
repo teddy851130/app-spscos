@@ -48,7 +48,8 @@ send-email Edge Function (nodemailer Gmail SMTP)
 | 함수 | 역할 | 비고 |
 |---|---|---|
 | `run-pipeline` | 직원 B~F 순차 실행 | EdgeRuntime.waitUntil 백그라운드, error_log 저장 |
-| `generate-draft` | Claude 국문 초안 / 영문 번역 / DB 저장 | 3가지 액션: `generate_ko`, `translate_only`, `translate_save` |
+| `generate-draft` | Claude 국문 초안 / 영문 번역 / DB 저장 | 3가지 액션: `generate_ko`, `translate_only`, `translate_save` (PR6 `force` 파라미터 추가) |
+| `validate-draft` | **단일 draft 즉시 스팸 검증** (PR6.3 신설) | agentE 로직(checkSpamRules + autoFixSpam + Claude 점수) 단일 draft 대상 실행. 모달 "저장 및 재검증" 경로에서 호출. TODO(PR7): agentE와 공용 모듈로 통합. |
 | `send-email` | nodemailer Gmail SMTP 발송 + email_logs 기록 | RPC `increment_email_sent`로 카운트 원자적 증감 |
 | `snapshot-kpi` | 일별 KPI 집계 → kpi_snapshots UPSERT | 정기 실행 예정 |
 
@@ -94,7 +95,7 @@ send-email Edge Function (nodemailer Gmail SMTP)
 | B | 이메일 유효성 검증 | ZeroBounce API | 파이프라인 |
 | C | 기업 분석 + 인텔 생성 | Anthropic Claude | 파이프라인 |
 | D | 영문 초안 작성 | Anthropic Claude | 파이프라인 |
-| E | 스팸 검증 | 규칙 기반 + Claude 보조 | 파이프라인 |
+| E | 스팸 검증 (pass/rewrite/flag 판정) | 규칙 기반 + Claude 보조 | 파이프라인 + **validate-draft 단일 호출** (PR6.3~) |
 | F | 시스템 모니터링 + 경고 | 내부 쿼리 | 파이프라인 마지막 |
 
 ---
