@@ -56,6 +56,8 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
   const [draftExists, setDraftExists] = useState(false);
   // 로드된 초안의 스팸 상태 ('pass'=통과, 'rewrite'=자동수정 통과). 투명성 배지용.
   const [draftSpamStatus, setDraftSpamStatus] = useState<string | null>(null);
+  // PR6.8: 실제 검증 점수(1~10). 상단 배지에 표시. null이면 미검증·표시 안 함.
+  const [draftSpamScore, setDraftSpamScore] = useState<number | null>(null);
   // 바이어가 intel_failed 또는 recent_news=null → 발송 차단
   const [intelMissing, setIntelMissing] = useState(false);
 
@@ -241,6 +243,7 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
           setDraftBodyOriginal(vdata.body_first);
         }
         setDraftSpamStatus(newStatus);
+        setDraftSpamScore(typeof vdata.spam_score === 'number' ? vdata.spam_score : null);
 
         if (newStatus === 'pass') {
           alert(`영문 번역·저장 + 검증 통과 (점수 ${vdata.spam_score}/10). 바로 발송할 수 있습니다.`);
@@ -329,6 +332,7 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
       }
       setDraftSubjectOriginal(subject);
       setDraftSpamStatus(newStatus);
+      setDraftSpamScore(typeof vdata.spam_score === 'number' ? vdata.spam_score : null);
 
       // 4) 사용자 피드백 — 결과별로 다음 행동 명시
       if (newStatus === 'pass') {
@@ -350,9 +354,10 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
       }
     } catch (e) {
       setDraftSaveError(e instanceof Error ? e.message : '저장/검증 실패');
-      // PR6.3: DB UPDATE가 먼저 성공하고 validate-draft fetch가 실패한 경우
-      //   email_drafts.spam_status는 이미 null로 저장됨 → client state도 null로 맞춰 DB와 일관성 유지.
+      // PR6.3/6.8: DB UPDATE가 먼저 성공하고 validate-draft fetch가 실패한 경우
+      //   email_drafts.spam_status/spam_score는 이미 null로 저장됨 → client state도 null로 맞춰 DB와 일관성 유지.
       setDraftSpamStatus(null);
+      setDraftSpamScore(null);
     } finally {
       setSavingDraft(false);
     }
@@ -372,6 +377,7 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
       setIntelLoaded(false);
       setDraftExists(false);
       setDraftSpamStatus(null);
+      setDraftSpamScore(null);
       setIntelMissing(false);
       setDraftLoading(true);
       // PR5.2: 초안 생성 state도 리셋
@@ -412,7 +418,7 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
         if (contactId) {
           const { data: draft } = await supabase
             .from('email_drafts')
-            .select('subject_line_1, body_first, body_followup, spam_status')
+            .select('subject_line_1, body_first, body_followup, spam_status, spam_score')
             .eq('buyer_contact_id', contactId)
             .eq('is_sent', false)
             .maybeSingle();
@@ -429,6 +435,8 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
               setEmailBody(body);
               setDraftExists(true);
               setDraftSpamStatus(ss as string);
+              // PR6.8: DB에 저장된 실제 검증 점수를 상단 배지에 표시.
+              setDraftSpamScore(typeof draft.spam_score === 'number' ? draft.spam_score : null);
               // PR6.2: 편집 감지용 원본 캐시 저장. 이후 사용자가 textarea에서 수정하면 draftDirty=true.
               setDraftSubjectOriginal(draft.subject_line_1 || '');
               setDraftBodyOriginal(body);
@@ -586,18 +594,25 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
               <div>
                 <div className="text-base font-bold text-[#1a1f36]">발송 전 최종 검토</div>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className="bg-[#635BFF]/15 text-[#635BFF] text-xs px-2 py-0.5 rounded">
-                    <Check size={14} className="inline" /> 스팸 점수 85/100 — 안전
-                  </span>
-                  {/* PR5: 자동수정 통과(rewrite) 초안임을 투명하게 표시 */}
+                  {/* PR6.8: 실제 검증 결과 기반 동적 배지. 기존 하드코딩 "스팸 점수 85/100 — 안전" 제거. */}
+                  {draftExists && draftSpamStatus === 'pass' && (
+                    <span className="bg-[#22c55e]/20 text-[#16a34a] text-xs px-2 py-0.5 rounded" title="직원 E 스팸 검증 통과. 바로 발송 가능.">
+                      <Check size={14} className="inline" /> 검증 통과{draftSpamScore != null ? ` (${draftSpamScore}/10)` : ''}
+                    </span>
+                  )}
                   {draftSpamStatus === 'rewrite' && (
                     <span className="bg-[#fef3c7] text-[#b45309] text-xs px-2 py-0.5 rounded" title="직원 E가 스팸 규칙 위반을 자동 수정한 뒤 통과 처리한 초안. 발송 전 본문 최종 확인 권장.">
-                      자동수정 통과
+                      자동수정 통과{draftSpamScore != null ? ` (${draftSpamScore}/10)` : ''}
+                    </span>
+                  )}
+                  {draftExists && draftSpamStatus === 'flag' && (
+                    <span className="bg-[#fef2f2] text-[#b91c1c] text-xs px-2 py-0.5 rounded" title="스팸 위험으로 판정됨. 본문 수정 후 재검증 필요.">
+                      <AlertCircle size={14} className="inline" /> 스팸 위험{draftSpamScore != null ? ` (${draftSpamScore}/10)` : ''}
                     </span>
                   )}
                   {/* PR6: 신규 생성·강제 재생성 후 spam_status=null 상태 — 직원 E 재검증 대기 중임을 투명하게 노출 */}
                   {draftExists && draftSpamStatus === null && (
-                    <span className="bg-[#fef3c7] text-[#b45309] text-xs px-2 py-0.5 rounded" title="본문이 변경되어 기존 스팸 검증이 무효화된 상태. 다음 파이프라인 실행 시 직원 E가 재검증합니다.">
+                    <span className="bg-[#fef3c7] text-[#b45309] text-xs px-2 py-0.5 rounded" title="본문이 변경되어 기존 스팸 검증이 무효화된 상태. 저장 및 재검증 또는 다음 파이프라인 실행 시 재검증됩니다.">
                       검증 대기 중
                     </span>
                   )}
@@ -936,15 +951,16 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
                     </div>
                   </div>
 
-                  {/* 발송 전 체크 — Stripe 스타일 화이트 카드 + 체크 아이콘만 색상 강조 */}
+                  {/* PR6.8: "발송 전 체크" — 기존 하드코딩 측정값(스팸점수/인박스율/도메인평판/SPF) 제거.
+                      실측 불가능한 misleading 정보라 정직하게 사용자 체크리스트로 교체. */}
                   <div className="px-4 py-4 border-b border-[#e3e8ee]">
                     <div className="bg-white border border-[#e3e8ee] rounded-lg p-3">
                       <div className="text-xs font-semibold text-[#1a1f36] mb-2">발송 전 체크</div>
                       <div className="space-y-1.5 text-xs text-[#697386]">
-                        <div className="flex items-center gap-2"><Check size={14} className="text-[#635BFF]" /><span>스팸점수 85/100</span></div>
-                        <div className="flex items-center gap-2"><Check size={14} className="text-[#635BFF]" /><span>Gmail 인박스율 100%</span></div>
-                        <div className="flex items-center gap-2"><Check size={14} className="text-[#635BFF]" /><span>도메인 평판 HIGH</span></div>
-                        <div className="flex items-center gap-2"><Check size={14} className="text-[#635BFF]" /><span>SPF / DKIM 통과</span></div>
+                        <div className="flex items-center gap-2"><Check size={14} className="text-[#635BFF]" /><span>첨부 파일 누락 없는지</span></div>
+                        <div className="flex items-center gap-2"><Check size={14} className="text-[#635BFF]" /><span>제목·본문 최종 검토했는지</span></div>
+                        <div className="flex items-center gap-2"><Check size={14} className="text-[#635BFF]" /><span>같은 바이어에게 중복 발송 아닌지</span></div>
+                        <div className="flex items-center gap-2"><Check size={14} className="text-[#635BFF]" /><span>수신자 이메일 주소 정확한지</span></div>
                       </div>
                     </div>
                   </div>
