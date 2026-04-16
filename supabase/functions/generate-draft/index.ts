@@ -142,6 +142,9 @@ JSON 형식으로만 응답 (마크다운 금지):
     // ==================================================
     if (action === "translate_save") {
       const { buyer, contact, ko_draft } = body;
+      // PR6: 사용자가 의도적으로 pass 상태 초안을 덮어쓰려 할 때 가드 우회용 플래그.
+      //   false/미지정이면 기존과 동일하게 409 DRAFT_PASS_EXISTS 반환.
+      const force = body.force === true;
       if (!buyer || !contact || !ko_draft?.subject || !ko_draft?.body) {
         return new Response(
           JSON.stringify({ error: "buyer/contact/ko_draft 필요" }),
@@ -197,15 +200,18 @@ Return ONLY a JSON object (no markdown):
       let inserted: { id: string } | null = null;
       if (existing?.id) {
         if (existing.spam_status === "pass") {
-          return new Response(
-            JSON.stringify({
-              success: false,
-              message: "이미 검증 완료된(pass) 미발송 초안이 있습니다. 기존 초안을 먼저 발송하거나 삭제하세요.",
-              code: "DRAFT_PASS_EXISTS",
-              draft_id: existing.id,
-            }),
-            { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          if (!force) {
+            return new Response(
+              JSON.stringify({
+                success: false,
+                message: "이미 검증 완료된(pass) 미발송 초안이 있습니다. 기존 초안을 먼저 발송하거나 삭제하세요.",
+                code: "DRAFT_PASS_EXISTS",
+                draft_id: existing.id,
+              }),
+              { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+          console.log(`[generate-draft] force=true: pass 초안 덮어쓰기 (buyer_id=${buyer.id}, contact_id=${contact.id}, draft_id=${existing.id})`);
         }
         const { data: updated, error: updErr } = await sb
           .from("email_drafts")
@@ -267,15 +273,18 @@ Return ONLY a JSON object (no markdown):
               );
             }
             if (existingAfter.spam_status === "pass") {
-              return new Response(
-                JSON.stringify({
-                  success: false,
-                  message: "동시에 검증 완료된 초안이 생성되었습니다. 기존 초안을 먼저 처리하세요.",
-                  code: "DRAFT_PASS_EXISTS",
-                  draft_id: existingAfter.id,
-                }),
-                { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-              );
+              if (!force) {
+                return new Response(
+                  JSON.stringify({
+                    success: false,
+                    message: "동시에 검증 완료된 초안이 생성되었습니다. 기존 초안을 먼저 처리하세요.",
+                    code: "DRAFT_PASS_EXISTS",
+                    draft_id: existingAfter.id,
+                  }),
+                  { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+              }
+              console.log(`[generate-draft] force=true: TOCTOU 경합 후 pass 초안 덮어쓰기 (buyer_id=${buyer.id}, contact_id=${contact.id}, draft_id=${existingAfter.id})`);
             }
             const { data: updated, error: updErr2 } = await sb
               .from("email_drafts")

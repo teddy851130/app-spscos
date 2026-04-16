@@ -155,21 +155,39 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
     try {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
       const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-      const res = await fetch(`${supabaseUrl}/functions/v1/generate-draft`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${supabaseAnonKey}`,
-          apikey: supabaseAnonKey,
-        },
-        body: JSON.stringify({
-          action: 'translate_save',
-          buyer: { id: buyerId, tier: buyer.tier },
-          contact: { id: contactId },
-          ko_draft: draftKo,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
+      // PR6: pass 상태 초안이 존재해 409 DRAFT_PASS_EXISTS 수신 시 사용자 확인 후 force=true로 재시도.
+      //   실수로 직원 E가 검증 완료한 초안을 날리지 않도록 반드시 confirm 경유.
+      const callEdge = (force: boolean) =>
+        fetch(`${supabaseUrl}/functions/v1/generate-draft`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${supabaseAnonKey}`,
+            apikey: supabaseAnonKey,
+          },
+          body: JSON.stringify({
+            action: 'translate_save',
+            buyer: { id: buyerId, tier: buyer.tier },
+            contact: { id: contactId },
+            ko_draft: draftKo,
+            ...(force && { force: true }),
+          }),
+        });
+
+      let res = await callEdge(false);
+      let data = await res.json().catch(() => ({}));
+
+      if (res.status === 409 && data?.code === 'DRAFT_PASS_EXISTS') {
+        const ok = window.confirm(
+          `이 바이어의 기존 초안은 직원 E가 'pass'로 검증 완료한 상태입니다.\n` +
+          `덮어쓰면 기존 초안이 삭제되고 직원 E 재검증(Claude API 호출)이 발생합니다.\n\n` +
+          `정말 덮어쓰시겠습니까?`
+        );
+        if (!ok) return;
+        res = await callEdge(true);
+        data = await res.json().catch(() => ({}));
+      }
+
       if (!res.ok || !data?.success) {
         throw new Error(data?.message || data?.error || `HTTP ${res.status}`);
       }
@@ -446,6 +464,12 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
                       자동수정 통과
                     </span>
                   )}
+                  {/* PR6: 신규 생성·강제 재생성 후 spam_status=null 상태 — 직원 E 재검증 대기 중임을 투명하게 노출 */}
+                  {draftExists && draftSpamStatus === null && (
+                    <span className="bg-[#fef3c7] text-[#b45309] text-xs px-2 py-0.5 rounded" title="본문이 변경되어 기존 스팸 검증이 무효화된 상태. 다음 파이프라인 실행 시 직원 E가 재검증합니다.">
+                      검증 대기 중
+                    </span>
+                  )}
                   {intel && (
                     <span className="bg-[#635BFF]/20 text-[#7A73FF] text-xs px-2 py-0.5 rounded">
                       <Search size={14} className="inline" /> 인텔 로드됨
@@ -526,16 +550,18 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
                 </div>
 
                 {/* Subject Field */}
+                {/* PR6: contentEditable div → input 교체. 비제어 DOM이라 setSubject(draft.subject_line_1)
+                    호출해도 표시값이 갱신되지 않던 버그(실사용 시 제목 수정 불가) 해결. */}
                 <div className="px-6 py-4 border-b border-[#e3e8ee] flex-shrink-0">
-                  <label className="text-xs text-[#8792a2] mb-2 block">제목</label>
-                  <div
-                    contentEditable
-                    suppressContentEditableWarning
-                    onBlur={(e) => setSubject(e.currentTarget.textContent || '')}
-                    className="w-full bg-transparent text-[#1a1f36] outline-none text-sm font-semibold"
-                  >
-                    {subject}
-                  </div>
+                  <label htmlFor="email-subject" className="text-xs text-[#8792a2] mb-2 block">제목</label>
+                  <input
+                    id="email-subject"
+                    type="text"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    placeholder="제목을 입력하세요"
+                    className="w-full bg-transparent text-[#1a1f36] outline-none text-sm font-semibold p-0 border-0 placeholder:text-[#8792a2] placeholder:font-normal"
+                  />
                 </div>
 
                 {/* Tabs */}

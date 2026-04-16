@@ -92,6 +92,7 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
   const [addingContact, setAddingContact] = useState(false);
   const [newContact, setNewContact] = useState({ contact_name: '', contact_title: '', contact_email: '', contact_linkedin: '' });
   const [savingContact, setSavingContact] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
 
   // PR5.3: 초안 생성은 EmailComposeModal로 단일화. Drawer는 인텔·담당자 관리 전용.
 
@@ -178,6 +179,38 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
 
   // PR5.3: handleGenerateKo / handleTranslateSave 제거. 초안 생성 경로는 EmailComposeModal 단일화.
 
+  // PR6: intel_failed로 마킹된 바이어의 재분석 수단.
+  // PR4에서 analysis_failed_at 필터가 추가되어 한 번 실패한 바이어는 파이프라인이 건너뜀.
+  // 대표님이 수동으로 "다시 분석해봐" 요청할 경로를 UI에 노출.
+  // TODO(PR7): agent_tasks 큐에 재분석 태스크 INSERT 방식으로 리팩토링 + Realtime으로 테이블 즉시 반영.
+  const handleForceReanalyze = async () => {
+    if (reanalyzing) return;
+    const ok = window.confirm(
+      `${buyer.company}을(를) 다시 분석하시겠습니까?\n\n` +
+      `- 기존 인텔 점수와 분석 결과가 초기화됩니다.\n` +
+      `- 다음 파이프라인 실행 시 직원 C가 재분석합니다.`
+    );
+    if (!ok) return;
+    setReanalyzing(true);
+    try {
+      const { error } = await supabase
+        .from('buyers')
+        .update({
+          analysis_failed_at: null,
+          intel_score: null,
+          status: 'Cold',
+        })
+        .eq('id', buyer.id);
+      if (error) throw error;
+      alert('재분석 요청이 등록되었습니다. 다음 파이프라인 실행 시 직원 C가 분석을 시도합니다.');
+      onClose();
+    } catch (e) {
+      alert('재분석 요청 실패: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setReanalyzing(false);
+    }
+  };
+
   const handleDeleteContact = async (contactId: string | undefined, idx: number) => {
     if (!contactId) {
       setContacts((prev) => prev.filter((_, i) => i !== idx));
@@ -229,12 +262,22 @@ export default function BuyerIntelDrawer({ isOpen, onClose, buyer, onEmailClick 
                 </span>
               )}
               {baseInfo?.analysis_failed_at && (
-                <span
-                  className="text-xs px-2 py-0.5 rounded font-semibold bg-[#fef2f2] text-[#b91c1c]"
-                  title={`분석 포기 시점: ${new Date(baseInfo.analysis_failed_at).toLocaleString('ko-KR')}`}
-                >
-                  인텔 미달
-                </span>
+                <>
+                  <span
+                    className="text-xs px-2 py-0.5 rounded font-semibold bg-[#fef2f2] text-[#b91c1c]"
+                    title={`분석 포기 시점: ${new Date(baseInfo.analysis_failed_at).toLocaleString('ko-KR')}`}
+                  >
+                    인텔 미달
+                  </span>
+                  <button
+                    onClick={handleForceReanalyze}
+                    disabled={reanalyzing}
+                    className="text-xs px-2 py-0.5 rounded font-semibold bg-[#fef2f2] hover:bg-[#fee2e2] text-[#b91c1c] border border-[#fecaca] disabled:opacity-50 transition"
+                    title="analysis_failed_at·intel_score 초기화 → 다음 파이프라인에서 직원 C 재분석 시도"
+                  >
+                    {reanalyzing ? '요청 중...' : '재분석 강제'}
+                  </button>
+                </>
               )}
               <span className="text-xs text-[#8792a2]">·</span>
               <span className="text-xs text-[#8792a2]">{buyer.region}</span>
