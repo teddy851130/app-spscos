@@ -59,6 +59,14 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
   // 바이어가 intel_failed 또는 recent_news=null → 발송 차단
   const [intelMissing, setIntelMissing] = useState(false);
 
+  // PR6.2: 초안 편집 감지용 원본 캐시 + 저장 상태.
+  //   subject/emailBody가 원본과 다르면 draftDirty=true → 저장 유도 + 발송 차단.
+  //   저장 버튼 눌러야 DB에 반영되고 spam_status=null로 전환되어 직원 E 재검증 대상이 됨.
+  const [draftSubjectOriginal, setDraftSubjectOriginal] = useState('');
+  const [draftBodyOriginal, setDraftBodyOriginal] = useState('');
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftSaveError, setDraftSaveError] = useState<string | null>(null);
+
   const fetchIntel = async () => {
     setIntelLoading(true);
     try {
@@ -202,6 +210,9 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
       if (saved?.body_first) {
         setSubject(saved.subject_line_1 || data.en_subject || '');
         setEmailBody(saved.body_first);
+        // PR6.2: force 재생성 결과가 새 원본. draftDirty 초기화.
+        setDraftSubjectOriginal(saved.subject_line_1 || data.en_subject || '');
+        setDraftBodyOriginal(saved.body_first);
       }
       setDraftExists(true);
       setDraftSpamStatus(null); // 새로 생성된 초안 — 직원 E 검증 전. "자동수정 통과" 배지 해제.
@@ -210,6 +221,41 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
       setGenerateError(e instanceof Error ? e.message : '영문 번역/저장 실패');
     } finally {
       setTranslating(false);
+    }
+  };
+
+  // PR6.2: 모달에서 제목·본문을 직접 수정한 경우 email_drafts에 UPDATE + spam_status=null 초기화.
+  //   직원 E 재검증 대상으로 편입. 이 버튼을 눌러야 수정본이 DB 반영되며, 누르기 전엔 발송 차단.
+  //   다음 파이프라인 실행 시 직원 E가 spam_status=null 초안을 일괄 재검증.
+  const handleSaveDraft = async () => {
+    if (savingDraft) return;
+    const contactId = (buyer as { contact_id?: string | null }).contact_id;
+    if (!contactId) {
+      setDraftSaveError('담당자 정보가 없어 저장할 수 없습니다.');
+      return;
+    }
+    setSavingDraft(true);
+    setDraftSaveError(null);
+    try {
+      const { error } = await supabase
+        .from('email_drafts')
+        .update({
+          subject_line_1: subject,
+          body_first: emailBody,
+          spam_status: null,
+          spam_score: null,
+        })
+        .eq('buyer_contact_id', contactId)
+        .eq('is_sent', false);
+      if (error) throw error;
+      // 저장 성공 → 현재 값이 새 원본. draftDirty 해제.
+      setDraftSubjectOriginal(subject);
+      setDraftBodyOriginal(emailBody);
+      setDraftSpamStatus(null); // 재검증 요청 상태 — "검증 대기 중" 배지 표시 + PR6.1 발송 가드 작동
+    } catch (e) {
+      setDraftSaveError(e instanceof Error ? e.message : '초안 저장 실패');
+    } finally {
+      setSavingDraft(false);
     }
   };
 
@@ -233,6 +279,10 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
       // PR5.2: 초안 생성 state도 리셋
       setDraftKo(null);
       setGenerateError(null);
+      // PR6.2: 편집 감지용 원본 캐시 리셋
+      setDraftSubjectOriginal('');
+      setDraftBodyOriginal('');
+      setDraftSaveError(null);
       document.body.style.overflow = 'hidden';
 
       (async () => {
@@ -281,6 +331,9 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
               setEmailBody(body);
               setDraftExists(true);
               setDraftSpamStatus(ss as string);
+              // PR6.2: 편집 감지용 원본 캐시 저장. 이후 사용자가 textarea에서 수정하면 draftDirty=true.
+              setDraftSubjectOriginal(draft.subject_line_1 || '');
+              setDraftBodyOriginal(body);
             }
           }
         }
@@ -313,6 +366,12 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
     }
     if (!subject.trim() || !emailBody.trim()) {
       alert('제목과 본문을 모두 입력해주세요. (초안이 없으면 바이어 인텔 탭에서 생성)');
+      return;
+    }
+    // PR6.2: textarea 직접 편집본이 DB에 반영 안 된 상태면 발송 차단. "초안 저장"부터 누르게 유도.
+    //   발송 가드보다 먼저 걸어 사용자가 "왜 차단됐는가"를 정확히 인지할 수 있게 함.
+    if (draftExists && (subject !== draftSubjectOriginal || emailBody !== draftBodyOriginal)) {
+      alert('본문/제목에 저장되지 않은 변경사항이 있습니다. "초안 저장 (재검증 요청)" 버튼을 먼저 누르세요.');
       return;
     }
     // PR6.1: 검증 미통과(null/flag) 초안 발송 차단. 직원 E가 'pass' 또는 'rewrite'(자동수정 통과) 처리한 초안만 발송 허용.
@@ -445,6 +504,19 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
 
   // PR6.1: 발송 버튼 비활성화 + 툴팁 판단용. handleSend의 가드와 동일 조건 — 단일 진실 유지.
   const draftValidationPending = draftExists && draftSpamStatus !== 'pass' && draftSpamStatus !== 'rewrite';
+  // PR6.2: textarea 직접 편집 감지. DB에 저장 안 된 변경사항이 있으면 true.
+  const draftDirty = draftExists && (subject !== draftSubjectOriginal || emailBody !== draftBodyOriginal);
+
+  // PR6.2: 모달 닫기 시 저장 안 된 변경사항 보호. onClose 호출 지점들이 모두 이 래퍼 경유.
+  const handleClose = () => {
+    if (draftDirty) {
+      const ok = window.confirm(
+        '저장되지 않은 변경사항이 있습니다. 계속 닫으면 수정한 내용이 사라집니다.\n\n정말 닫으시겠습니까?'
+      );
+      if (!ok) return;
+    }
+    onClose();
+  };
 
   if (!isOpen && !showToast) return null;
 
@@ -452,7 +524,7 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
     <>
       {/* Overlay */}
       {isOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40" onClick={onClose} />
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40" onClick={handleClose} />
       )}
 
       {/* Modal */}
@@ -486,7 +558,7 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
                   )}
                 </div>
               </div>
-              <button onClick={onClose} className="text-[#697386] hover:text-[#1a1f36] text-xl font-bold">
+              <button onClick={handleClose} className="text-[#697386] hover:text-[#1a1f36] text-xl font-bold">
                 <X size={18} />
               </button>
             </div>
@@ -619,6 +691,26 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
                         onChange={(e) => setEmailBody(e.target.value)}
                         className="w-full h-64 bg-[#f6f8fa] border border-[#e3e8ee] text-[#1a1f36] p-4 rounded-lg text-xs font-mono resize-none focus:outline-none focus:border-[#635BFF]"
                       />
+                      {/* PR6.2: textarea 편집 감지 → 명시적 저장 버튼. 저장하면 spam_status=null로 초기화되어
+                          직원 E 재검증 대상이 됨. 누르기 전엔 발송 차단. */}
+                      {draftExists && (
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <button
+                            onClick={handleSaveDraft}
+                            disabled={!draftDirty || savingDraft}
+                            className="text-xs bg-[#635BFF] text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-[#5851DB] disabled:opacity-50 disabled:cursor-not-allowed transition"
+                            title={!draftDirty ? '변경사항 없음' : '현재 수정본을 저장하고 직원 E 재검증 요청'}
+                          >
+                            {savingDraft ? '저장 중...' : '초안 저장 (재검증 요청)'}
+                          </button>
+                          {draftDirty && (
+                            <span className="text-xs text-[#b45309]">저장되지 않은 변경사항이 있습니다</span>
+                          )}
+                          {draftSaveError && (
+                            <span className="text-xs text-[#b91c1c]">저장 실패: {draftSaveError}</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -849,17 +941,18 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
               </span>
               <div className="flex gap-2">
                 <button
-                  onClick={onClose}
+                  onClick={handleClose}
                   className="px-4 py-2 border border-[#e3e8ee] text-[#697386] rounded-lg text-xs font-semibold hover:bg-[#e3e8ee] transition"
                 >
                   취소
                 </button>
                 <button
                   onClick={handleSend}
-                  disabled={isLoading || intelMissing || !emailBody.trim() || !subject.trim() || draftValidationPending}
+                  disabled={isLoading || intelMissing || !emailBody.trim() || !subject.trim() || draftValidationPending || draftDirty}
                   title={
                     intelMissing ? '인텔이 없어 발송할 수 없습니다'
                     : (!emailBody.trim() || !subject.trim()) ? '초안이 비어 있습니다'
+                    : draftDirty ? '저장되지 않은 변경사항이 있습니다 — "초안 저장" 후 재검증 필요'
                     : draftValidationPending ? '스팸 검증 대기 중 — 직원 E 검증 완료 후 발송 가능'
                     : ''
                   }
