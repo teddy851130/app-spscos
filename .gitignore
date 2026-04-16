@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# 2026-04-16: 구 바이어발굴/ 폴더 내용을 물리적으로 통합. Git 추적 대상 아님.
+/legacy-archive/
