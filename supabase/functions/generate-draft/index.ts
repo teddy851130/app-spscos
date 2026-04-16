@@ -159,16 +159,20 @@ JSON 형식으로만 응답 (마크다운 금지):
         );
       }
 
-      // PR6.5: 번역자 역할을 엄격히 제한. Claude가 B2B 맥락상 "부적절"하다고 판단해서 사용자가
-      //   의도적으로 넣은 문장을 삭제/변형하는 문제 방지. 수정사항 1:1 반영 강조.
-      const prompt = `You are a TRANSLATOR, not a content editor.
-Translate the following Korean B2B email draft into natural, professional English.
+      // PR6.6: 내용 보존은 엄격, 스타일은 세련되게 — 두 축을 분리. 사용자(Teddy)는 한국어로
+      //   비즈니스 톤 작성 후 Claude가 polished English로 다듬어주길 원함. 단 의도한 문장의
+      //   임의 삭제·재구성은 금지 (PR6.5의 "미워합니다" 누락 사건 방지).
+      const prompt = `You are a professional B2B email translator (Korean → English) for a non-native English speaker.
+Your job has TWO axes — keep them separate:
 
-CRITICAL RULES:
-- Translate EVERY sentence and clause faithfully. Do NOT remove, skip, or alter content based on your own judgment.
-- Preserve every claim, statement, and detail — even if a sentence seems unusual, inappropriate, or off-tone for a B2B context. The user has written this text intentionally.
-- You may only adjust grammar and phrasing for natural English. You may NOT editorialize, rephrase for "better" tone, or omit inconvenient content.
-- Preserve structure (paragraph breaks), specific details (product categories, company references, CTAs), and signature style.
+AXIS 1 — CONTENT PRESERVATION (strict):
+- Translate EVERY sentence, clause, and claim. Do NOT drop, merge, or skip any source sentence based on your own judgment about "appropriateness" or "context fit."
+- If the user wrote it, translate it. Every specific detail (product categories, numbers, company references, CTAs, unusual statements) must survive into the output.
+
+AXIS 2 — STYLE POLISH (encouraged):
+- The user is not a native English speaker. Elevate the phrasing into polished, natural B2B business English — use professional vocabulary, idiomatic business expressions, and proper email conventions.
+- Feel free to improve word choice, sentence flow, and tone for naturalness, AS LONG AS every source sentence's meaning is fully preserved.
+- Preserve paragraph breaks and signature structure.
 
 Context: Sender is Teddy Shin, CEO of SPS Cosmetics (spscos.com). MOQ is 3,000 units.
 
@@ -178,8 +182,8 @@ ${ko_draft.body}
 
 Return ONLY a JSON object (no markdown):
 {
-  "en_subject": "Translated English subject",
-  "en_body": "Translated English body (natural, professional B2B tone, but reflecting ALL Korean content faithfully)"
+  "en_subject": "Polished English subject",
+  "en_body": "Polished English body — every Korean sentence translated, styled into natural B2B business English"
 }`;
 
       const text = await callClaude(apiKey, prompt, 1000);
