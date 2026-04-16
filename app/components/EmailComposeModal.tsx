@@ -216,6 +216,44 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
       setDraftExists(true);
       setDraftSpamStatus(null); // 새로 생성된 초안 — 직원 E 검증 전. "자동수정 통과" 배지 해제.
       setCurrentTab('en');
+
+      // PR6.4: 영문 저장 직후 validate-draft 자동 호출 → 파이프라인 대기 없이 즉시 pass/rewrite/flag 판정.
+      //   Teddy는 주로 국문에서 수정하므로, 이 경로에서 검증까지 원샷으로 끝내는 게 핵심 UX.
+      try {
+        const vres = await fetch(`${supabaseUrl}/functions/v1/validate-draft`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${supabaseAnonKey}`,
+            apikey: supabaseAnonKey,
+          },
+          body: JSON.stringify({ draft_id: data.draft_id }),
+        });
+        const vdata = await vres.json().catch(() => ({}));
+        if (!vres.ok || !vdata?.success) {
+          // 번역·저장은 이미 성공했으므로 throw하지 않고 경고만. 사용자는 "저장 및 재검증" 버튼으로 수동 재시도 가능.
+          setGenerateError(`영문 번역·저장 완료, 하지만 자동 검증 실패: ${vdata?.error || `HTTP ${vres.status}`}. 영문 탭의 "저장 및 재검증" 버튼으로 재시도하세요.`);
+          return;
+        }
+        const newStatus = vdata.spam_status as string;
+        if (newStatus === 'rewrite' && typeof vdata.body_first === 'string') {
+          setEmailBody(vdata.body_first);
+          setDraftBodyOriginal(vdata.body_first);
+        }
+        setDraftSpamStatus(newStatus);
+
+        if (newStatus === 'pass') {
+          alert(`영문 번역·저장 + 검증 통과 (점수 ${vdata.spam_score}/10). 바로 발송할 수 있습니다.`);
+        } else if (newStatus === 'rewrite') {
+          const fixesText = (vdata.fixes || []).join('\n• ');
+          alert(`영문 번역·저장 완료 + 자동 수정 후 통과:\n• ${fixesText}\n\n본문이 일부 자동 수정되었습니다. 영문 탭에서 최종 확인 후 발송하세요.`);
+        } else {
+          alert(`영문 번역·저장 완료, 하지만 스팸 위험으로 판정되어 발송이 차단됐습니다.\n영문 탭에서 본문 수정 후 "저장 및 재검증" 버튼을 눌러주세요.`);
+        }
+      } catch (ve) {
+        // 자동 검증 네트워크 실패 — 번역·저장은 유지. 사용자가 수동 재시도 가능.
+        setGenerateError(`영문 번역·저장 완료, 자동 검증 호출 실패: ${ve instanceof Error ? ve.message : String(ve)}. "저장 및 재검증" 버튼으로 재시도하세요.`);
+      }
     } catch (e) {
       setGenerateError(e instanceof Error ? e.message : '영문 번역/저장 실패');
     } finally {
@@ -675,20 +713,29 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
                         onChange={(e) => setEmailBody(e.target.value)}
                         className="w-full h-64 bg-[#f6f8fa] border border-[#e3e8ee] text-[#1a1f36] p-4 rounded-lg text-xs font-mono resize-none focus:outline-none focus:border-[#635BFF]"
                       />
-                      {/* PR6.3: textarea 편집 감지 → "저장 및 재검증" 버튼. 클릭 시 DB UPDATE 후
-                          validate-draft Edge Function이 직원 E 스팸 검증을 즉시 실행. 파이프라인 대기 없음. */}
+                      {/* PR6.3/6.4: textarea 편집 감지 → "저장 및 재검증" 버튼. 클릭 시 DB UPDATE 후
+                          validate-draft Edge Function이 직원 E 스팸 검증을 즉시 실행. 파이프라인 대기 없음.
+                          PR6.4: 활성 조건에 draftValidationPending 추가 — 검증 대기 중이면 편집 여부와 무관하게
+                          "지금 검증해줘" 버튼 활성화. 국문에서 수정 후 영문 반영 경로로 들어온 상태에서 유용. */}
                       {draftExists && (
                         <div className="flex items-center gap-3 flex-wrap">
                           <button
                             onClick={handleSaveDraft}
-                            disabled={!draftDirty || savingDraft}
+                            disabled={(!draftDirty && !draftValidationPending) || savingDraft}
                             className="text-xs bg-[#635BFF] text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-[#5851DB] disabled:opacity-50 disabled:cursor-not-allowed transition"
-                            title={!draftDirty ? '변경사항 없음' : '현재 수정본을 저장하고 직원 E 스팸 검증 즉시 실행'}
+                            title={
+                              (!draftDirty && !draftValidationPending) ? '검증 완료 상태 · 변경사항 없음'
+                              : draftDirty ? '현재 수정본을 저장하고 직원 E 스팸 검증 즉시 실행'
+                              : '검증 대기 중 — 지금 직원 E 스팸 검증 실행'
+                            }
                           >
                             {savingDraft ? '저장·검증 중...' : '저장 및 재검증'}
                           </button>
                           {draftDirty && (
                             <span className="text-xs text-[#b45309]">저장되지 않은 변경사항이 있습니다</span>
+                          )}
+                          {!draftDirty && draftValidationPending && (
+                            <span className="text-xs text-[#b45309]">검증 대기 중 — 클릭 시 즉시 검증</span>
                           )}
                           {draftSaveError && (
                             <span className="text-xs text-[#b91c1c]">실패: {draftSaveError}</span>
@@ -783,8 +830,9 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
                                   onClick={handleTranslateAndSave}
                                   disabled={translating}
                                   className="w-full text-xs bg-[#635BFF] text-white py-2 rounded-lg font-semibold hover:bg-[#5851DB] disabled:opacity-50 transition"
+                                  title="국문 초안을 영문으로 번역·저장한 뒤 직원 E 스팸 검증까지 즉시 실행"
                                 >
-                                  {translating ? '영문 번역·저장 중...' : '영문에 반영 (DB 저장)'}
+                                  {translating ? '번역·저장·검증 중...' : '영문에 반영 및 검증'}
                                 </button>
                               </div>
                             )}
