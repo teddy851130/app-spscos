@@ -647,7 +647,8 @@ function autoFixSpam(body: string): { fixed: string; fixes: string[] } {
   for (const w of SPAM_WORDS) {
     const re = new RegExp(`\\b${w}\\b`, "gi");
     if (re.test(fixed)) {
-      fixed = fixed.replace(re, "").replace(/\s{2,}/g, " ").trim();
+      // PR6.7: \s{2,}는 줄바꿈까지 포함해 문단 구조를 파괴. [ \t]{2,}로 같은 줄 내 공백만 압축.
+      fixed = fixed.replace(re, "").replace(/[ \t]{2,}/g, " ");
       fixes.push(`단어제거: "${w}"`);
     }
   }
@@ -675,7 +676,8 @@ function autoFixSpam(body: string): { fixed: string; fixes: string[] } {
     fixes.push("느낌표→1개");
   }
 
-  fixed = fixed.replace(/\s{2,}/g, " ").trim();
+  // PR6.7: 마지막 정리도 줄바꿈 보존. [ \t]만 압축, 양끝 공백만 trim.
+  fixed = fixed.replace(/[ \t]{2,}/g, " ").trim();
   return { fixed, fixes };
 }
 
