@@ -248,7 +248,16 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
           const fixesText = (vdata.fixes || []).join('\n• ');
           alert(`영문 번역·저장 완료 + 자동 수정 후 통과:\n• ${fixesText}\n\n본문이 일부 자동 수정되었습니다. 영문 탭에서 최종 확인 후 발송하세요.`);
         } else {
-          alert(`영문 번역·저장 완료, 하지만 스팸 위험으로 판정되어 발송이 차단됐습니다.\n영문 탭에서 본문 수정 후 "저장 및 재검증" 버튼을 눌러주세요.`);
+          // PR6.5: flag 원인 상세 표시. 규칙 위반 + Claude AI 이유. 사용자가 어느 부분을 고쳐야 하는지 명확히.
+          const detailLines: string[] = [];
+          if (Array.isArray(vdata.issues) && vdata.issues.length > 0) {
+            detailLines.push('위반 규칙:\n• ' + vdata.issues.join('\n• '));
+          }
+          if (typeof vdata.reason === 'string' && vdata.reason.trim()) {
+            detailLines.push('AI 분석 이유: ' + vdata.reason);
+          }
+          const details = detailLines.length > 0 ? '\n\n' + detailLines.join('\n\n') : '';
+          alert(`스팸 위험 판정 (점수 ${vdata.spam_score ?? '-'}/10). 발송이 차단됐습니다.${details}\n\n영문 탭에서 위 부분을 수정한 뒤 "저장 및 재검증"을 다시 눌러주세요.`);
         }
       } catch (ve) {
         // 자동 검증 네트워크 실패 — 번역·저장은 유지. 사용자가 수동 재시도 가능.
@@ -328,7 +337,16 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
         const fixesText = (vdata.fixes || []).join('\n• ');
         alert(`자동 수정 후 통과:\n• ${fixesText}\n\n본문이 일부 자동 수정되었습니다. 영문 탭에서 최종 확인 후 발송하세요.`);
       } else {
-        alert(`스팸 위험으로 판정되어 발송이 차단됐습니다.\n본문을 수정한 뒤 "저장 및 재검증"을 다시 눌러주세요.`);
+        // PR6.5: flag 원인 상세 표시. 규칙 위반 + Claude AI 이유.
+        const detailLines: string[] = [];
+        if (Array.isArray(vdata.issues) && vdata.issues.length > 0) {
+          detailLines.push('위반 규칙:\n• ' + vdata.issues.join('\n• '));
+        }
+        if (typeof vdata.reason === 'string' && vdata.reason.trim()) {
+          detailLines.push('AI 분석 이유: ' + vdata.reason);
+        }
+        const details = detailLines.length > 0 ? '\n\n' + detailLines.join('\n\n') : '';
+        alert(`스팸 위험 판정 (점수 ${vdata.spam_score ?? '-'}/10). 발송이 차단됐습니다.${details}\n\n본문을 수정한 뒤 "저장 및 재검증"을 다시 눌러주세요.`);
       }
     } catch (e) {
       setDraftSaveError(e instanceof Error ? e.message : '저장/검증 실패');

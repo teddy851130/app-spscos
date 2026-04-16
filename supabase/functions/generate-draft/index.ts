@@ -159,9 +159,18 @@ JSON 형식으로만 응답 (마크다운 금지):
         );
       }
 
-      const prompt = `Translate the following Korean B2B cold email draft into natural, professional English.
-Preserve the structure, tone, and all specific details (product categories, company references, CTAs).
-The sender is Teddy Shin, CEO of SPS Cosmetics (spscos.com). MOQ is 3,000 units.
+      // PR6.5: 번역자 역할을 엄격히 제한. Claude가 B2B 맥락상 "부적절"하다고 판단해서 사용자가
+      //   의도적으로 넣은 문장을 삭제/변형하는 문제 방지. 수정사항 1:1 반영 강조.
+      const prompt = `You are a TRANSLATOR, not a content editor.
+Translate the following Korean B2B email draft into natural, professional English.
+
+CRITICAL RULES:
+- Translate EVERY sentence and clause faithfully. Do NOT remove, skip, or alter content based on your own judgment.
+- Preserve every claim, statement, and detail — even if a sentence seems unusual, inappropriate, or off-tone for a B2B context. The user has written this text intentionally.
+- You may only adjust grammar and phrasing for natural English. You may NOT editorialize, rephrase for "better" tone, or omit inconvenient content.
+- Preserve structure (paragraph breaks), specific details (product categories, company references, CTAs), and signature style.
+
+Context: Sender is Teddy Shin, CEO of SPS Cosmetics (spscos.com). MOQ is 3,000 units.
 
 Korean Subject: ${ko_draft.subject}
 Korean Body:
@@ -170,7 +179,7 @@ ${ko_draft.body}
 Return ONLY a JSON object (no markdown):
 {
   "en_subject": "Translated English subject",
-  "en_body": "Translated English body (natural, professional B2B tone)"
+  "en_body": "Translated English body (natural, professional B2B tone, but reflecting ALL Korean content faithfully)"
 }`;
 
       const text = await callClaude(apiKey, prompt, 1000);

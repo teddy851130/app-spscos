@@ -132,9 +132,13 @@ Deno.serve(async (req: Request) => {
     let spamScore: number | null = null;
     let fixes: string[] = [];
     let finalBody = draft.body_first as string;
+    // PR6.5: flag 원인 노출용. Claude가 8점 미만 평가할 때의 한국어 이유. 프론트 alert에 표시.
+    let claudeReason: string | null = null;
+    // PR6.5: 규칙 검사 이후 flag가 된 최종 원인 규칙. 초기 issues는 자동수정 대상일 수 있어 따로 보관.
+    let flagIssues: string[] = [];
 
     if (issues.length === 0) {
-      // 규칙 통과 → Claude 보조 검증으로 1~10점 산출. 8+ = pass, 그 외 = flag.
+      // 규칙 통과 → Claude 보조 검증으로 1~10점 + 이유 산출. 8+ = pass, 그 외 = flag.
       let score = 10;
       try {
         const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -146,23 +150,39 @@ Deno.serve(async (req: Request) => {
           },
           body: JSON.stringify({
             model: MODEL_ID,
-            max_tokens: 50,
+            max_tokens: 120,
             messages: [{
               role: "user",
-              content: `Rate this B2B email spam risk 1-10 (10=safe). Reply ONLY the number.\n\nSubject: ${draft.subject_line_1}\n\n${draft.body_first}`,
+              content: `Rate this B2B email spam risk 1-10 (10=safe, 1=highly spammy).\n\nIf score < 8, briefly explain in Korean (one sentence, 40자 이내) WHAT makes it risky so the author can fix it.\n\nReply ONLY as a JSON object (no markdown): {"score": N, "reason": "..." or null}\n\nSubject: ${draft.subject_line_1}\n\n${draft.body_first}`,
             }],
           }),
         });
         if (res.ok) {
           const r = await res.json();
-          const s = parseInt((r.content?.[0]?.text || "").trim());
-          if (!isNaN(s) && s >= 1 && s <= 10) score = s;
+          const txt = (r.content?.[0]?.text || "").trim();
+          // JSON 파싱 시도. 실패 시 숫자만 있는 경우 폴백.
+          try {
+            const m = txt.match(/\{[\s\S]*\}/);
+            const parsed = JSON.parse(m ? m[0] : txt);
+            if (typeof parsed.score === "number" && parsed.score >= 1 && parsed.score <= 10) {
+              score = parsed.score;
+            }
+            if (typeof parsed.reason === "string" && parsed.reason.trim()) {
+              claudeReason = parsed.reason.trim();
+            }
+          } catch {
+            const s = parseInt(txt);
+            if (!isNaN(s) && s >= 1 && s <= 10) score = s;
+          }
         }
       } catch {
         // Claude 호출 실패 시 score=10 폴백 (안전값). agentE와 동일 동작.
       }
       spamScore = score;
       spamStatus = score >= 8 ? "pass" : "flag";
+      if (spamStatus === "flag") {
+        // Claude가 규칙 외 이유로 flag를 준 경우 — flagIssues는 비어 있고 claudeReason만 존재
+      }
     } else {
       // 규칙 위반 → 자동 수정 후 재검사 (최대 1회). 수정본이 통과하면 rewrite, 실패면 flag.
       const fix = autoFixSpam(draft.body_first as string);
@@ -175,6 +195,7 @@ Deno.serve(async (req: Request) => {
       } else {
         spamStatus = "flag";
         spamScore = null;
+        flagIssues = retryIssues; // 자동수정 후에도 남은 규칙 위반 목록
       }
     }
 
@@ -205,6 +226,9 @@ Deno.serve(async (req: Request) => {
         spam_score: spamScore,
         fixes,
         body_first: spamStatus === "rewrite" ? finalBody : null,
+        // PR6.5: flag 원인 노출. issues는 자동수정 후에도 남은 규칙 위반, reason은 Claude의 한국어 이유.
+        issues: flagIssues,
+        reason: claudeReason,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
