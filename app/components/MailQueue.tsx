@@ -539,39 +539,78 @@ export default function MailQueue() {
                             <button
                               disabled={saving}
                               onClick={async () => {
+                                // ADR-027: 로컬 checkSpamClient만으로 spam_score/status 결정하던 기존 로직을
+                                //   validate-draft Edge Function 호출로 교체. 로컬은 규칙 기반(5항목)만 보는데
+                                //   실제 서버 판정은 Claude rubric까지 포함(ADR-025). 로컬이 "위험 낮음"(10점)을
+                                //   주는 본문도 Claude 기준에서는 6~7점일 수 있어 가짜 pass가 저장되던 버그.
+                                //   EmailComposeModal의 handleSaveDraft와 동일 패턴 적용.
                                 setSaving(true);
-                                const check = checkSpamClient(editBody);
-                                const newScore = check.score;
-                                const newStatus = newScore >= 8 ? 'pass' : newScore >= 5 ? 'rewrite' : 'flag';
+                                try {
+                                  // 1) 본문 UPDATE + spam_* 초기화
+                                  const { error: upErr } = await supabase
+                                    .from('email_drafts')
+                                    .update({
+                                      subject_line_1: editSubject,
+                                      body_first: editBody,
+                                      spam_score: null,
+                                      spam_status: null,
+                                    })
+                                    .eq('id', draft.id);
+                                  if (upErr) throw upErr;
 
-                                const { error } = await supabase
-                                  .from('email_drafts')
-                                  .update({
-                                    subject_line_1: editSubject,
-                                    body_first: editBody,
-                                    spam_score: newScore,
-                                    spam_status: newStatus,
-                                  })
-                                  .eq('id', draft.id);
+                                  // 2) validate-draft 호출 — 규칙 + autoFixSpam + Claude rubric
+                                  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+                                  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+                                  const vres = await fetch(`${supabaseUrl}/functions/v1/validate-draft`, {
+                                    method: 'POST',
+                                    headers: {
+                                      'Content-Type': 'application/json',
+                                      Authorization: `Bearer ${supabaseAnonKey}`,
+                                      apikey: supabaseAnonKey,
+                                    },
+                                    body: JSON.stringify({ draft_id: draft.id }),
+                                  });
+                                  const vdata = await vres.json().catch(() => ({}));
+                                  if (!vres.ok || !vdata?.success) {
+                                    throw new Error(vdata?.error || `검증 실패 (HTTP ${vres.status})`);
+                                  }
 
-                                if (error) {
-                                  alert('저장 실패: ' + error.message);
-                                } else {
-                                  // 로컬 상태 업데이트
+                                  // 3) 응답 반영. rewrite 시 validate-draft가 자동 수정본을 body_first로 UPDATE했으므로 state도 동기화.
+                                  const newStatus = (vdata.spam_status as string) || 'flag';
+                                  const newScore = typeof vdata.spam_score === 'number' ? vdata.spam_score : null;
+                                  const finalBody = (newStatus === 'rewrite' && typeof vdata.body_first === 'string') ? vdata.body_first : editBody;
+
                                   setDrafts((prev) => prev.map((d) =>
                                     d.id === draft.id
-                                      ? { ...d, subject_line_1: editSubject, body_first: editBody, spam_score: newScore, spam_status: newStatus }
+                                      ? { ...d, subject_line_1: editSubject, body_first: finalBody, spam_score: newScore, spam_status: newStatus }
                                       : d
                                   ));
-                                  setPreviewDraft({ ...draft, subject_line_1: editSubject, body_first: editBody, spam_score: newScore, spam_status: newStatus });
+                                  setPreviewDraft({ ...draft, subject_line_1: editSubject, body_first: finalBody, spam_score: newScore, spam_status: newStatus });
                                   setEditingDraftId(null);
                                   setSpamResult(null);
+
+                                  // 4) 사용자 피드백
+                                  if (newStatus === 'pass') {
+                                    alert(`검증 통과 (점수 ${newScore}/10). 바로 발송할 수 있습니다.`);
+                                  } else if (newStatus === 'rewrite') {
+                                    const fixesText = (vdata.fixes || []).join('\n• ');
+                                    alert(`자동 수정 후 통과:\n• ${fixesText}\n\n본문이 일부 자동 수정되었습니다.`);
+                                  } else {
+                                    const detailLines: string[] = [];
+                                    if (Array.isArray(vdata.issues) && vdata.issues.length > 0) detailLines.push('위반 규칙:\n• ' + vdata.issues.join('\n• '));
+                                    if (typeof vdata.reason === 'string' && vdata.reason.trim()) detailLines.push('AI 분석 이유: ' + vdata.reason);
+                                    const details = detailLines.length > 0 ? '\n\n' + detailLines.join('\n\n') : '';
+                                    alert(`스팸 위험 판정 (점수 ${newScore ?? '-'}/10).${details}\n\n본문을 더 다듬은 뒤 다시 저장해주세요.`);
+                                  }
+                                } catch (e) {
+                                  alert('저장/검증 실패: ' + (e instanceof Error ? e.message : String(e)));
+                                } finally {
+                                  setSaving(false);
                                 }
-                                setSaving(false);
                               }}
                               className="px-4 py-1.5 bg-[#635BFF] hover:bg-[#5851DB] text-white text-sm rounded-lg transition disabled:opacity-50"
                             >
-                              {saving ? '저장 중...' : '저장'}
+                              {saving ? '검증 중...' : '저장 및 재검증'}
                             </button>
                           </div>
                         </>
