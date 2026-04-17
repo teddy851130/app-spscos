@@ -341,6 +341,69 @@
 
 ---
 
+## ADR-026: translate_save 경로 한글 혼입 가드 + 재번역 1회
+**날짜**: 2026-04-17 (C 버그 2 수정)
+**결정**: `generate-draft` Edge Function의 `translate_save` 액션에 한글/한자 감지 정규식(`/[\u3131-\uD79D\u4E00-\u9FFF\uAC00-\uD7AF]/`) 적용. 감지 시 "STRICT RETRY" 지시를 추가해 Claude 1회 재번역. 재번역에도 잔류하면 502 + `code="TRANSLATION_KOREAN_RESIDUAL"` 반환.
+**이유**:
+- `run-pipeline` agentD는 이미 한글 감지 시 저장 스킵 가드가 있지만(ADR-012), `translate_save`(사용자 수동 경로)에는 가드 없어 UI에 그대로 노출됨 → 사용자가 영문/국문 혼재 초안을 발송 직전까지 모름.
+- Claude가 번역 불가 판단 시(특정 신조어·고유명사) 원문 유지하는 경향 → 재번역 1회로 대부분 해소.
+**대안 기각**:
+- 정규식 자동 제거: 의미 손실. 재번역이 안전.
+- 사용자에게 한글 잔류 본문 그대로 노출 + 수동 제거: 사용자가 발송 시점에 발견하게 되어 신뢰 하락.
+**관련**: `supabase/functions/generate-draft/index.ts`, 커밋 `0404ac6`, generate-draft v11.
+
+---
+
+## ADR-027: MailQueue 저장 핸들러 validate-draft 호출 전환
+**날짜**: 2026-04-17 (C 버그 3 수정)
+**결정**: MailQueue.tsx의 초안 수정 "저장" 핸들러를 로컬 `checkSpamClient`만 실행하던 구조에서 `validate-draft` Edge Function 호출로 교체. EmailComposeModal의 `handleSaveDraft`와 동일 패턴 적용(PR6.3).
+**이유**:
+- 기존: 로컬 규칙(5항목)만 검사하고 결과를 DB `spam_score`/`spam_status`에 저장 → 스팸 단어 제거만으로 10점·"위험 낮음" 가짜 pass 저장. Teddy 지적 "스팸 수정 버튼 → 위험 낮음 반환" 버그.
+- 수정: (1) body UPDATE + spam_* 초기화 → (2) validate-draft 호출 → (3) 서버 판정(규칙 + autoFixSpam + Claude rubric ADR-025) 반영.
+- 동일 패턴 재사용으로 진입 경로별 검증 일관성 확보.
+**대안 기각**:
+- 로컬 checkSpamClient를 Claude 로직 복제: 중복 유지비용. 서버가 soft-source of truth여야 함.
+- 로컬만 유지 + 경고 배너: 사용자가 무시하고 발송 가능성.
+**관련**: `app/components/MailQueue.tsx`, 커밋 `26e8869`.
+
+---
+
+## ADR-028: ZeroBounce bounce / catch-all 처리 정책 명문화 (기존 구현 기록)
+**날짜**: 2026-04-17 (Sprint03 우선순위 4 — 기존 로직 문서화)
+**배경**: 이 정책은 직원 B(`agentB`)에 암묵적으로 구현되어 있었음. 세션 간 인수인계·감사 시 "왜 catch-all이 Tier1만 pass인가?" 같은 질문이 반복되어 명시적 기록.
+
+### 정책 테이블
+| ZeroBounce status | `buyer_contacts.email_status` | `buyers.is_blacklisted` | 다음 파이프라인 단계 |
+|---|---|---|---|
+| `valid` | `valid` | 변경 없음 | agentC/D 대상 포함 |
+| `hard_bounce` | `invalid` | **`true`** (바이어 전체 차단) | 이후 모든 agent 제외 |
+| `invalid` | `invalid` | 변경 없음 | agentC/D 제외 (agentD email_status IN valid/catch-all-pass) |
+| `catch-all` / `catch_all` (Tier1) | `catch-all-pass` | 변경 없음 | agentC/D 대상 포함 (발송 리스크 감수) |
+| `catch-all` / `catch_all` (Tier2/3) | `catch-all-fail` | 변경 없음 | agentC 대상(risky와 동일 취급)·agentD 제외 |
+| `unknown` / `spamtrap` / `abuse` / `do_not_mail` / 기타 | `risky` | 변경 없음 | agentC 대상·agentD 제외 |
+
+### 핵심 원칙
+1. **Hard bounce만 바이어 전체 차단** (`is_blacklisted=true`). 다른 invalid/risky는 해당 컨택트만 제외하고 바이어의 다른 담당자는 계속 사용.
+2. **Catch-all 이원 처리**: Tier1(매출 $50M+ / 직원 500+) 바이어만 catch-all을 `pass`로 인정해 발송 허용. Tier2/3은 발송 리스크가 수익 대비 큼 → `fail`로 처리.
+3. **Risky는 "분석은 하되 발송은 제외"**: agentC는 `email_status IN ('valid','catch-all-pass','risky')` 기준으로 인텔 생성하지만 agentD(메일 초안)는 `('valid','catch-all-pass')`만 대상 → 인텔은 쌓되 위험 이메일로는 발송 안 함.
+
+### 크레딧 프리체크 (PR4)
+- `https://api.zerobounce.net/v2/getcredits` 사전 조회:
+  - HTTP 401/403 → "인증 실패" failed 로그 → agentB 종료
+  - HTTP 402 → "결제 필요" failed 로그 → agentB 종료
+  - credits <= 0 → "크레딧 0건" failed 로그 → agentB 종료
+  - credits <= 200 → agentF에서 경고 생성 (곧 소진)
+
+**이유**:
+- 이 정책들이 코드에만 존재 시 세션 간 Claude가 "왜 hard_bounce만 블랙리스트?" 같은 질문을 반복하게 됨.
+- 도메인 평판 보호(hard bounce 한 번으로 바이어 전체 차단) + ROI 균형(Tier1 catch-all 감수)이라는 비즈니스 의도를 기록.
+**대안 기각**:
+- hard bounce + invalid 모두 블랙리스트: invalid는 일시적 오류(DNS·서버 다운)일 수 있어 과도한 차단.
+- catch-all 일률 허용: GCC·신흥 시장에 catch-all 많아 전체 차단 시 발송 풀 급감.
+**관련**: `supabase/functions/run-pipeline/index.ts` agentB (line ~69-191), `docs/RUNBOOK.md` (별도 운영 가이드로 이관 가능).
+
+---
+
 ## ADR 작성 템플릿
 
 ```markdown
