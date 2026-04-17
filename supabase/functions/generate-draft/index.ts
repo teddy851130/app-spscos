@@ -226,11 +226,39 @@ Return ONLY a JSON object (no markdown):
   "en_body": "Polished English body — every Korean sentence translated, styled into natural B2B business English"
 }`;
 
-      const text = await callClaude(apiKey, prompt, 1000);
-      const json = parseJsonFromText(text);
+      // ADR-026: 한글 혼입 가드. translate_save는 사용자 수동 경로라 한글 잔류 시 바로 UI에
+      //   표시됨 → 영문/국문 혼재 사용자 경험 악화. run-pipeline agentD는 이미 가드 있지만
+      //   (recent_news 기반 자동 경로), translate_save에는 없었음. Claude가 비영어 전환을
+      //   누락하는 경우를 감지해 한 번 재번역 → 여전히 한글 남으면 502 반환.
+      const nonLatinRe = /[\u3131-\uD79D\u4E00-\u9FFF\uAC00-\uD7AF]/;
+      async function translateWithGuard(): Promise<Record<string, unknown> | null> {
+        const text1 = await callClaude(apiKey, prompt, 1000);
+        const json1 = parseJsonFromText(text1);
+        if (!json1 || !json1.en_subject || !json1.en_body) return null;
+        const subj = String(json1.en_subject);
+        const body = String(json1.en_body);
+        if (!nonLatinRe.test(subj) && !nonLatinRe.test(body)) return json1;
+        // 한글·한자 잔류 감지 → 재번역 1회 (강화된 지시)
+        const retryPrompt = prompt + `
+
+STRICT RETRY — the previous attempt contained non-English characters. Output MUST contain zero Korean Hangul, zero Hanja, zero non-Latin scripts in en_subject and en_body. Proper nouns like brand or city names are acceptable ONLY in their standard English romanization.`;
+        const text2 = await callClaude(apiKey, retryPrompt, 1000);
+        const json2 = parseJsonFromText(text2);
+        if (!json2 || !json2.en_subject || !json2.en_body) return json1;
+        const subj2 = String(json2.en_subject);
+        const body2 = String(json2.en_body);
+        if (!nonLatinRe.test(subj2) && !nonLatinRe.test(body2)) return json2;
+        return null; // 재번역에도 한글 남음 → 명시적 실패
+      }
+
+      const json = await translateWithGuard();
       if (!json || !json.en_subject || !json.en_body) {
         return new Response(
-          JSON.stringify({ success: false, message: "영문 번역 파싱 실패" }),
+          JSON.stringify({
+            success: false,
+            message: "영문 번역 파싱 실패 또는 한글 잔류 감지 — 국문 본문에 번역 불가 문자가 포함됐을 수 있습니다. 국문을 조정 후 재시도하세요.",
+            code: "TRANSLATION_KOREAN_RESIDUAL",
+          }),
           { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
