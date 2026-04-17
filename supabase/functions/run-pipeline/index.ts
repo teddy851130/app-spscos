@@ -41,6 +41,61 @@ async function log(
 // 3개 팀 병렬 실행 + 배치 병렬 → 순간적으로 Claude 분당 한계 초과 발생.
 // 429는 일시적이므로 짧은 대기 후 재시도하면 대부분 해결됨.
 // 최대 4회 시도 (즉시 + 2초 + 5초 + 10초). Anthropic retry-after 헤더 우선 사용.
+// ============================================
+// Perplexity Search API 헬퍼 (ADR-031)
+// ============================================
+// 직원 C(agentC)가 바이어별 최근 웹 뉴스·공개 정보를 수집해 Claude 프롬프트 컨텍스트로 주입.
+// 크레딧 부족(HTTP 402 또는 본문에 credit/payment 키워드) 감지 시 명시적 failed 로그 → agentF가 경고.
+// Teddy 요구(feedback_api_credit_alert): "크레딧 없다고 그냥 패싱되면 안 됨".
+type PplxResult = { title: string; url: string; snippet: string };
+type PplxResponse =
+  | { ok: true; results: PplxResult[] }
+  | { ok: false; creditExhausted: boolean; error: string };
+
+async function fetchPerplexitySearch(query: string, apiKey: string): Promise<PplxResponse> {
+  try {
+    const res = await fetch("https://api.perplexity.ai/search", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query, max_results: 3, max_tokens_per_page: 256 }),
+    });
+
+    if (res.status === 402) {
+      return { ok: false, creditExhausted: true, error: "Perplexity 크레딧 부족 (HTTP 402)" };
+    }
+    if (!res.ok) {
+      const bodyText = await res.text().catch(() => "");
+      const creditLike = /credit|payment|insufficient|billing|quota/i.test(bodyText);
+      return {
+        ok: false,
+        creditExhausted: creditLike,
+        error: `Perplexity HTTP ${res.status}${creditLike ? " (크레딧/결제 관련 추정)" : ""}: ${bodyText.slice(0, 200)}`,
+      };
+    }
+
+    const data = await res.json();
+    // Perplexity search API 응답 구조 방어적 파싱 — results 또는 web_results 지원
+    const rawResults = Array.isArray(data?.results)
+      ? data.results
+      : (Array.isArray(data?.web_results) ? data.web_results : []);
+    const results: PplxResult[] = rawResults.slice(0, 3).map((r: Record<string, unknown>) => ({
+      title: String(r.title || r.heading || ""),
+      url: String(r.url || r.link || ""),
+      snippet: String(r.snippet || r.excerpt || r.text || r.content || "").slice(0, 600),
+    })).filter((r: PplxResult) => r.title.length > 0 || r.snippet.length > 0);
+    return { ok: true, results };
+  } catch (e) {
+    return {
+      ok: false,
+      creditExhausted: false,
+      error: `Perplexity fetch 실패: ${e instanceof Error ? e.message : String(e)}`,
+    };
+  }
+}
+
 async function fetchClaudeWithRetry(
   url: string,
   options: RequestInit,
@@ -224,9 +279,11 @@ function computeIntelScore(intel: Record<string, unknown>): number {
   const proposalAngle = String(intel.proposal_angle || "").trim();
   const paScore = proposalAngle.length >= 20 ? 20 : proposalAngle.length >= 10 ? 10 : 0;
 
-  // 4개 필드 중 하나라도 0점이면 전체 0점 (필드 누락은 불합격 확정).
-  // → "큰 필드 두 개만 차서 임계값 통과" 우회 차단.
-  if (csScore === 0 || kiScore === 0 || fmScore === 0 || paScore === 0) return 0;
+  // ADR-031: PR12 rubric 완화. 이전 "1개라도 0점 → 전체 0점"은 Perplexity 외부 자료 기반
+  //   분석에서 정직하게 "정보 부족"으로 남긴 필드를 불합격 처리 → intel_score 양극화 주범.
+  //   완화: "2개 이상 0점이면 전체 0점" — 1개 필드 빈약은 허용, 2개 이상 부족은 신뢰도 부족으로 탈락.
+  const zeroCount = [csScore, kiScore, fmScore, paScore].filter((s) => s === 0).length;
+  if (zeroCount >= 2) return 0;
 
   return csScore + kiScore + fmScore + paScore;
 }
@@ -236,6 +293,14 @@ async function agentC(sb: SB, jobId: string, _team: string) {
 
   const API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
   if (!API_KEY) { await log(sb, jobId, "C", "failed", "ANTHROPIC_API_KEY 없음"); return; }
+
+  // ADR-031 PR12: Perplexity 웹 검색 API 도입. 키 미설정 시 기존 Claude-only 폴백.
+  const PPLX_KEY = Deno.env.get("PERPLEXITY_API_KEY");
+  if (!PPLX_KEY) {
+    await log(sb, jobId, "C", "running",
+      "PERPLEXITY_API_KEY 미설정 — 웹 검색 없이 Claude 학습 데이터만으로 분석 (인텔 품질 저하 가능).");
+  }
+  let perplexityCreditExhausted = false; // 한 번 크레딧 부족 감지 시 이후 바이어는 Claude-only 폴백
 
   // 이메일 유효성과 기업 분석은 별개 작업 — risky도 포함
   // (invalid/hard_bounce/catch-all-fail은 bounce 확정이라 분석 무의미하므로 제외)
@@ -269,35 +334,82 @@ async function agentC(sb: SB, jobId: string, _team: string) {
   // PR4: 품질 게이트 통계 — 재시도·실패 카운트 추적
   let retriedCount = 0;
   let intelFailedCount = 0;
+  // PR12: Perplexity 사용량 통계
+  let pplxSuccessCount = 0;
+  let pplxFailCount = 0;
 
-  // Claude 기업 분석 호출 — 1차/재시도 프롬프트 분기
+  // ADR-031: Perplexity 검색 호출. 크레딧 부족 감지 시 이후 모든 바이어는 Claude-only 폴백.
+  async function callPerplexityForBuyer(b: Record<string, unknown>): Promise<PplxResult[] | null> {
+    if (!PPLX_KEY || perplexityCreditExhausted) return null;
+    const company = String(b.company_name || "");
+    const region = String(b.region || "");
+    const domain = String(b.domain || b.website || "");
+    // 쿼리 전략: 회사명 + 지역 + 최근 활동 키워드. 도메인이 있으면 보조 신호로 활용.
+    const query = domain
+      ? `"${company}" ${region} cosmetics beauty brand recent news products launches partnerships (${domain})`
+      : `"${company}" ${region} cosmetics beauty brand recent news products launches partnerships 2025 2026`;
+    const result = await fetchPerplexitySearch(query, PPLX_KEY!);
+    if (!result.ok) {
+      pplxFailCount++;
+      if (result.creditExhausted) {
+        // Teddy 요구(feedback_api_credit_alert): 조용히 패싱 금지. failed 로그 + 이후 전체 폴백.
+        perplexityCreditExhausted = true;
+        await log(sb, jobId, "C", "failed",
+          `Perplexity 크레딧 부족 — https://www.perplexity.ai/settings/api 에서 충전 후 재실행. 이후 바이어는 Claude-only 폴백.`);
+      } else {
+        // 네트워크·쿼리 오류 등 일시 장애 — 해당 바이어만 Claude-only 폴백, 경고 로그
+        await log(sb, jobId, "C", "running",
+          `Perplexity 오류 (${company}): ${result.error.slice(0, 150)} — Claude-only 폴백`);
+      }
+      return null;
+    }
+    pplxSuccessCount++;
+    return result.results;
+  }
+
+  // Claude 기업 분석 호출 — 1차/재시도 + Perplexity 외부 자료 주입
   async function callClaudeIntel(
     b: Record<string, unknown>,
     retryMode: boolean,
+    pplxResults: PplxResult[] | null,
   ): Promise<{ json: Record<string, unknown> | null; cost: number; httpError?: string; rateLimited?: boolean }> {
     const retryHint = retryMode
-      ? `\n\n[재시도] 이전 응답이 품질 기준(각 필드 구체성·풍부함) 미달이었습니다.
-- company_status는 최소 30자, 실제 구체적 사실(브랜드·캠페인·제품명 등) 포함
-- kbeauty_interest는 최소 20자, 판단 근거 명시
-- recommended_formula는 **3개 이상** 구체 품목
-- proposal_angle은 최소 20자, 실행 가능한 한 줄 제안
-각 필드를 반드시 채우되 추측성 내용 금지.`
+      ? `\n\n[재시도] 이전 응답이 품질 기준(각 필드 구체성) 미달이었습니다. 외부 자료가 있으면 더 적극적으로 인용하고, 없는 필드는 "외부 자료 부족 — 향후 직접 리서치 필요"로 명시.`
       : "";
 
-    const prompt = `당신은 한국 OEM/ODM 화장품 제조사 SPS Cosmetics(spscos.com)의 B2B 애널리스트입니다.
-아래 바이어 기업을 분석해주세요.
+    // 외부 자료가 있으면 Claude가 팩트 기반으로 작성하게 하고, 없는 내용 창작 금지.
+    const externalSection = pplxResults && pplxResults.length > 0
+      ? `=== 외부 자료 (Perplexity 웹 검색 결과) ===
+${pplxResults.map((r, i) => `[${i + 1}] ${r.title}
+  출처: ${r.url}
+  내용: ${r.snippet}`).join("\n\n")}
+=== 외부 자료 끝 ===
 
-기업명: ${b.company_name}
+**중요 지시 (외부 자료 기반 분석):**
+1. company_status의 모든 구체 사실은 반드시 위 외부 자료 [1]/[2]/[3] 중 하나에서 인용하세요. "Aurora의 두바이몰 입점 [1]" 같이 출처 번호를 문장 끝에 병기.
+2. 외부 자료에 없는 정보는 절대 창작·추측 금지. 해당 필드가 빈약하면 "외부 자료 부족 — 향후 직접 리서치 필요"로 정직하게 남기세요.
+3. 학습 데이터 기반 일반론(예: "이 기업은 성장 중으로 보입니다")을 외부 자료와 섞지 말 것. 오직 외부 자료만 사실 근거로 사용.
+
+`
+      : `**중요 지시 (외부 자료 없음):**
+- Perplexity 웹 검색이 제공되지 않았습니다. Claude 학습 데이터 기반 추론만 가능합니다.
+- 확실하지 않은 내용은 "정보 부족"으로 정직하게 남기세요. 구체 브랜드·제품명 환각 금지.
+
+`;
+
+    const prompt = `당신은 한국 OEM/ODM 화장품 제조사 SPS Cosmetics(spscos.com)의 B2B 애널리스트입니다.
+
+${externalSection}기업명: ${b.company_name}
 도메인: ${b.domain || b.website}
 지역: ${b.region} | Tier: ${b.tier} | 매출: $${b.annual_revenue || "미상"}
 직원 수: ${b.employee_count || "미상"} | 채용 공고: ${b.open_jobs_signal ? "있음" : "없음"}
 
 모든 필드 값을 **한국어로** 작성하세요. JSON 형식으로만 응답 (마크다운 금지):
 {
-  "company_status": "최근 제품·캠페인·파트너십 등 기업 현황 1~2문장 요약 (한국어)",
-  "kbeauty_interest": "한국 화장품 브랜드 이력 및 K-beauty 관심도 — 낮음/중간/높음 중 하나를 판단 근거와 함께 (한국어)",
-  "recommended_formula": "SPS 카테고리 매칭 — 스킨케어(세럼/크림), 바디케어(로션/오일), 컬러(립/아이), 헤어케어(샴푸/트리트먼트) 중 3~5개 제품 구체 추천 (한국어, 쉼표 구분)",
-  "proposal_angle": "이 기업에 접근할 한 줄 영업 제안 각도 (한국어)"
+  "company_status": "최근 제품·캠페인·파트너십 등 기업 현황 1~2문장. 외부 자료 인용 시 문장 끝에 [1]/[2]/[3] 출처 번호 병기. 정보 없으면 '외부 자료 부족 — 향후 직접 리서치 필요'.",
+  "kbeauty_interest": "한국 화장품 브랜드 이력 및 K-beauty 관심도 — 낮음/중간/높음 중 하나 + 판단 근거 (외부 자료에 Korean brand 언급 있으면 인용, 없으면 '낮음 (외부 자료 기반 증거 없음)').",
+  "recommended_formula": "SPS 카테고리 매칭 — 스킨케어/바디케어/컬러/헤어케어/프래그런스 중 2~4개 카테고리 (외부 자료에 제품 라인 단서 있으면 그 방향으로 추천. 한국어 쉼표 구분.).",
+  "proposal_angle": "이 기업에 접근할 한 줄 영업 제안 각도 — 외부 자료의 구체 사실(확장·파트너십·최근 론칭)을 근거로 삼을 것. 자료 없으면 '추가 리서치 후 제안 각도 설정 필요'."
 }${retryHint}`;
 
     const res = await fetchClaudeWithRetry("https://api.anthropic.com/v1/messages", {
@@ -342,8 +454,12 @@ async function agentC(sb: SB, jobId: string, _team: string) {
     const batch = buyers.slice(batchStart, batchStart + BATCH_SIZE_C);
     await Promise.all(batch.map(async (b: Record<string, unknown>) => {
       try {
+        // ADR-031: 바이어별 Perplexity 웹 검색 1회 → 1차/재시도 Claude 호출에 동일 자료 재사용.
+        //   크레딧 부족·네트워크 장애 시 null 반환 → Claude-only 폴백(프롬프트가 "외부 자료 없음" 분기 자동 사용).
+        const pplxResults = await callPerplexityForBuyer(b);
+
         // 1차 호출
-        const first = await callClaudeIntel(b, false);
+        const first = await callClaudeIntel(b, false, pplxResults);
         totalCost += first.cost;
         if (first.httpError) {
           httpErrorCount++;
@@ -358,7 +474,7 @@ async function agentC(sb: SB, jobId: string, _team: string) {
         // 품질 미달(파싱 실패 또는 점수 < 임계값) → 재시도 1회
         if (!finalJson || score < INTEL_QUALITY_THRESHOLD) {
           retriedCount++;
-          const retry = await callClaudeIntel(b, true);
+          const retry = await callClaudeIntel(b, true, pplxResults);
           totalCost += retry.cost;
           if (retry.httpError) {
             httpErrorCount++;
@@ -407,8 +523,12 @@ async function agentC(sb: SB, jobId: string, _team: string) {
       `Claude API 오류 ${httpErrorCount}건${rateLimitSuffix} — 샘플: ${sampleHttpError}`);
   }
 
+  // PR12: Perplexity 사용 통계 추가 로그
+  const pplxStat = PPLX_KEY
+    ? ` · Perplexity 성공 ${pplxSuccessCount}/실패 ${pplxFailCount}${perplexityCreditExhausted ? " (크레딧 소진)" : ""}`
+    : " · Perplexity 미사용(키 없음)";
   await log(sb, jobId, "C", "completed",
-    `직원C 완료: 합격 ${analyzed} · 재시도 ${retriedCount} · 불합격(intel_failed) ${intelFailedCount}, API $${totalCost.toFixed(4)}`,
+    `직원C 완료: 합격 ${analyzed} · 재시도 ${retriedCount} · 불합격(intel_failed) ${intelFailedCount}${pplxStat}, API $${totalCost.toFixed(4)}`,
     0, totalCost);
 }
 

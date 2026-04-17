@@ -404,6 +404,71 @@
 
 ---
 
+## ADR-029: fetchClaudeWithRetry에 ±500ms jitter 추가 (429 완화)
+**날짜**: 2026-04-17 (PR B hotfix)
+**결정**: Claude API 재시도 대기 시간(`2000/5000/10000ms`)에 `-500 ~ +500ms` 랜덤 jitter 추가.
+**이유**: 3팀 × 배치 5 동시 실행으로 429 발생 시 모든 요청이 동일 시각에 재시도 → 429 재발 반복. Jitter로 재시도 분산 → 충돌 확률 감소. 속도 영향 ≈ 0.
+**대안 기각**:
+- BATCH_SIZE 5 → 3 축소: 파이프라인 속도 약 40% 저하 (30분 → 50분). 사용성 악화.
+- 근본 해결(Anthropic Build Tier 2 승격): $40 누적 결제 후 자동 승격. 임시 완충재로 jitter 먼저.
+**관련**: `supabase/functions/run-pipeline/index.ts` `fetchClaudeWithRetry`, 커밋 `f3e1e65`.
+
+---
+
+## ADR-030: SPAM_WORDS 21개 → 35개 확장
+**날짜**: 2026-04-17 (Sprint03 우선순위 3)
+**결정**: SPAM_WORDS 배열에 14개 추가 (Hype 4 · Urgency 4 · Money 3 · Pressure 3). 5곳 동기화 (run-pipeline + validate-draft + MailQueue + agentD 프롬프트 BANNED + generate_ko 프롬프트 BANNED).
+**추가된 단어**:
+- Hype: amazing, ultimate, incredible, unbeatable
+- Urgency: hurry, deadline, last chance, today only
+- Money: discount, lowest price, best price
+- Pressure: don't wait, while supplies last, one-time offer
+**의도적 제외**:
+- `save` — "save time", "save cost" 등 정상 맥락에서 많이 쓰임. 오탐 위험.
+- `%` — 실측 수치(성장률·시장 점유율 등) 인용 시 자주 필요. 오탐 위험.
+**이유**:
+- 기존 21개는 최소 보수적 목록. 실전에서 v3 프롬프트 톤이 잡혀도 세일즈 파트너십 어휘 반복으로 flag 나는 경향.
+- B2B 콜드메일 베스트 프랙티스 14개 추가로 agentE rule-stage에서 걸러냄 → Claude rubric stage 부담 감소.
+**관련**: 커밋 `f2a1574`.
+
+---
+
+## ADR-031: PR12 — Perplexity Search API 도입 (직원 C 바이어 인텔 웹 검색)
+**날짜**: 2026-04-17 (PR12)
+**결정**: 직원 C(`agentC`)에 Perplexity Search API(`/search` 엔드포인트) 호출 추가. 바이어당 1회 검색 → 결과(title/url/snippet 3건)를 Claude 프롬프트 컨텍스트로 주입. Claude는 외부 자료만 근거로 4필드(`company_status`/`kbeauty_interest`/`recommended_formula`/`proposal_angle`) 생성.
+
+### 구성 요소
+1. **`fetchPerplexitySearch` 헬퍼**: `https://api.perplexity.ai/search` POST, `max_results=3, max_tokens_per_page=256`. `PERPLEXITY_API_KEY` env 주입. HTTP 402 또는 본문에 `credit/payment/insufficient/billing/quota` 키워드 감지 시 `creditExhausted=true` 반환.
+2. **크레딧 소진 대응 (feedback_api_credit_alert)**: 첫 크레딧 부족 감지 즉시 `pipeline_logs`에 `status='failed'` + 충전 URL 포함 메시지 기록. 이후 바이어는 Claude-only 폴백. agentF가 해당 failed 로그를 스캔해 "경고 N건:" 포맷으로 UI 경고 박스에 자동 노출.
+3. **환각 방지 프롬프트**: 외부 자료가 있으면 "모든 구체 사실은 [1]/[2]/[3] 출처 번호 병기. 외부 자료에 없는 정보는 '외부 자료 부족 — 향후 직접 리서치 필요'로 정직하게 남길 것. 학습 데이터 일반론 섞지 말 것". 외부 자료가 없으면 기존 Claude-only 분기.
+4. **rubric 완화**: `computeIntelScore`의 "4필드 중 1개라도 0점 → 전체 0점" 게이트를 "2개 이상 0점 → 전체 0점"으로 완화. 정직한 "정보 부족" 1개 필드는 통과 가능.
+
+### 이유
+- 현재 intel_score 양극화(90+ 또는 NULL, 60~89 = 0건) 근본 원인: Claude 학습 데이터(~2024)만으로 작성 → 구체 팩트 부재 또는 환각. PR11 프롬프트 v3가 "고유명사 2개 이상 인용"을 요구해도 소스에 고유명사가 없으면 Claude가 지어냄.
+- Perplexity 검색은 출처 링크 제공 → Claude가 팩트 기반으로만 작성 가능. 환각 리스크 대폭 감소.
+- Teddy 요구(feedback_api_credit_alert): "크레딧 없다고 그냥 패싱되면 안 됨" → 명시적 failed 로그 + 폴백 동작.
+
+### 예상 효과
+- 콜드메일 Context 단락 구체성 증가 (실제 최근 뉴스 인용)
+- intel_score 정규 분포화 (양극화 해소)
+- 바이어 답변율 증가 (진정성 있는 개인화)
+
+### 비용
+- Perplexity Sonar: 사용량 과금. 월 100~200 바이어 분석 시 약 **$10~20** (Teddy $50 크레딧 기준 2~5개월 커버).
+
+### 대안 기각
+- Google Programmable Search: 요약 없이 raw 검색만 → Claude가 별도 요약 처리. 토큰 비용 증가.
+- Firecrawl / Context7 MCP: MCP는 Edge Function 환경에서 직접 호출 어려움 (런타임 제약).
+- Clay API 재호출: 이미 CSV 업로드 시점에 enrich 완료. 중복 비용.
+
+### 한계 / 후속
+- Perplexity 검색 품질은 한·GCC 로컬 브랜드에 대해서는 낮을 수 있음 → 정보 부족으로 귀결되는 케이스 존재. 장기적으로 Clay 재활용 or LinkedIn 보조 필요.
+- rubric 완화(2개 0점 → 전체 0점)는 Perplexity 품질에 의존. 실전 intel_score 분포 보며 추가 조정 여지.
+
+**관련**: `supabase/functions/run-pipeline/index.ts` `fetchPerplexitySearch` / `agentC` / `callClaudeIntel` / `computeIntelScore`, 커밋 PR12.
+
+---
+
 ## ADR 작성 템플릿
 
 ```markdown
