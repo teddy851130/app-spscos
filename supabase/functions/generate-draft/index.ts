@@ -96,27 +96,40 @@ Deno.serve(async (req: Request) => {
         : String(intel.recommended_formula || "");
       const proposalAngle = String(intel.proposal_angle || "");
 
-      const prompt = `당신은 SPS Cosmetics(spscos.com)의 CEO 신동환(Teddy Shin)이 작성하는 B2B 콜드 이메일 초안을 쓰는 카피라이터입니다.
-SPS는 한국 OEM/ODM 화장품 제조사이며 MOQ는 3,000개입니다.
+      // ADR-021: "제품 추천형" 폐기 → "문제 제기형 + 리서치 질문형 하이브리드".
+      //   - 본문에 구체 제품명·포뮬러명 삽입 금지 (카테고리 수준만 허용).
+      //   - 객관식 CTA(납기/MOQ/기술/인증)로 회신 심리 장벽 완화 + 자동 qualification.
+      //   - 영어 SPAM_WORDS 21개와 그 한국어 번역·동의어 전부 금지.
+      const prompt = `당신은 SPS Cosmetics(spscos.com)의 CEO 신동환(Teddy Shin) 명의 B2B 콜드 이메일 초안을 쓰는 카피라이터입니다.
+SPS는 한국 OEM/ODM 화장품 제조사이며 MOQ 3,000개, 납기 8주, 할랄·오가닉 인증 네트워크를 강점으로 합니다.
 
 담당자: ${contact.contact_name} (${contact.contact_title || "직함 미상"})
 회사: ${buyer.company_name} | 지역: ${buyer.region} | Tier: ${buyer.tier}
 매출: ${buyer.annual_revenue || "미상"} | 직원 수: ${buyer.employee_count || "미상"}
 
-=== 바이어 인텔 (반드시 반영) ===
+=== 바이어 인텔 (맥락 참조용 — 본문에 구체 제품명 삽입 금지) ===
 기업 상태: ${companyStatus}
 K-beauty 관심도: ${kbeautyInterest}
-추천 포뮬러: ${recommendedFormula}
+추천 카테고리(내부 참고용, 첫 메일은 카테고리 수준으로만 언급): ${recommendedFormula}
 제안 각도: ${proposalAngle}
 === 인텔 끝 ===
 
-한국어로 자연스럽고 설득력 있는 콜드 이메일 초안을 작성하세요.
-반드시 바이어 인텔의 "기업 상태", "제안 각도", "추천 포뮬러"를 구체적으로 언급해야 합니다.
+이메일 전략: "문제 제기형 + 리서치 질문형 하이브리드" (제품 추천형 아님)
+1. 오프닝 훅 = 바이어 지역/시장이 K-beauty 소싱에서 겪는 구체 공급 문제(납기·MOQ·포뮬러 민첩성·인증 중 하나)를 지목. "기업 상태" 또는 "제안 각도"에서 근거를 끌어올 것.
+2. SPS 역량 대비 = 카테고리 수준(스킨케어 / 바디케어 / 컬러 / 헤어케어)으로만 기술. 구체 제품명·SKU·포뮬러명 금지. MOQ 3,000 / 납기 8주 / 인증 네트워크는 명시 가능.
+3. CTA = 객관식 리서치 질문. "다음 K-beauty 론칭에서 가장 큰 장애물은 (a) 납기 (b) MOQ 유연성 (c) 포뮬러/기술 적합성 (d) 인증(할랄·오가닉) 중 무엇인가요? 한 줄 답변이면 충분합니다" 형식.
+
+엄격한 제약:
+- 본문에 구체 제품명·포뮬러명·SKU 금지. 예: "비타민C 브라이트닝 세럼" 금지 → "스킨케어 카테고리" 같은 수준만 허용.
+- 과장형 어휘 금지: "최고의", "완벽한", "놀라운", "혁신적인" 등.
+- 톤: B2B 동료 간 대화, 직설적, 홍보 느낌 최소화.
+- 다음 스팸 트리거 단어(영어 및 한국어 번역·동의어 모두)를 절대 쓰지 마세요: free/무료, guarantee·guaranteed/보장, winner/당첨, congratulations/축하, limited time/한정 시간, act now/지금 행동, click here/여기 클릭, no cost/비용 없음, risk free·risk-free/위험 없음, exclusive deal/독점 제안, don't miss/놓치지 마세요, urgent/긴급, buy now/지금 구매, order now/지금 주문, special promotion/특별 프로모션, no obligation/의무 없음, double your/두 배로, earn extra/추가 수익, cash bonus/현금 보너스.
+- 느낌표 연속 금지. 대문자 단어 3개 이상 연속 금지.
 
 JSON 형식으로만 응답 (마크다운 금지):
 {
-  "ko_subject": "이메일 제목 (한국어, 50자 이내)",
-  "ko_body": "이메일 본문 (한국어, 150~200자). 구조: 인사 → 인텔 기반 관련성 → SPS 가치 제안(추천 포뮬러 포함) → CTA → 서명(신동환, SPS Cosmetics CEO)"
+  "ko_subject": "이메일 제목 (한국어, 50자 이내, 문제 제기형 또는 리서치 질문형)",
+  "ko_body": "이메일 본문 (한국어, 200~280자). 구조: 인사 한 줄 → 바이어 시장의 공급 문제 제기(1~2문장, '기업 상태' 인용) → SPS 카테고리 수준 역량 대비(2문장, MOQ 3,000 / 납기 8주 / 인증 중 관련 항목) → 객관식 CTA(1~2문장) → 서명(신동환, SPS Cosmetics CEO)"
 }`;
 
       const text = await callClaude(apiKey, prompt, 800);

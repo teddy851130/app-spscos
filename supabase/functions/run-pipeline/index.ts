@@ -486,34 +486,44 @@ async function agentD(sb: SB, jobId: string, _team: string) {
         : "Test order angle — low-risk 3,000 unit MOQ trial to test K-beauty products in their market";
 
       try {
+        // ADR-021: "제품 추천형" 폐기 → "문제 제기형 + 리서치 질문형 하이브리드".
+        //   - body_first: 구체 제품명·포뮬러명 삽입 금지 (카테고리 수준만 허용).
+        //   - body_followup: recommended_formula를 카테고리 수준 참조 허용.
+        //   - SPAM_WORDS 21개를 negative constraint로 명시 (생성 단계에서 회피 → agentE flag 감소).
         const prompt = `You write B2B cold emails for SPS Cosmetics (spscos.com), a Korean OEM/ODM manufacturer.
-CEO: Teddy Shin (teddy@spscos.com) | MOQ: 3,000 units
+CEO: Teddy Shin (teddy@spscos.com) | MOQ: 3,000 units | 8-week lead time | Halal/Organic certification network
 
 Contact: ${c.contact_name} | Title: ${c.contact_title} | Company: ${buyer.company_name}
 Region: ${buyer.region} | Tier: ${tier}
 
-=== BUYER INTELLIGENCE (MUST reference in email) ===
+=== BUYER INTELLIGENCE (context only — do NOT name specific products in first email) ===
 Company Status: ${companyStatus}
 K-Beauty Interest: ${kbeautyInterest}
-Recommended Formula: ${recommendedFormula}
+Recommended Category (INTERNAL; allowed in body_followup at category level only): ${recommendedFormula}
 Proposal Angle: ${proposalAngle}
 === END INTELLIGENCE ===
 
 Sales Strategy: ${salesAngle}
 
-CRITICAL LANGUAGE RULES:
-- The entire email (subject AND body) MUST be written in English only.
-- Even if the intelligence above contains Korean phrases, translate them to English before using.
-- Do NOT include any Korean characters (한글), Hanja, or non-Latin scripts anywhere.
-- Company names may remain in their original spelling, but all prose must be English.
+EMAIL STRATEGY — "problem-framing + research-question hybrid" (NOT product recommendation):
+1. Opening hook: name a concrete K-beauty sourcing pain buyers in ${buyer.region} face today — lead time, MOQ flexibility, formulation agility, or certification (Halal/Organic). Anchor specificity with a phrase from Company Status or Proposal Angle.
+2. SPS capability contrast: describe at CATEGORY level only (skincare / bodycare / color / haircare). Cite MOQ 3,000 / 8-week lead time / certification network when relevant. Do NOT name specific SKUs, product names, or formula codes.
+3. CTA: a multiple-choice research question. Ask which of (a) lead time, (b) MOQ flexibility, (c) formulation/technical fit, (d) certifications is the biggest blocker for their next K-beauty launch. Tell them a one-line reply is enough.
+
+HARD CONSTRAINTS:
+- body_first MUST NOT contain specific product names, SKUs, or formula codes. Category-level language only.
+- Tone: peer-to-peer B2B, direct, no hype. Avoid superlatives (best, ultimate, amazing, revolutionary).
+- The entire email (subject AND body) MUST be English only. No Korean, Hanja, or non-Latin scripts. If the intelligence contains Korean, translate before using.
+- NEVER use any of these spam trigger words/phrases (case-insensitive, in any form including translations or synonyms with the same marketing charge): free, guarantee, guaranteed, winner, congratulations, limited time, act now, click here, no cost, risk free, risk-free, exclusive deal, don't miss, urgent, buy now, order now, special promotion, no obligation, double your, earn extra, cash bonus.
+- Max 2 spscos.com links in body_first, max 1 external link. No multiple consecutive uppercase words. No "!!" or repeated exclamation marks.
 
 Return ONLY a JSON object (no markdown):
 {
-  "subject_line_1": "Company name + product category from recommended_formula (e.g., '${buyer.company_name} x K-Beauty ${recommendedFormula.split(",")[0]}')",
-  "subject_line_2": "Reference company_status news/campaign (e.g., 'Re: ${buyer.company_name}'s ${companyStatus.slice(0, 30)}...')",
-  "subject_line_3": "K-beauty trend angle (e.g., 'The K-beauty formula trending with ${buyer.region} buyers')",
-  "body_first": "EXACTLY 120-150 words, ENGLISH ONLY. Structure: Opening hook (1 sentence) → Relevance using title '${c.contact_title}', company '${buyer.company_name}', company_status AND proposal_angle (2 sentences) → SPS value prop mentioning recommended_formula (2 sentences) → CTA (1 sentence). Max 2 spscos.com links, max 1 external link. Sign off as Teddy Shin, CEO, SPS Cosmetics. NO spam words.",
-  "body_followup": "EXACTLY 80-100 words, ENGLISH ONLY. Reference first email → New angle using kbeauty_interest → Soft CTA. ${tier === "Tier1" ? "Note: send 5 days after first email" : "Note: send 7 days after first email"}. Sign off as Teddy."
+  "subject_line_1": "Problem-framing subject referencing the region/market pain (under 60 chars, e.g., 'The 8-week lead time question for ${buyer.region} beauty launches')",
+  "subject_line_2": "Reference-based subject using company_status (e.g., 'Re: ${buyer.company_name}'s ${companyStatus.slice(0, 30)}')",
+  "subject_line_3": "Research-question subject (e.g., 'Quick question for ${c.contact_title}s sourcing K-beauty')",
+  "body_first": "EXACTLY 120-150 words, ENGLISH ONLY. Structure: (a) Opening hook naming a concrete supply-chain pain in ${buyer.region} or in ${buyer.company_name}'s recent activity — 1-2 sentences grounded in company_status/proposal_angle. (b) SPS capability contrast at CATEGORY level only (MOQ 3,000 / 8-week / certification network) — 2 sentences. NO specific product names or formula codes. (c) Multiple-choice CTA asking which blocker matters most: lead time / MOQ flexibility / formulation fit / certifications — 1-2 sentences, invite a one-line reply. Sign off 'Teddy Shin, CEO, SPS Cosmetics'.",
+  "body_followup": "EXACTLY 80-100 words, ENGLISH ONLY. Briefly reference first email → shift angle using kbeauty_interest → at this point you MAY mention the recommended category (still category level, NOT a specific product name) as a soft proposal → soft CTA. ${tier === "Tier1" ? "Send 5 days after first email." : "Send 7 days after first email."} Sign off 'Teddy'."
 }`;
 
         const res = await fetchClaudeWithRetry("https://api.anthropic.com/v1/messages", {

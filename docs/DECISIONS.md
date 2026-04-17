@@ -193,6 +193,72 @@
 
 ---
 
+## ADR-018: Edge Function backgroundTask try/finally 크래시 보호
+**날짜**: 2026-04-17 (PR8 핫픽스)
+**결정**: `run-pipeline`의 `backgroundTask` IIFE 전체를 try/catch/finally로 감쌈. finally 블록에서 status='completed' 또는 status='failed'를 DB에 업데이트.
+**이유**: 이전에는 backgroundTask 내부에서 예외 발생 시 아무것도 catch하지 않아 `pipeline_jobs.status`가 'running'에 영구 고착됨. 사용자 눈에는 CSV 업로드 후 "실행 중"이 계속 표시. finally는 정상 완료·예외 중단 어느 경우에도 실행되므로 status 업데이트 보장.
+**대안 기각**: 각 에이전트 단계별 개별 catch — 중간 단계 크래시 시 finally 체인이 복잡해짐. 최상위 try/finally 하나가 더 단순하고 신뢰 가능.
+**관련**: PR8 커밋 `558f7ea`, `supabase/functions/run-pipeline/index.ts`
+
+---
+
+## ADR-019: invokePipeline anon key 직접 fetch (세션 JWT 우회)
+**날짜**: 2026-04-17 (PR8 핫픽스)
+**결정**: `app/lib/supabase.ts`의 `invokePipeline` 함수를 `supabase.functions.invoke()` → 직접 `fetch()` + anon key 명시로 재구현.
+**이유**: `supabase.functions.invoke()`는 현재 로그인 세션의 JWT를 Authorization 헤더에 자동 첨부. 세션이 만료되거나 자동 갱신 실패 시 Edge Function이 401 Unauthorized를 반환해 파이프라인 전체가 pending 고착. anon key를 직접 명시하면 세션 상태와 무관하게 항상 유효.
+**참고**: ADR-009(supabase.functions.invoke → direct fetch 전환)의 run-pipeline 적용 버전. ADR-010의 anon key 원칙 재확인.
+**관련**: PR8 커밋 `558f7ea`, `app/lib/supabase.ts` `invokePipeline()`
+
+---
+
+## ADR-020: Claude API 429 완화 — 배치 5 + 지수 백오프 재시도 3x
+**날짜**: 2026-04-17 (PR8 핫픽스)
+**결정**: 
+- C/D/E 에이전트 순차 처리 → `BATCH_SIZE=5` 병렬 배치 처리.
+- `fetchClaudeWithRetry(maxRetries=3)` 헬퍼 추가: 429 응답 시 `retry-after` 헤더 우선, 없으면 2→5→10s 지수 백오프.
+**이유**: 이전에는 C/D/E가 바이어·담당자 1건씩 순차 처리 → 43명 × 10s = 430s로 Edge Function 타임아웃 초과. 병렬 배치 도입 후 3팀 × 배치10 = 30 concurrent Claude 호출 → 429 rate limit 발생. 배치5로 최대 동시 호출 수 절반으로 줄이고 재시도로 429 흡수.
+**리스크**: 배치5로도 3팀 동시 실행 시 일부 429 간헐 발생 가능 (완전 제거 아님). Claude API 할당량 업그레이드가 근본 해결.
+**대안 기각**: 완전 순차 (배치1) — 타임아웃 재발. 배치10 유지 — 429 과다.
+**관련**: PR8 커밋 `558f7ea`, `supabase/functions/run-pipeline/index.ts` `fetchClaudeWithRetry()`
+
+---
+
+## ADR-021: 직원 D 메일 전략 전환 — "제품 추천형" → "문제 제기형 + 리서치 질문형 하이브리드"
+**날짜**: 2026-04-17 (Sprint03 착수 결정)
+**결정**:
+- 기존 `recommended_formula` 필드를 본문에 직접 삽입하는 방식을 폐기.
+- 첫 메일 구조를 (1) Opening hook = 바이어 시장의 공급 문제 제기, (2) SPS 케이파빌리티 암시(카테고리 수준, 제품명 미언급), (3) 객관식 CTA(납기/MOQ/기술/인증 중 장애물 선택 요청)로 재설계.
+- `SPAM_WORDS` 21개를 프롬프트에 negative constraint로 명시.
+**이유**:
+- Teddy 지적: "자체 추천 제품 삽입은 무리". B2B 콜드메일 관점에서 첫 메일의 구체 제품 제안은 "이미 결정된 제안"으로 읽혀 거절 신호.
+- SPS 실제 차별점 (MOQ 3000 / 8주 납기 / 할랄·오가닉 인증 네트워크)은 "추천"보다 "공급 문제 해소"로 포지셔닝할 때 설득력 상승.
+- 리서치 질문형 CTA는 회신 심리 장벽을 낮추는 동시에 자동 qualification 효과.
+- PR6.5에서 발견된 스팸 flag 재발 방지 — 생성 단계에서부터 금지어 회피.
+**대안 기각**:
+- 사례 공유형(Case Study) 단독 — 공개 가능한 성공 사례 DB 부족 (향후 6개월+ 축적 후 재검토).
+- 트렌드 공유형 단독 — 지역별 실시간 트렌드 데이터 소스 부재. 하이브리드 구조에 부분 편입은 가능.
+- `recommended_formula` 필드 자체 유지 + 본문 삽입만 금지 — agentC 출력 스키마 단순화를 위해 필드 자체를 후속 메일(body_followup)에서만 활용하도록 제한.
+**관련**: `supabase/functions/run-pipeline/index.ts` agentD, `supabase/functions/generate-draft/index.ts`, Sprint03 우선순위 1
+
+---
+
+## ADR-022: 직원 C 인텔 웹 검색 데이터 소스 도입 방침
+**날짜**: 2026-04-17 (Sprint03 착수 결정)
+**결정**:
+- 직원 C(바이어 인텔)에 외부 웹 검색 데이터 소스를 도입. 우선순위: (1) 현재 연결된 MCP(firecrawl / context7) 활용성 검토 → (2) Google Workspace MCP(Teddy 유료 계정) → (3) Perplexity API(품질 우위 확인 시). 품질 기준으로 선택, 조합 가능.
+- agentC 프롬프트에 검색 결과(최근 뉴스, 공개 재무, LinkedIn 프로필, 제품 라인업)를 컨텍스트로 주입 후 intel 생성.
+- rubric 병행 개선: (1) "4필드 중 1개라도 0점 → 전체 0점" 게이트를 "3필드 이상 1점"으로 완화. (2) 길이 기반 이진 배점 → 3구간 연속 배점 + 고유명사(브랜드/제품명) 포함 가중.
+**이유**:
+- 현재 Claude 학습 데이터(~2024)만 사용 → `recent_news`가 구체 근거 없는 정적 추론. intel_score 양극화(90+ 또는 NULL, 60~89 = 0건)의 근본 원인.
+- Teddy 요구: "더 인사이트 있는 바이어 인텔". Push형 메일 탈피하려면 인텔 자체가 구체 사실 기반이어야 함.
+- MCP 우선 검토: 이미 설치된 인프라 재활용이 비용 0. Perplexity는 품질 갭 확인 후 도입.
+**대안 기각**:
+- Claude API만으로 rubric만 개선 — 데이터 소스가 그대로면 "없는 뉴스를 창작"하는 환각 위험 증가 (추측성 내용 금지 원칙과 충돌).
+- Clay API 재호출(enrichment 후속) — 이미 CSV 업로드 시점에 enrich 완료. 추가 호출은 비용 중복.
+**관련**: `supabase/functions/run-pipeline/index.ts` agentC / `computeIntelScore`, Sprint03 우선순위 2
+
+---
+
 ## ADR 작성 템플릿
 
 ```markdown
