@@ -259,6 +259,53 @@
 
 ---
 
+## ADR-023: 직원 D 프롬프트 v2 — "관찰" 톤 제거 + 단언형 CTA + 맞춤형 풀턴키 포지셔닝 (중간 단계, v3로 발전)
+**날짜**: 2026-04-17 (PR10)
+**결정**:
+- ADR-021의 "문제 제기형 + 객관식 리서치 질문형" 구조에서 발견된 Teddy 실전 피드백 2건을 반영해 v2로 교체.
+  - 감시·분석 뉘앙스 표현 전면 금지: "관찰됩니다", "it appears that", "we observe", "based on our analysis" 등 → 중립·존중형으로 ("귀사가 ~하시는 것을 보고").
+  - 객관식 4지선다 CTA 폐기 → "단언형 포지셔닝 + 시너지 제안" (질문 아닌 자신감 + 파트너십 기대).
+  - SPS 포지셔닝 전환: MOQ 3,000 / 8주 납기 숫자 명시 → "빠른 진행·회신 + 모든 카테고리 제조 파트너 네트워크 + 다국가 수출 경험 + 완전 맞춤형 풀턴키" (숫자는 협상 앵커 → 역효과).
+**이유**:
+- 바이어 입장에서 "관찰됩니다"는 감시당하는 불편함. B2B 파트너십 톤과 상충.
+- 첫 콜드메일의 하드 숫자(MOQ 3,000 등)는 "우리는 5,000 원하는데…" 식 거절 신호 유발.
+- CTK(ctkclip.com) 같은 업계 벤치마크의 "with you / create your product" 협업 프레이밍을 참고.
+**대안 기각**:
+- v1(ADR-021) 그대로 유지 — Teddy 실테스트에서 거절 트리거 발견, 유지 불가.
+**한계 → v3로 발전 (ADR-024)**:
+- v2 영문 번역 결과가 여전히 validate-draft에서 스팸 flag 판정. "unlock synergy / positioned to play / full-turnkey partner" 같은 세일즈 파트너십 클리셰가 Claude 점수 <8로 낮춤.
+- 본문이 "SPS 소개 70% / 바이어 얘기 10%" 비율로 You-to-Me 밸런스 실패.
+**관련**: `supabase/functions/run-pipeline/index.ts` agentD, `supabase/functions/generate-draft/index.ts` generate_ko, PR10 커밋.
+
+---
+
+## ADR-024: 직원 D 프롬프트 v3 — "CIA + Challenger Sale" 프레임워크 채택 + agentE flag 사유 로깅
+**날짜**: 2026-04-17 (PR11)
+**결정**:
+- Jason Bay의 **CIA** (Context - Insight - Ask) + Challenger Sale의 **Teach-Tailor-Take control** 톤을 결합해 프롬프트 v3 재작성.
+  - **Context**: 바이어 회사의 구체 고유명사(제품·브랜드·도시·파트너·최근 캠페인) **2개 이상 의무 인용**. "당신 회사를 공부했다" 시그널 극대화.
+  - **Insight**: 업계 패턴 하나를 가르쳐주듯 제공 후 해당 바이어 상황에 맞춤. Teddy가 업계 동료로서 통찰을 선물하는 느낌.
+  - **Ask**: 단일·저부담·타이밍 개방형. "15분만 편하신 때에 확인해보시겠어요?".
+  - **P.S. 필수**: "3분짜리 미리보기: https://spscos.com/" 한 줄. 클릭 자체가 **관심 신호** → 향후 CRM 자동 프로토콜 트리거(PR13 예정).
+- "좋은 콜드메일 10규칙"을 프롬프트에 내장: You-to-Me 5:1 비율, template 냄새 금지, 단일 Ask, 클리셰 금지어 15개 명시.
+- agentE: Claude 스팸 점수 질의를 숫자 단독 → `{score, reason}` JSON으로 업그레이드. flag 시 reason을 `pipeline_logs`에 기록(migration 없이) → 원인 추적 가능.
+**이유**:
+- v2 실전 테스트에서 "글은 좋아졌지만 스팸 위험 판정". 원인: 반복되는 세일즈 파트너십 어휘(unlock/synergy/positioned to).
+- Teddy 요구: "우리가 당신 회사를 공부했고, 당신에게 우리 회사가 좋은 파트너가 될 것 같다"는 인상이 전달되는 메일. 단순 자사 소개 아닌 업계 동료 톤.
+- CIA 프레임워크는 B2B 콜드메일 2024~2025 베스트 프랙티스에서 답변율·읽힘율 1위로 검증.
+- 클릭 링크는 옵션 B(텍스트 미끼)로 도메인 평판 쌓는 단계에 적합 + 추후 CRM 트리거로 재활용 가능.
+**대안 기각**:
+- 첨부파일(옵션 C): 도메인 평판 미성숙 + 첫 메일 첨부는 열람률 낮음 + Gmail 필터 위험.
+- 텍스트만(옵션 A): Teddy 판단 "1차에서 매력 보여줘야 회신" — 클릭 경로 전혀 없으면 관심 신호 수집 불가.
+- AIDA/BAB 등 다른 프레임워크: Context 요소가 약해 "공부한 티"가 안 남.
+**한계 / 다음 단계**:
+- 바이어 인텔 자체 품질이 여전히 Claude 학습 데이터(~2024) 추론 기반 → CIA의 Context 슬롯 품질 상한. **PR12(Perplexity 도입)**로 해결.
+- flag 사유를 UI에 노출하려면 `email_drafts.spam_reason` 컬럼 추가 migration 필요 — 별도 작은 PR.
+- 클릭 추적 + CRM 자동 프로토콜은 **PR13** 범위 (랜딩 페이지 + UTM + 클릭 이벤트 → 상태 전이).
+**관련**: `supabase/functions/run-pipeline/index.ts` agentD + agentE, `supabase/functions/generate-draft/index.ts` generate_ko, PR11 커밋.
+
+---
+
 ## ADR 작성 템플릿
 
 ```markdown

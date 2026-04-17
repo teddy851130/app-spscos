@@ -486,44 +486,66 @@ async function agentD(sb: SB, jobId: string, _team: string) {
         : "Test order angle — low-risk 3,000 unit MOQ trial to test K-beauty products in their market";
 
       try {
-        // ADR-021: "제품 추천형" 폐기 → "문제 제기형 + 리서치 질문형 하이브리드".
-        //   - body_first: 구체 제품명·포뮬러명 삽입 금지 (카테고리 수준만 허용).
-        //   - body_followup: recommended_formula를 카테고리 수준 참조 허용.
-        //   - SPAM_WORDS 21개를 negative constraint로 명시 (생성 단계에서 회피 → agentE flag 감소).
-        const prompt = `You write B2B cold emails for SPS Cosmetics (spscos.com), a Korean OEM/ODM manufacturer.
-CEO: Teddy Shin (teddy@spscos.com) | MOQ: 3,000 units | 8-week lead time | Halal/Organic certification network
+        // ADR-024: v3 프롬프트 — "CIA + Challenger Sale" 프레임워크 채택.
+        //   Jason Bay의 CIA (Context - Insight - Ask) + Challenger Sale의 Teach-Tailor-Take control.
+        //   - Context: 바이어 회사의 구체 고유명사 2개 이상 인용 → "연구한 티" 극대화
+        //   - Insight: 업계 패턴/관점을 제공해 바이어 상황에 맞춤 (단순 자사 소개 아님)
+        //   - Ask: 단일·저부담·타이밍 개방형 + P.S.에 "3분 미리보기" 링크 1개
+        //   - 세일즈 클리셰 15개 명시 금지 (unlock/synergy/leverage/game-changer 등)
+        //   - You-to-Me 비율 5:1 + Template 냄새 금지 + PS 회신 유도(옵션 B 링크)
+        const prompt = `You write B2B cold emails for SPS Cosmetics (spscos.com), a Korean OEM/ODM manufacturing partner.
+CEO: Teddy Shin (teddy@spscos.com)
+
+SPS positioning (describe capability, do NOT quote hard numbers):
+- Fast turnaround and responsiveness — rapid quoting, fast sampling, CEO as direct point of contact
+- Manufacturing partner network covering every cosmetic category: skincare, bodycare, color, haircare, fragrance
+- Multi-country export experience — shipments across GCC, USA, EU and beyond
+- Full-turnkey, fully bespoke service — price, quantity, quality, design tailored to YOUR preferences
+- Single-point partner: formulation, packaging, regulatory, logistics all handled through one relationship
 
 Contact: ${c.contact_name} | Title: ${c.contact_title} | Company: ${buyer.company_name}
 Region: ${buyer.region} | Tier: ${tier}
 
-=== BUYER INTELLIGENCE (context only — do NOT name specific products in first email) ===
+=== BUYER INTELLIGENCE (for Context section — quote SPECIFIC proper nouns from here) ===
 Company Status: ${companyStatus}
 K-Beauty Interest: ${kbeautyInterest}
-Recommended Category (INTERNAL; allowed in body_followup at category level only): ${recommendedFormula}
+Recommended Category (INTERNAL; may be mentioned at category level in body_followup only): ${recommendedFormula}
 Proposal Angle: ${proposalAngle}
 === END INTELLIGENCE ===
 
 Sales Strategy: ${salesAngle}
 
-EMAIL STRATEGY — "problem-framing + research-question hybrid" (NOT product recommendation):
-1. Opening hook: name a concrete K-beauty sourcing pain buyers in ${buyer.region} face today — lead time, MOQ flexibility, formulation agility, or certification (Halal/Organic). Anchor specificity with a phrase from Company Status or Proposal Angle.
-2. SPS capability contrast: describe at CATEGORY level only (skincare / bodycare / color / haircare). Cite MOQ 3,000 / 8-week lead time / certification network when relevant. Do NOT name specific SKUs, product names, or formula codes.
-3. CTA: a multiple-choice research question. Ask which of (a) lead time, (b) MOQ flexibility, (c) formulation/technical fit, (d) certifications is the biggest blocker for their next K-beauty launch. Tell them a one-line reply is enough.
+FRAMEWORK — CIA (Context - Insight - Ask) + Challenger Sale's Take-control tone.
 
-HARD CONSTRAINTS:
-- body_first MUST NOT contain specific product names, SKUs, or formula codes. Category-level language only.
-- Tone: peer-to-peer B2B, direct, no hype. Avoid superlatives (best, ultimate, amazing, revolutionary).
-- The entire email (subject AND body) MUST be English only. No Korean, Hanja, or non-Latin scripts. If the intelligence contains Korean, translate before using.
-- NEVER use any of these spam trigger words/phrases (case-insensitive, in any form including translations or synonyms with the same marketing charge): free, guarantee, guaranteed, winner, congratulations, limited time, act now, click here, no cost, risk free, risk-free, exclusive deal, don't miss, urgent, buy now, order now, special promotion, no obligation, double your, earn extra, cash bonus.
-- Max 2 spscos.com links in body_first, max 1 external link. No multiple consecutive uppercase words. No "!!" or repeated exclamation marks.
+(1) CONTEXT — opening 1-2 sentences. Reference AT LEAST TWO specific proper nouns pulled from Company Status or Proposal Angle (product/brand names, cities, partners, recent launches, campaigns). The goal is to prove you actually read about ${buyer.company_name}. Neutral, respectful, not surveillance-style. Good starters: "Read about...", "Saw your launch of...", "With your move into...". NEVER use "we observed", "it appears that", "based on our analysis".
+
+(2) INSIGHT — 2-3 sentences. Teach something useful about the industry pattern that ${buyer.company_name} likely faces at their current stage (use K-Beauty Interest and regional context). Frame it as a non-obvious observation you've seen with similar brands — e.g., "what I've seen with ${buyer.region} brands scaling from X to Y is that the bottleneck usually isn't [obvious thing], it's [specific thing]". This is where you differentiate as an industry peer, not a vendor. Tailor the insight to THEIR situation.
+
+(3) TRANSITION TO SPS — 1-2 sentences of confident take-control. "We built SPS for exactly that" style. Describe capability at CATEGORY level only. NO specific product names, NO hard numbers.
+
+(4) ASK — 1 sentence. Single, low-commitment, timing-open. Example: "If it's worth a quick 15 minutes to see whether we fit ${buyer.company_name}'s next 12 months, I'll make the time on your schedule." NOT multiple-choice. NOT a list of questions.
+
+(5) SIGN-OFF — just "Teddy" on its own line (first-name only feels peer-to-peer for cold; save full title for signature).
+
+(6) P.S. (mandatory) — single line with ONE link for the buyer to self-preview capabilities if curious. Use EXACTLY this format: "P.S. 3-minute preview of what we do: https://spscos.com/" (this is a tracked click signal — keep it short and natural, no hard sell wording).
+
+HARD CONSTRAINTS — if violated the draft fails:
+- MUST contain at least TWO specific proper nouns from ${buyer.company_name}'s intelligence. Generic references like "your company", "your brand", "your region" alone = Template smell = rejection.
+- body_first MUST NOT contain: specific SPS product names / SKUs / formula codes, hard numbers (MOQ X, X-week lead time, percentages, price ranges), multiple-choice questions "(a)/(b)/(c)", bullet lists longer than 4 items.
+- You-to-Me ratio: the words "You / Your / ${buyer.company_name}'s" MUST appear at least 5x more often than "We / Our / SPS" in the body. Front-load "you" language.
+- Tone: peer-to-peer, warm, direct, industry-insider. No hype. No surveillance language.
+- The entire email (subject AND body AND PS) MUST be English only. No Korean, Hanja, or non-Latin scripts.
+- BANNED sales clichés (do not use in any form or synonym — these immediately trigger spam-tone flags): unlock, synergy, leverage, game-changer, game changer, best-in-class, world-class, world-leading, industry-leading, state-of-the-art, cutting-edge, revolutionary, next-level, take your [X] to the next level, positioned to, touch base, circle back, just wanted to, I hope this finds you well, amazing, ultimate.
+- BANNED spam trigger words (case-insensitive): free, guarantee, guaranteed, winner, congratulations, limited time, act now, click here, no cost, risk free, risk-free, exclusive deal, don't miss, urgent, buy now, order now, special promotion, no obligation, double your, earn extra, cash bonus.
+- Links: exactly 1 spscos.com link in the P.S. (not in body). No external links. No multiple consecutive uppercase words. No "!!" or repeated exclamation marks.
 
 Return ONLY a JSON object (no markdown):
 {
-  "subject_line_1": "Problem-framing subject referencing the region/market pain (under 60 chars, e.g., 'The 8-week lead time question for ${buyer.region} beauty launches')",
-  "subject_line_2": "Reference-based subject using company_status (e.g., 'Re: ${buyer.company_name}'s ${companyStatus.slice(0, 30)}')",
-  "subject_line_3": "Research-question subject (e.g., 'Quick question for ${c.contact_title}s sourcing K-beauty')",
-  "body_first": "EXACTLY 120-150 words, ENGLISH ONLY. Structure: (a) Opening hook naming a concrete supply-chain pain in ${buyer.region} or in ${buyer.company_name}'s recent activity — 1-2 sentences grounded in company_status/proposal_angle. (b) SPS capability contrast at CATEGORY level only (MOQ 3,000 / 8-week / certification network) — 2 sentences. NO specific product names or formula codes. (c) Multiple-choice CTA asking which blocker matters most: lead time / MOQ flexibility / formulation fit / certifications — 1-2 sentences, invite a one-line reply. Sign off 'Teddy Shin, CEO, SPS Cosmetics'.",
-  "body_followup": "EXACTLY 80-100 words, ENGLISH ONLY. Briefly reference first email → shift angle using kbeauty_interest → at this point you MAY mention the recommended category (still category level, NOT a specific product name) as a soft proposal → soft CTA. ${tier === "Tier1" ? "Send 5 days after first email." : "Send 7 days after first email."} Sign off 'Teddy'."
+  "subject_line_1": "3-7 words, reference a specific ${buyer.company_name} fact + a light observation hook (e.g., '${buyer.company_name}'s [specific thing] — a quick thought')",
+  "subject_line_2": "Reference-based subject using company_status (under 60 chars, e.g., 'Re: ${buyer.company_name}'s ${companyStatus.slice(0, 30)}')",
+  "subject_line_3": "Insight-tease subject (under 60 chars, e.g., 'What most OEMs miss when ${buyer.region} brands scale')",
+  "body_first": "120-220 words. CIA + Challenger structure: (1) Context with 2+ specific proper nouns from the intelligence, (2) Insight teaching a non-obvious industry pattern tailored to ${buyer.company_name}, (3) Transition to SPS capability at category level, (4) Single low-commitment Ask with open timing, (5) 'Teddy' sign-off on its own line, (6) 'P.S. 3-minute preview of what we do: https://spscos.com/' exactly.",
+  "body_followup": "80-130 words, ENGLISH ONLY. Sent ${tier === "Tier1" ? "5" : "7"} days after first. Brief reference to first email → one new specific angle (use kbeauty_interest or recommended category at CATEGORY level only, NO product name) → soft open-ended nudge to chat. Sign off 'Teddy'. No P.S. needed here."
 }`;
 
         const res = await fetchClaudeWithRetry("https://api.anthropic.com/v1/messages", {
@@ -719,8 +741,9 @@ async function agentE(sb: SB, jobId: string, _team: string) {
         const issues = checkSpamRules(d.subject_line_1 as string, d.body_first as string);
 
         if (issues.length === 0) {
-          // 규칙 통과 → Claude 보조 검증
+          // 규칙 통과 → Claude 보조 검증 (ADR-024: JSON 응답으로 reason까지 수집 → flag 원인 pipeline_logs 기록)
           let score = 10;
+          let claudeReason: string | null = null;
 
           if (API_KEY) {
             try {
@@ -731,17 +754,26 @@ async function agentE(sb: SB, jobId: string, _team: string) {
                   "content-type": "application/json",
                 },
                 body: JSON.stringify({
-                  model: "claude-haiku-4-5-20251001", max_tokens: 50,
+                  model: "claude-haiku-4-5-20251001", max_tokens: 200,
                   messages: [{
                     role: "user",
-                    content: `Rate this B2B email spam risk 1-10 (10=safe). Reply ONLY the number.\n\nSubject: ${d.subject_line_1}\n\n${d.body_first}`,
+                    content: `Rate this B2B cold email's spam/sales-tone risk on a 1-10 scale (10 = clean/natural, 1 = obvious spam). If score < 8, briefly state what would get it flagged (sales clichés, template smell, hype language, hard sell CTA, etc.). Reply ONLY a JSON object, no markdown:\n{"score": <integer 1-10>, "reason": "<one short Korean sentence; empty string if score >= 8>"}\n\nSubject: ${d.subject_line_1}\n\n${d.body_first}`,
                   }],
                 }),
               });
               if (res.ok) {
                 const r = await res.json();
-                const s = parseInt((r.content?.[0]?.text || "").trim());
-                if (!isNaN(s) && s >= 1 && s <= 10) score = s;
+                const text = (r.content?.[0]?.text || "").trim();
+                try {
+                  const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+                  const parsed = JSON.parse(cleaned);
+                  if (typeof parsed.score === "number" && parsed.score >= 1 && parsed.score <= 10) score = parsed.score;
+                  if (typeof parsed.reason === "string" && parsed.reason.trim()) claudeReason = parsed.reason.trim();
+                } catch {
+                  // JSON 파싱 실패 → 구 형식(숫자만)으로 폴백해 하위 호환 유지
+                  const s = parseInt(text);
+                  if (!isNaN(s) && s >= 1 && s <= 10) score = s;
+                }
                 totalCost += (r.usage?.input_tokens || 0) * 0.0000008 + (r.usage?.output_tokens || 0) * 0.000004;
               } else {
                 httpErrorCount++;
@@ -760,6 +792,10 @@ async function agentE(sb: SB, jobId: string, _team: string) {
           } else {
             await sb.from("email_drafts").update({ spam_score: score, spam_status: "flag" }).eq("id", d.id);
             flagged++;
+            // ADR-024: Claude가 판단한 flag 사유를 pipeline_logs에 기록 → Teddy가 원인 추적 가능.
+            // email_drafts 스키마 확장 없이 로그 레벨만 개선 (migration 불필요).
+            await log(sb, jobId, "E", "running",
+              `검토필요 (${(d.id as string).slice(0, 8)}, score=${score}): ${(claudeReason || "Claude 사유 미수집").slice(0, 200)}`);
           }
         } else {
           // 규칙 위반 → 자동 수정 (최대 1회)

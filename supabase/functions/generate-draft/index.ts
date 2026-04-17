@@ -96,40 +96,59 @@ Deno.serve(async (req: Request) => {
         : String(intel.recommended_formula || "");
       const proposalAngle = String(intel.proposal_angle || "");
 
-      // ADR-021: "제품 추천형" 폐기 → "문제 제기형 + 리서치 질문형 하이브리드".
-      //   - 본문에 구체 제품명·포뮬러명 삽입 금지 (카테고리 수준만 허용).
-      //   - 객관식 CTA(납기/MOQ/기술/인증)로 회신 심리 장벽 완화 + 자동 qualification.
-      //   - 영어 SPAM_WORDS 21개와 그 한국어 번역·동의어 전부 금지.
-      const prompt = `당신은 SPS Cosmetics(spscos.com)의 CEO 신동환(Teddy Shin) 명의 B2B 콜드 이메일 초안을 쓰는 카피라이터입니다.
-SPS는 한국 OEM/ODM 화장품 제조사이며 MOQ 3,000개, 납기 8주, 할랄·오가닉 인증 네트워크를 강점으로 합니다.
+      // ADR-024: v3 프롬프트 — "CIA + Challenger Sale" 프레임워크.
+      //   Jason Bay CIA (Context-Insight-Ask) + Challenger Sale의 Teach-Tailor-Take control 톤.
+      //   - Context: 바이어 회사 구체 고유명사 2개 이상 인용 의무 (연구한 티)
+      //   - Insight: 업계 패턴/관점 제공 후 바이어 상황에 맞춤 (단순 자사 소개가 아님)
+      //   - Ask: 단일·저부담·타이밍 개방형 + P.S. 3분 미리보기 링크(클릭 → CRM)
+      //   - 세일즈 클리셰 15개 + 감시형 표현 + 구체 숫자 + 객관식 질문 모두 금지
+      const prompt = `당신은 SPS Cosmetics(spscos.com) CEO 신동환(Teddy Shin) 명의 B2B 콜드 이메일 초안을 쓰는 카피라이터입니다.
+
+SPS 강점 — 본문에서 묘사할 때 구체 숫자(MOQ·납기·퍼센트) 절대 금지:
+- 빠른 진행과 회신 — 빠른 견적·샘플링, CEO 직접 응답
+- 모든 화장품 카테고리(스킨케어·바디케어·컬러·헤어케어·프래그런스)를 커버하는 제조 파트너 네트워크
+- 다국가 수출 경험 (GCC·미국·유럽 등)
+- 완전 맞춤형 풀턴키 — 가격·수량·퀄리티·디자인을 귀사 기준으로 설계
+- 포뮬레이션·패키징·규제·물류 단일 파트너로 엔드투엔드
 
 담당자: ${contact.contact_name} (${contact.contact_title || "직함 미상"})
 회사: ${buyer.company_name} | 지역: ${buyer.region} | Tier: ${buyer.tier}
 매출: ${buyer.annual_revenue || "미상"} | 직원 수: ${buyer.employee_count || "미상"}
 
-=== 바이어 인텔 (맥락 참조용 — 본문에 구체 제품명 삽입 금지) ===
+=== 바이어 인텔 (Context 구간에서 구체 고유명사를 이곳에서 인용) ===
 기업 상태: ${companyStatus}
 K-beauty 관심도: ${kbeautyInterest}
-추천 카테고리(내부 참고용, 첫 메일은 카테고리 수준으로만 언급): ${recommendedFormula}
+추천 카테고리(내부용, body_followup에서 카테고리 수준만 언급 가능): ${recommendedFormula}
 제안 각도: ${proposalAngle}
 === 인텔 끝 ===
 
-이메일 전략: "문제 제기형 + 리서치 질문형 하이브리드" (제품 추천형 아님)
-1. 오프닝 훅 = 바이어 지역/시장이 K-beauty 소싱에서 겪는 구체 공급 문제(납기·MOQ·포뮬러 민첩성·인증 중 하나)를 지목. "기업 상태" 또는 "제안 각도"에서 근거를 끌어올 것.
-2. SPS 역량 대비 = 카테고리 수준(스킨케어 / 바디케어 / 컬러 / 헤어케어)으로만 기술. 구체 제품명·SKU·포뮬러명 금지. MOQ 3,000 / 납기 8주 / 인증 네트워크는 명시 가능.
-3. CTA = 객관식 리서치 질문. "다음 K-beauty 론칭에서 가장 큰 장애물은 (a) 납기 (b) MOQ 유연성 (c) 포뮬러/기술 적합성 (d) 인증(할랄·오가닉) 중 무엇인가요? 한 줄 답변이면 충분합니다" 형식.
+프레임워크: CIA (Context - Insight - Ask) + Challenger Sale의 Take-control 톤
 
-엄격한 제약:
-- 본문에 구체 제품명·포뮬러명·SKU 금지. 예: "비타민C 브라이트닝 세럼" 금지 → "스킨케어 카테고리" 같은 수준만 허용.
-- 과장형 어휘 금지: "최고의", "완벽한", "놀라운", "혁신적인" 등.
-- 톤: B2B 동료 간 대화, 직설적, 홍보 느낌 최소화.
-- 다음 스팸 트리거 단어(영어 및 한국어 번역·동의어 모두)를 절대 쓰지 마세요: free/무료, guarantee·guaranteed/보장, winner/당첨, congratulations/축하, limited time/한정 시간, act now/지금 행동, click here/여기 클릭, no cost/비용 없음, risk free·risk-free/위험 없음, exclusive deal/독점 제안, don't miss/놓치지 마세요, urgent/긴급, buy now/지금 구매, order now/지금 주문, special promotion/특별 프로모션, no obligation/의무 없음, double your/두 배로, earn extra/추가 수익, cash bonus/현금 보너스.
-- 느낌표 연속 금지. 대문자 단어 3개 이상 연속 금지.
+(1) CONTEXT — 오프닝 1~2문장. 반드시 "기업 상태" 또는 "제안 각도"에서 **구체 고유명사 2개 이상**(제품·브랜드·도시·파트너·최근 론칭·캠페인 등)을 인용해 "당신 회사를 공부했다"를 증명. 중립·존중형. 좋은 시작 어구: "최근 ${buyer.company_name}의 ~ 소식을 접하고", "~ 론칭 기사를 읽고", "~ 확장 방향이 인상적이어서". 감시형 표현은 **절대 금지**: "관찰됩니다", "~인 것으로 보입니다", "저희가 분석한 바에 따르면", "~로 파악됩니다".
+
+(2) INSIGHT — 2~3문장. 업계 패턴 하나를 가르쳐주듯이 제공 후 ${buyer.company_name}의 현재 단계에 맞춤. 단순 자사 소개가 아니라 "유사한 ${buyer.region} 브랜드들이 X 단계에서 Y 단계로 갈 때 제가 자주 관찰한 패턴은, 병목이 [일반적 요소]가 아니라 [덜 알려진 구체 요소]였습니다" 형태. Teddy가 업계 동료로서 인사이트를 선물하는 느낌.
+
+(3) TRANSITION TO SPS — 1~2문장, 자신감 있는 단언. "SPS는 정확히 그 지점을 위해 만들었습니다" 스타일. 카테고리 수준으로만 역량 묘사. 구체 제품명·숫자 금지.
+
+(4) ASK — 1문장. 단일·저부담·타이밍 개방형. 예: "${buyer.company_name}의 앞으로 12개월에 저희가 맞을지 15분만 편하신 때에 확인해보시겠어요?" 객관식·복수 질문 금지.
+
+(5) 서명 — "Teddy" 한 줄만. (콜드 1차 메일에서는 동료 톤이 풀네임+직책보다 자연스러움.)
+
+(6) 추신 (필수) — 한 줄. "추신. 3분짜리 미리보기: https://spscos.com/" 정확히 이 형식. 링크는 클릭 추적 신호 용도. 홍보성 수식어 금지.
+
+엄격한 제약 — 위반 시 초안 불합격:
+- 본문에 반드시 ${buyer.company_name} 인텔에서 뽑은 **구체 고유명사 2개 이상**. "귀사", "귀 브랜드", "귀 지역" 같은 일반 표현만으로는 템플릿 냄새 → 실패.
+- 본문에 SPS 구체 제품명·SKU·포뮬러명 금지. 구체 숫자(MOQ·납기 주수·퍼센트·가격 범위) 금지. 객관식 질문 "(a)/(b)/(c)" 금지. 불릿 4개 초과 금지.
+- You-to-Me 비율: "귀사/${buyer.company_name}" 표현이 "저희/SPS"보다 **5배 이상** 자주 등장. 문장 주어를 앞쪽에 '귀사'로 배치.
+- 톤: 동료 간 대화, 따뜻하지만 직설적, 업계 내부자. 홍보 톤·감시 톤 금지.
+- **금지 세일즈 클리셰** (동의어·번역형 포함 전면 금지): unlock/언락, synergy/시너지 극대화, leverage/레버리지, game-changer/게임 체인저, best-in-class/동급 최강, world-class/세계 최고, industry-leading/업계 최고, state-of-the-art/최첨단, cutting-edge/최첨단, revolutionary/혁신적인, next-level/차원이 다른, take your ~ to the next level/한 차원 높이다, positioned to/~할 준비가 된, touch base, circle back, just wanted to, amazing/놀라운, ultimate/완벽한, 최고의.
+- **금지 스팸 트리거** (영어·한국어 모두): free/무료, guarantee·guaranteed/보장, winner/당첨, congratulations/축하, limited time/한정 시간, act now/지금 행동, click here/여기 클릭, no cost/비용 없음, risk free·risk-free/위험 없음, exclusive deal/독점 제안, don't miss/놓치지 마세요, urgent/긴급, buy now/지금 구매, order now/지금 주문, special promotion/특별 프로모션, no obligation/의무 없음, double your/두 배로, earn extra/추가 수익, cash bonus/현금 보너스.
+- 링크: 추신에 spscos.com 링크 정확히 1개. 본문에 링크 금지. 외부 링크 금지. 느낌표 연속 금지. 대문자 단어 3개 이상 연속 금지.
 
 JSON 형식으로만 응답 (마크다운 금지):
 {
-  "ko_subject": "이메일 제목 (한국어, 50자 이내, 문제 제기형 또는 리서치 질문형)",
-  "ko_body": "이메일 본문 (한국어, 200~280자). 구조: 인사 한 줄 → 바이어 시장의 공급 문제 제기(1~2문장, '기업 상태' 인용) → SPS 카테고리 수준 역량 대비(2문장, MOQ 3,000 / 납기 8주 / 인증 중 관련 항목) → 객관식 CTA(1~2문장) → 서명(신동환, SPS Cosmetics CEO)"
+  "ko_subject": "제목 (한국어, 3~12자 추천, ${buyer.company_name}의 구체 사실 1개 + 가벼운 관찰 훅. 예: '${buyer.company_name}의 ~ 소식에 대해 짧은 생각')",
+  "ko_body": "본문 (한국어, 길이 제한 없음 — 300~500자 권장). CIA + Challenger 5파트 구조: (1) Context에 구체 고유명사 2개 이상, (2) Insight로 업계 패턴 + ${buyer.company_name} 맞춤, (3) SPS 카테고리 수준 역량으로 전환, (4) 단일 저부담 Ask, (5) 'Teddy' 서명 단독 줄, (6) '추신. 3분짜리 미리보기: https://spscos.com/' 정확히 이 문구."
 }`;
 
       const text = await callClaude(apiKey, prompt, 800);
