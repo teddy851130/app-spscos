@@ -547,7 +547,7 @@ HARD CONSTRAINTS — if violated the draft fails:
 - Tone: peer-to-peer, warm, direct, industry-insider. No hype. No surveillance language.
 - The entire email (subject AND body AND PS) MUST be English only. No Korean, Hanja, or non-Latin scripts.
 - BANNED sales clichés (do not use in any form or synonym — these immediately trigger spam-tone flags): unlock, synergy, leverage, game-changer, game changer, best-in-class, world-class, world-leading, industry-leading, state-of-the-art, cutting-edge, revolutionary, next-level, take your [X] to the next level, positioned to, touch base, circle back, just wanted to, I hope this finds you well, amazing, ultimate.
-- BANNED spam trigger words (case-insensitive): free, guarantee, guaranteed, winner, congratulations, limited time, act now, click here, no cost, risk free, risk-free, exclusive deal, don't miss, urgent, buy now, order now, special promotion, no obligation, double your, earn extra, cash bonus.
+- BANNED spam trigger words (case-insensitive, 35 total): free, guarantee, guaranteed, winner, congratulations, limited time, act now, click here, no cost, risk free, risk-free, exclusive deal, don't miss, urgent, buy now, order now, special promotion, no obligation, double your, earn extra, cash bonus, amazing, ultimate, incredible, unbeatable, hurry, deadline, last chance, today only, discount, lowest price, best price, don't wait, while supplies last, one-time offer.
 - Links: exactly 1 spscos.com link in the P.S. (not in body). No external links. No multiple consecutive uppercase words. No "!!" or repeated exclamation marks.
 
 Return ONLY a JSON object (no markdown):
@@ -648,12 +648,21 @@ Return ONLY a JSON object (no markdown):
 // 직원 E: Claude API 규칙 기반 스팸 검토
 // ============================================
 
+// ADR-030: SPAM_WORDS 21개 → 35개 확장. 추가 14개는 업계 표준 B2B 콜드메일 스팸 트리거.
+//   오탐 가능성 높은 "save", "%"는 의도적으로 제외.
+//   3곳 동기화 필수: run-pipeline · validate-draft · MailQueue.tsx.
 const SPAM_WORDS = [
+  // 기존 21개 (원본)
   "free", "guarantee", "guaranteed", "winner", "congratulations",
   "limited time", "act now", "click here", "no cost", "risk free",
   "risk-free", "exclusive deal", "don't miss", "urgent",
   "buy now", "order now", "special promotion", "no obligation",
   "double your", "earn extra", "cash bonus",
+  // 추가 14개 (2026-04-17 ADR-030)
+  "amazing", "ultimate", "incredible", "unbeatable",
+  "hurry", "deadline", "last chance", "today only",
+  "discount", "lowest price", "best price",
+  "don't wait", "while supplies last", "one-time offer",
 ];
 
 function checkSpamRules(subject: string, body: string): string[] {

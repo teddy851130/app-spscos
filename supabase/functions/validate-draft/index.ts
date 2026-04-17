@@ -24,12 +24,17 @@ function getSupabase() {
 
 // === run-pipeline/index.ts agentE에서 복사 (TODO: PR7에서 공용 모듈화) ===
 
+// ADR-030: 35개 (3곳 동기화 필수: run-pipeline · validate-draft · MailQueue.tsx)
 const SPAM_WORDS = [
   "free", "guarantee", "guaranteed", "winner", "congratulations",
   "limited time", "act now", "click here", "no cost", "risk free",
   "risk-free", "exclusive deal", "don't miss", "urgent",
   "buy now", "order now", "special promotion", "no obligation",
   "double your", "earn extra", "cash bonus",
+  "amazing", "ultimate", "incredible", "unbeatable",
+  "hurry", "deadline", "last chance", "today only",
+  "discount", "lowest price", "best price",
+  "don't wait", "while supplies last", "one-time offer",
 ];
 
 function checkSpamRules(subject: string, body: string): string[] {

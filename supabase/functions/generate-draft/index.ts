@@ -150,7 +150,7 @@ K-beauty 관심도: ${kbeautyInterest}
 - You-to-Me 비율: "귀사/${buyer.company_name}" 표현이 "저희/SPS"보다 **5배 이상** 자주 등장. 문장 주어를 앞쪽에 '귀사'로 배치.
 - 톤: 동료 간 대화, 따뜻하지만 직설적, 업계 내부자. 홍보 톤·감시 톤 금지.
 - **금지 세일즈 클리셰** (동의어·번역형 포함 전면 금지): unlock/언락, synergy/시너지 극대화, leverage/레버리지, game-changer/게임 체인저, best-in-class/동급 최강, world-class/세계 최고, industry-leading/업계 최고, state-of-the-art/최첨단, cutting-edge/최첨단, revolutionary/혁신적인, next-level/차원이 다른, take your ~ to the next level/한 차원 높이다, positioned to/~할 준비가 된, touch base, circle back, just wanted to, amazing/놀라운, ultimate/완벽한, 최고의.
-- **금지 스팸 트리거** (영어·한국어 모두): free/무료, guarantee·guaranteed/보장, winner/당첨, congratulations/축하, limited time/한정 시간, act now/지금 행동, click here/여기 클릭, no cost/비용 없음, risk free·risk-free/위험 없음, exclusive deal/독점 제안, don't miss/놓치지 마세요, urgent/긴급, buy now/지금 구매, order now/지금 주문, special promotion/특별 프로모션, no obligation/의무 없음, double your/두 배로, earn extra/추가 수익, cash bonus/현금 보너스.
+- **금지 스팸 트리거** (35개, 영어·한국어 모두): free/무료, guarantee·guaranteed/보장, winner/당첨, congratulations/축하, limited time/한정 시간, act now/지금 행동, click here/여기 클릭, no cost/비용 없음, risk free·risk-free/위험 없음, exclusive deal/독점 제안, don't miss/놓치지 마세요, urgent/긴급, buy now/지금 구매, order now/지금 주문, special promotion/특별 프로모션, no obligation/의무 없음, double your/두 배로, earn extra/추가 수익, cash bonus/현금 보너스, amazing/놀라운, ultimate/최고의, incredible/믿기 어려운, unbeatable/비할 데 없는, hurry/서두르세요, deadline/마감, last chance/마지막 기회, today only/오늘만, discount/할인, lowest price/최저가, best price/최고가, don't wait/기다리지 마세요, while supplies last/재고 소진 시까지, one-time offer/일회성 제안.
 - 링크: 추신에 spscos.com 링크 정확히 1개. 본문에 링크 금지. 외부 링크 금지. 느낌표 연속 금지. 대문자 단어 3개 이상 연속 금지.
 
 JSON 형식으로만 응답 (마크다운 금지):

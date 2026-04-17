@@ -40,12 +40,17 @@ interface DraftItem {
 
 // ── 스팸 체크 (클라이언트 사이드 — run-pipeline과 동일 규칙) ──
 
+// ADR-030: 35개 (3곳 동기화: run-pipeline · validate-draft · MailQueue.tsx)
 const SPAM_WORDS = [
   "free", "guarantee", "guaranteed", "winner", "congratulations",
   "limited time", "act now", "click here", "no cost", "risk free",
   "risk-free", "exclusive deal", "don't miss", "urgent",
   "buy now", "order now", "special promotion", "no obligation",
   "double your", "earn extra", "cash bonus",
+  "amazing", "ultimate", "incredible", "unbeatable",
+  "hurry", "deadline", "last chance", "today only",
+  "discount", "lowest price", "best price",
+  "don't wait", "while supplies last", "one-time offer",
 ];
 
 interface SpamCheckResult {
