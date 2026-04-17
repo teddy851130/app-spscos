@@ -37,6 +37,10 @@ const SPAM_WORDS = [
   "don't wait", "while supplies last", "one-time offer",
 ];
 
+// PR13(ADR-032): SPS 도메인 = spscos.com + app-spscos.vercel.app/go (tracking redirect) 합산
+const SPS_DOMAIN_RE = /(?:spscos\.com|app-spscos\.vercel\.app\/go)/gi;
+const EXTERNAL_LINK_RE = /https?:\/\/(?!(?:[^\s]*spscos\.com)|(?:[^\s]*app-spscos\.vercel\.app\/go))[^\s)]+/gi;
+
 function checkSpamRules(subject: string, body: string): string[] {
   const issues: string[] = [];
   const full = `${subject} ${body}`;
@@ -45,10 +49,10 @@ function checkSpamRules(subject: string, body: string): string[] {
   const found = SPAM_WORDS.filter((w) => lower.includes(w));
   if (found.length > 0) issues.push(`스팸단어 ${found.length}개: ${found.join(", ")}`);
 
-  const spsLinks = (body.match(/spscos\.com/gi) || []).length;
-  if (spsLinks >= 3) issues.push(`spscos.com 링크 ${spsLinks}개 (최대 2개)`);
+  const spsLinks = (body.match(SPS_DOMAIN_RE) || []).length;
+  if (spsLinks >= 3) issues.push(`SPS 도메인 링크 ${spsLinks}개 (최대 2개)`);
 
-  const extLinks = (body.match(/https?:\/\/(?!.*spscos\.com)[^\s)]+/gi) || []).length;
+  const extLinks = (body.match(EXTERNAL_LINK_RE) || []).length;
   if (extLinks >= 2) issues.push(`외부 링크 ${extLinks}개 (최대 1개)`);
 
   if (/\b[A-Z]{2,}(\s+[A-Z]{2,}){2,}\b/.test(body)) issues.push("대문자 단어 3개+ 연속");
@@ -72,12 +76,11 @@ function autoFixSpam(body: string): { fixed: string; fixes: string[] } {
   }
 
   let spsCount = 0;
-  fixed = fixed.replace(/spscos\.com/gi, (m: string) => { spsCount++; return spsCount <= 2 ? m : ""; });
-  if (spsCount > 2) fixes.push(`spscos링크 ${spsCount}→2개`);
+  fixed = fixed.replace(SPS_DOMAIN_RE, (m: string) => { spsCount++; return spsCount <= 2 ? m : ""; });
+  if (spsCount > 2) fixes.push(`SPS링크 ${spsCount}→2개`);
 
-  const extRe = /https?:\/\/(?!.*spscos\.com)[^\s)]+/gi;
   let extCount = 0;
-  fixed = fixed.replace(extRe, (m: string) => { extCount++; return extCount <= 1 ? m : ""; });
+  fixed = fixed.replace(EXTERNAL_LINK_RE, (m: string) => { extCount++; return extCount <= 1 ? m : ""; });
   if (extCount > 1) fixes.push(`외부링크 ${extCount}→1개`);
 
   fixed = fixed.replace(/\b([A-Z]{2,}(?:\s+[A-Z]{2,}){2,})\b/g, (m: string) => {

@@ -73,9 +73,9 @@ function checkSpamClient(text: string): SpamCheckResult {
   const found = SPAM_WORDS.filter((w) => lower.includes(w));
   if (found.length > 0) issues.push(`스팸 키워드 ${found.length}개: ${found.join(', ')}`);
 
-  // 2. spscos.com 링크 3개+
-  const spsLinks = (text.match(/spscos\.com/gi) || []).length;
-  if (spsLinks >= 3) issues.push(`spscos.com 링크 ${spsLinks}개 (최대 2개)`);
+  // 2. SPS 도메인 링크 3개+ (PR13 ADR-032: spscos.com + app-spscos.vercel.app/go 합산)
+  const spsLinks = (text.match(/(?:spscos\.com|app-spscos\.vercel\.app\/go)/gi) || []).length;
+  if (spsLinks >= 3) issues.push(`SPS 도메인 링크 ${spsLinks}개 (최대 2개)`);
 
   // 3. 외부 링크 2개+
   const allLinks = (text.match(/https?:\/\//gi) || []).length;

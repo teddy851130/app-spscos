@@ -89,6 +89,25 @@ Deno.serve(async (req: Request) => {
         );
       }
 
+      // PR13(ADR-032): P.S. 링크를 자체 redirect(/go/{token})로 교체 → 클릭 이벤트 수집.
+      // 클라이언트가 tracking_token을 안 보낼 수 있으므로 서버에서 DB 조회로 보강.
+      const TRACK_BASE = Deno.env.get("TRACK_BASE_URL") || "https://app-spscos.vercel.app/go";
+      let trackingToken: string | null = typeof contact.tracking_token === "string" ? contact.tracking_token : null;
+      if (!trackingToken && contact.id) {
+        try {
+          const sb = getSupabase();
+          const { data: row } = await sb
+            .from("buyer_contacts")
+            .select("tracking_token")
+            .eq("id", contact.id)
+            .maybeSingle();
+          trackingToken = (row?.tracking_token as string | null) ?? null;
+        } catch {
+          // DB 조회 실패 시 폴백 URL 사용 — 초안 생성은 막지 않음
+        }
+      }
+      const trackingUrl = trackingToken ? `${TRACK_BASE}/${trackingToken}` : "https://spscos.com/";
+
       const companyStatus = String(intel.company_status || "");
       const kbeautyInterest = String(intel.kbeauty_interest || "");
       const recommendedFormula = Array.isArray(intel.recommended_formula)
@@ -136,7 +155,7 @@ K-beauty 관심도: ${kbeautyInterest}
 
 (5) 서명 — "Teddy 드림" 한 줄만. (콜드 1차 메일에서는 first-name + 드림 이 가장 친근·예의 균형.)
 
-(6) 추신 (필수) — 한 줄. "추신. 3분짜리 미리보기: https://spscos.com/" 정확히 이 형식. 링크는 클릭 추적 신호 용도. 홍보성 수식어 금지.
+(6) 추신 (필수) — 한 줄. "추신. 3분짜리 미리보기: ${trackingUrl}" 정확히 이 형식 (URL은 있는 그대로 복사 — spscos.com으로 교체 금지). 링크는 클릭 추적 신호 용도. 홍보성 수식어 금지.
 
 톤 체크리스트 (최종 검토):
 - 단정형("~입니다", "~ 확신합니다") 최소화. 제안형("~인 것 같습니다", "~ 생각됩니다", "~일 수 있지 않을까 싶습니다") 위주.
@@ -151,12 +170,12 @@ K-beauty 관심도: ${kbeautyInterest}
 - 톤: 동료 간 대화, 따뜻하지만 직설적, 업계 내부자. 홍보 톤·감시 톤 금지.
 - **금지 세일즈 클리셰** (동의어·번역형 포함 전면 금지): unlock/언락, synergy/시너지 극대화, leverage/레버리지, game-changer/게임 체인저, best-in-class/동급 최강, world-class/세계 최고, industry-leading/업계 최고, state-of-the-art/최첨단, cutting-edge/최첨단, revolutionary/혁신적인, next-level/차원이 다른, take your ~ to the next level/한 차원 높이다, positioned to/~할 준비가 된, touch base, circle back, just wanted to, amazing/놀라운, ultimate/완벽한, 최고의.
 - **금지 스팸 트리거** (35개, 영어·한국어 모두): free/무료, guarantee·guaranteed/보장, winner/당첨, congratulations/축하, limited time/한정 시간, act now/지금 행동, click here/여기 클릭, no cost/비용 없음, risk free·risk-free/위험 없음, exclusive deal/독점 제안, don't miss/놓치지 마세요, urgent/긴급, buy now/지금 구매, order now/지금 주문, special promotion/특별 프로모션, no obligation/의무 없음, double your/두 배로, earn extra/추가 수익, cash bonus/현금 보너스, amazing/놀라운, ultimate/최고의, incredible/믿기 어려운, unbeatable/비할 데 없는, hurry/서두르세요, deadline/마감, last chance/마지막 기회, today only/오늘만, discount/할인, lowest price/최저가, best price/최고가, don't wait/기다리지 마세요, while supplies last/재고 소진 시까지, one-time offer/일회성 제안.
-- 링크: 추신에 spscos.com 링크 정확히 1개. 본문에 링크 금지. 외부 링크 금지. 느낌표 연속 금지. 대문자 단어 3개 이상 연속 금지.
+- 링크: 추신에 위에서 지정한 ${trackingUrl} 링크 **정확히 1개**. 본문에 링크 금지. 다른 외부 링크 금지. 느낌표 연속 금지. 대문자 단어 3개 이상 연속 금지.
 
 JSON 형식으로만 응답 (마크다운 금지):
 {
   "ko_subject": "제목 (한국어, 3~12자 추천, ${buyer.company_name}의 구체 사실 1개 + 가벼운 관찰 훅. 예: '${buyer.company_name}의 ~ 소식에 대해 짧은 생각')",
-  "ko_body": "본문 (한국어, 길이 제한 없음 — 300~500자 권장). CIA + Challenger 5파트 구조: (1) Context에 구체 고유명사 2개 이상, (2) Insight로 업계 패턴 + ${buyer.company_name} 맞춤, (3) SPS 카테고리 수준 역량으로 전환, (4) 단일 저부담 Ask, (5) 'Teddy' 서명 단독 줄, (6) '추신. 3분짜리 미리보기: https://spscos.com/' 정확히 이 문구."
+  "ko_body": "본문 (한국어, 길이 제한 없음 — 300~500자 권장). CIA + Challenger 5파트 구조: (1) Context에 구체 고유명사 2개 이상, (2) Insight로 업계 패턴 + ${buyer.company_name} 맞춤, (3) SPS 카테고리 수준 역량으로 전환, (4) 단일 저부담 Ask, (5) 'Teddy' 서명 단독 줄, (6) '추신. 3분짜리 미리보기: ${trackingUrl}' — URL은 정확히 복사 (spscos.com으로 치환 금지)."
 }`;
 
       const text = await callClaude(apiKey, prompt, 800);

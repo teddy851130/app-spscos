@@ -542,7 +542,7 @@ async function agentD(sb: SB, jobId: string, _team: string) {
   if (!API_KEY) { await log(sb, jobId, "D", "failed", "ANTHROPIC_API_KEY 없음"); return; }
 
   const { data: contacts } = await sb.from("buyer_contacts")
-    .select("id, buyer_id, contact_name, contact_title, contact_email, email_status")
+    .select("id, buyer_id, contact_name, contact_title, contact_email, email_status, tracking_token")
     .in("email_status", ["valid", "catch-all-pass"]);
 
   if (!contacts || contacts.length === 0) {
@@ -608,12 +608,19 @@ async function agentD(sb: SB, jobId: string, _team: string) {
         ? "Strategic partnership angle — position SPS as a long-term K-beauty OEM/ODM partner for their premium portfolio"
         : "Test order angle — low-risk 3,000 unit MOQ trial to test K-beauty products in their market";
 
+      // PR13(ADR-032): P.S. 링크를 자체 redirect(/go/{token})로 교체 → 클릭 이벤트 수집 + Pipedrive Activity.
+      //   tracking_token이 없는 legacy contact는 hardcoded spscos.com/으로 폴백 (발송 실패 방지).
+      const TRACK_BASE = Deno.env.get("TRACK_BASE_URL") || "https://app-spscos.vercel.app/go";
+      const trackingUrl = c.tracking_token
+        ? `${TRACK_BASE}/${c.tracking_token}`
+        : "https://spscos.com/";
+
       try {
         // ADR-024: v3 프롬프트 — "CIA + Challenger Sale" 프레임워크 채택.
         //   Jason Bay의 CIA (Context - Insight - Ask) + Challenger Sale의 Teach-Tailor-Take control.
         //   - Context: 바이어 회사의 구체 고유명사 2개 이상 인용 → "연구한 티" 극대화
         //   - Insight: 업계 패턴/관점을 제공해 바이어 상황에 맞춤 (단순 자사 소개 아님)
-        //   - Ask: 단일·저부담·타이밍 개방형 + P.S.에 "3분 미리보기" 링크 1개
+        //   - Ask: 단일·저부담·타이밍 개방형 + P.S.에 "3분 미리보기" 링크 1개 (PR13부터 tracking redirect)
         //   - 세일즈 클리셰 15개 명시 금지 (unlock/synergy/leverage/game-changer 등)
         //   - You-to-Me 비율 5:1 + Template 냄새 금지 + PS 회신 유도(옵션 B 링크)
         const prompt = `You write B2B cold emails for SPS Cosmetics (spscos.com), a Korean OEM/ODM manufacturing partner.
@@ -652,7 +659,7 @@ FRAMEWORK — CIA (Context - Insight - Ask). Tone: "Warm-Confident" — confiden
 
 (5) SIGN-OFF — "Warm regards," on one line, "Teddy" on the next line. Warmer than bare first-name.
 
-(6) P.S. (mandatory) — single line: "P.S. A 3-minute preview of what we do, if helpful: https://spscos.com/" — keep it soft-optional, no hard sell.
+(6) P.S. (mandatory) — single line: "P.S. A 3-minute preview of what we do, if helpful: ${trackingUrl}" — keep it soft-optional, no hard sell. Use the URL EXACTLY as given (do not shorten, do not replace with spscos.com).
 
 TONE GUARDRAILS (critical — many drafts get flagged by our internal spam-tone filter because of these):
 - Do NOT repeat "partner / partnership / bespoke / turnkey / tailored" more than 2 times total across the body. Over-repetition reads as sales script.
@@ -668,14 +675,14 @@ HARD CONSTRAINTS — if violated the draft fails:
 - The entire email (subject AND body AND PS) MUST be English only. No Korean, Hanja, or non-Latin scripts.
 - BANNED sales clichés (do not use in any form or synonym — these immediately trigger spam-tone flags): unlock, synergy, leverage, game-changer, game changer, best-in-class, world-class, world-leading, industry-leading, state-of-the-art, cutting-edge, revolutionary, next-level, take your [X] to the next level, positioned to, touch base, circle back, just wanted to, I hope this finds you well, amazing, ultimate.
 - BANNED spam trigger words (case-insensitive, 35 total): free, guarantee, guaranteed, winner, congratulations, limited time, act now, click here, no cost, risk free, risk-free, exclusive deal, don't miss, urgent, buy now, order now, special promotion, no obligation, double your, earn extra, cash bonus, amazing, ultimate, incredible, unbeatable, hurry, deadline, last chance, today only, discount, lowest price, best price, don't wait, while supplies last, one-time offer.
-- Links: exactly 1 spscos.com link in the P.S. (not in body). No external links. No multiple consecutive uppercase words. No "!!" or repeated exclamation marks.
+- Links: exactly 1 link (the ${trackingUrl} above) in the P.S. — NOT in the body. No additional external links. No multiple consecutive uppercase words. No "!!" or repeated exclamation marks.
 
 Return ONLY a JSON object (no markdown):
 {
   "subject_line_1": "3-7 words, reference a specific ${buyer.company_name} fact + a light observation hook (e.g., '${buyer.company_name}'s [specific thing] — a quick thought')",
   "subject_line_2": "Reference-based subject using company_status (under 60 chars, e.g., 'Re: ${buyer.company_name}'s ${companyStatus.slice(0, 30)}')",
   "subject_line_3": "Insight-tease subject (under 60 chars, e.g., 'What most OEMs miss when ${buyer.region} brands scale')",
-  "body_first": "120-220 words. CIA + Challenger structure: (1) Context with 2+ specific proper nouns from the intelligence, (2) Insight teaching a non-obvious industry pattern tailored to ${buyer.company_name}, (3) Transition to SPS capability at category level, (4) Single low-commitment Ask with open timing, (5) 'Teddy' sign-off on its own line, (6) 'P.S. 3-minute preview of what we do: https://spscos.com/' exactly.",
+  "body_first": "120-220 words. CIA + Challenger structure: (1) Context with 2+ specific proper nouns from the intelligence, (2) Insight teaching a non-obvious industry pattern tailored to ${buyer.company_name}, (3) Transition to SPS capability at category level, (4) Single low-commitment Ask with open timing, (5) 'Teddy' sign-off on its own line, (6) 'P.S. A 3-minute preview of what we do: ${trackingUrl}' — the URL MUST be copied exactly.",
   "body_followup": "80-130 words, ENGLISH ONLY. Sent ${tier === "Tier1" ? "5" : "7"} days after first. Brief reference to first email → one new specific angle (use kbeauty_interest or recommended category at CATEGORY level only, NO product name) → soft open-ended nudge to chat. Sign off 'Teddy'. No P.S. needed here."
 }`;
 
@@ -785,6 +792,11 @@ const SPAM_WORDS = [
   "don't wait", "while supplies last", "one-time offer",
 ];
 
+// PR13(ADR-032): P.S. 링크가 spscos.com → app-spscos.vercel.app/go/{token}으로 변경됨.
+// SPS 도메인 링크 카운트는 두 도메인 합산으로 평가 (legacy + tracking).
+const SPS_DOMAIN_RE = /(?:spscos\.com|app-spscos\.vercel\.app\/go)/gi;
+const EXTERNAL_LINK_RE = /https?:\/\/(?!(?:[^\s]*spscos\.com)|(?:[^\s]*app-spscos\.vercel\.app\/go))[^\s)]+/gi;
+
 function checkSpamRules(subject: string, body: string): string[] {
   const issues: string[] = [];
   const full = `${subject} ${body}`;
@@ -794,12 +806,12 @@ function checkSpamRules(subject: string, body: string): string[] {
   const found = SPAM_WORDS.filter((w) => lower.includes(w));
   if (found.length > 0) issues.push(`스팸단어 ${found.length}개: ${found.join(", ")}`);
 
-  // 2. spscos.com 링크 3개+
-  const spsLinks = (body.match(/spscos\.com/gi) || []).length;
-  if (spsLinks >= 3) issues.push(`spscos.com 링크 ${spsLinks}개 (최대 2개)`);
+  // 2. SPS 도메인 링크 3개+ (spscos.com + tracking redirect 합산)
+  const spsLinks = (body.match(SPS_DOMAIN_RE) || []).length;
+  if (spsLinks >= 3) issues.push(`SPS 도메인 링크 ${spsLinks}개 (최대 2개)`);
 
   // 3. 외부 링크 2개+
-  const extLinks = (body.match(/https?:\/\/(?!.*spscos\.com)[^\s)]+/gi) || []).length;
+  const extLinks = (body.match(EXTERNAL_LINK_RE) || []).length;
   if (extLinks >= 2) issues.push(`외부 링크 ${extLinks}개 (최대 1개)`);
 
   // 4. 대문자 3개+ 연속
@@ -825,15 +837,14 @@ function autoFixSpam(body: string): { fixed: string; fixes: string[] } {
     }
   }
 
-  // 2. spscos.com 링크 → 최대 2개
+  // 2. SPS 도메인 링크(spscos.com + tracking redirect) → 최대 2개
   let spsCount = 0;
-  fixed = fixed.replace(/spscos\.com/gi, (m: string) => { spsCount++; return spsCount <= 2 ? m : ""; });
-  if (spsCount > 2) fixes.push(`spscos링크 ${spsCount}→2개`);
+  fixed = fixed.replace(SPS_DOMAIN_RE, (m: string) => { spsCount++; return spsCount <= 2 ? m : ""; });
+  if (spsCount > 2) fixes.push(`SPS링크 ${spsCount}→2개`);
 
   // 3. 외부 링크 → 최대 1개
-  const extRe = /https?:\/\/(?!.*spscos\.com)[^\s)]+/gi;
   let extCount = 0;
-  fixed = fixed.replace(extRe, (m: string) => { extCount++; return extCount <= 1 ? m : ""; });
+  fixed = fixed.replace(EXTERNAL_LINK_RE, (m: string) => { extCount++; return extCount <= 1 ? m : ""; });
   if (extCount > 1) fixes.push(`외부링크 ${extCount}→1개`);
 
   // 4. 대문자 연속 → 소문자

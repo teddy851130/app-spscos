@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import type { EmailDraft, PipelineLog } from '../lib/types';
 import { AlertTriangle, Target, Check, ClipboardList, CheckCircle } from 'lucide-react';
+import InterestedLeadsWidget from './InterestedLeadsWidget';
 
 interface BuyerRow {
   id: string;
@@ -785,6 +786,9 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
             </table>
           </div>
         </div>
+
+        {/* PR13: 오늘의 관심 리드 (72시간 내 P.S. 링크 클릭) */}
+        <InterestedLeadsWidget onNavigateBuyers={onNavigate ? () => onNavigate('buyers') : undefined} />
 
         {/* 이메일 초안 목록 */}
         {emailDrafts.length > 0 && (
