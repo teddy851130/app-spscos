@@ -104,3 +104,36 @@ RUNBOOK.md 또는 DECISIONS.md에 명문화.
 2. `project_sps_pipeline_agents_rules_review.md` 최신 섹션 참조
 3. `docs/DECISIONS.md` ADR-021/022 기준 적용
 4. Supabase MCP 연결 검증 → 직원 D 프롬프트 재작성 착수
+
+---
+
+## 2026-04-17 실행 결과 (Sprint03 1일 차 집중 작업)
+
+### 실행한 PR
+- **PR9** (`6a1974b`) — 직원 D 프롬프트 v1 (ADR-021). 제품 추천형 → 문제 제기형 + 객관식 CTA.
+- **PR10** (통합 → PR11) — v2 (ADR-023). 감시형 표현 제거 + 단언형 CTA + 숫자 제거.
+- **PR11** (`b303b71`) — v3 (ADR-024). **CIA + Challenger** 프레임워크. 세일즈 클리셰 15개 금지 + 고유명사 2개 의무 + P.S. 링크.
+- **PR11.1 hotfix** (`e354876`) — v4 (ADR-025). 인사말 표준화 + **Warm-Confident 톤** + 반복 어휘 금지 + Claude 판정 rubric 구체화.
+
+### Edge Function 배포 결과
+- `run-pipeline` v22 → **v25**
+- `generate-draft` v6 → **v10**
+- `validate-draft` v3 → **v4**
+
+### Sprint03 우선순위 달성도
+- [x] **우선순위 1 — 직원 D 프롬프트 재설계** (PR9/10/11/11.1로 4단계 진화 완료)
+- [ ] **우선순위 2 — 직원 C 채점 rubric 재조정** (PR12 Perplexity 도입과 함께 진행 예정)
+- [ ] **우선순위 3 — 직원 E SPAM_WORDS 목록 확장** (미착수)
+- [ ] **우선순위 4 — 직원 B bounce/catch-all 정책 명문화** (미착수)
+
+### 후속 PR 계획 (`memory/project_sps_future_pr.md`에 상세 기록)
+- **PR12** — Perplexity 바이어 인텔 웹 검색 (Teddy Perplexity Pro 가입 후 착수, Sprint03 우선순위 2와 통합)
+- **PR13** — 클릭 추적 랜딩 페이지 + CRM 자동 프로토콜 (P.S. 링크 자산화)
+- **PR14** (선택) — `email_drafts.spam_reason` 컬럼 + UI 노출
+
+### 미해결 이슈 (Sprint03 외 이월)
+- "오늘 보낼 메일" 회사 미상 표시 (UI 버그)
+- 초안 영문/국문 혼재 (UI 버그)
+- 스팸 "수정" 버튼 → "위험 낮음" 반환 (validate-draft 로직)
+- 바이어 인텔 3개 미수집 (유효 이메일 없음)
+- 429 경고 간헐 발생 (Claude API 할당량)
