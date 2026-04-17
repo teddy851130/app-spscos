@@ -515,19 +515,27 @@ Proposal Angle: ${proposalAngle}
 
 Sales Strategy: ${salesAngle}
 
-FRAMEWORK — CIA (Context - Insight - Ask) + Challenger Sale's Take-control tone.
+FRAMEWORK — CIA (Context - Insight - Ask). Tone: "Warm-Confident" — confident but kind. Avoid aggressive Challenger-style phrasing ("most OEMs can't", "we built SPS for exactly that") which reads as condescending when translated — use humble-confident variants instead.
 
-(1) CONTEXT — opening 1-2 sentences. Reference AT LEAST TWO specific proper nouns pulled from Company Status or Proposal Angle (product/brand names, cities, partners, recent launches, campaigns). The goal is to prove you actually read about ${buyer.company_name}. Neutral, respectful, not surveillance-style. Good starters: "Read about...", "Saw your launch of...", "With your move into...". NEVER use "we observed", "it appears that", "based on our analysis".
+(0) GREETING (mandatory) — first line: "Dear ${c.contact_name}," — always use "Dear" for this buyer region mix (safer than "Hi" for GCC / European contacts). Never skip a greeting.
 
-(2) INSIGHT — 2-3 sentences. Teach something useful about the industry pattern that ${buyer.company_name} likely faces at their current stage (use K-Beauty Interest and regional context). Frame it as a non-obvious observation you've seen with similar brands — e.g., "what I've seen with ${buyer.region} brands scaling from X to Y is that the bottleneck usually isn't [obvious thing], it's [specific thing]". This is where you differentiate as an industry peer, not a vendor. Tailor the insight to THEIR situation.
+(1) CONTEXT — next 1-2 sentences. Reference AT LEAST TWO specific proper nouns pulled from Company Status or Proposal Angle (product/brand names, cities, partners, recent launches, campaigns). The goal is to show you genuinely followed ${buyer.company_name}'s work. Neutral, warm, not surveillance-style. Good starters: "I recently read about...", "Your launch of ... caught my attention...", "With your move into...". NEVER use "we observed", "it appears that", "based on our analysis".
 
-(3) TRANSITION TO SPS — 1-2 sentences of confident take-control. "We built SPS for exactly that" style. Describe capability at CATEGORY level only. NO specific product names, NO hard numbers.
+(2) INSIGHT — 2-3 sentences. Share an industry pattern in a *humble*, peer-to-peer way, then tailor it to ${buyer.company_name}. Frame it as "something I've seen come up with similar ${buyer.region} brands" rather than "most OEMs can't do this". Good form: "Something I often see with ${buyer.region} brands at a similar stage is that the real bottleneck tends to be [specific thing] rather than [obvious thing]." AVOID competitor bashing — no "most OEMs fail at", "others can't", "unlike typical manufacturers".
 
-(4) ASK — 1 sentence. Single, low-commitment, timing-open. Example: "If it's worth a quick 15 minutes to see whether we fit ${buyer.company_name}'s next 12 months, I'll make the time on your schedule." NOT multiple-choice. NOT a list of questions.
+(3) TRANSITION TO SPS — 1-2 sentences, confident but gentle. Instead of "We built SPS for exactly that" use "This is the kind of partnership we try to be at SPS" or "SPS is set up with this specific situation in mind — we might be useful here." Describe capability at CATEGORY level only. NO specific product names, NO hard numbers.
 
-(5) SIGN-OFF — just "Teddy" on its own line (first-name only feels peer-to-peer for cold; save full title for signature).
+(4) ASK — 1 sentence. Single, low-commitment, timing-open, polite. Example: "If a short 15-minute conversation might be useful to see whether SPS fits ${buyer.company_name}'s next chapter, I'd be glad to make the time whenever suits you." NOT multiple-choice.
 
-(6) P.S. (mandatory) — single line with ONE link for the buyer to self-preview capabilities if curious. Use EXACTLY this format: "P.S. 3-minute preview of what we do: https://spscos.com/" (this is a tracked click signal — keep it short and natural, no hard sell wording).
+(5) SIGN-OFF — "Warm regards," on one line, "Teddy" on the next line. Warmer than bare first-name.
+
+(6) P.S. (mandatory) — single line: "P.S. A 3-minute preview of what we do, if helpful: https://spscos.com/" — keep it soft-optional, no hard sell.
+
+TONE GUARDRAILS (critical — many drafts get flagged by our internal spam-tone filter because of these):
+- Do NOT repeat "partner / partnership / bespoke / turnkey / tailored" more than 2 times total across the body. Over-repetition reads as sales script.
+- Avoid boasting phrasing about SPS. Instead, frame SPS's capabilities as "what might help ${buyer.company_name}" not "what SPS is great at".
+- Do NOT include competitor comparison ("unlike other manufacturers", "most OEMs lack"). Stay focused on the buyer's situation.
+- Avoid conclusion sentences that sound like closing a sales pitch ("this is why SPS is the right fit", "we're confident we can deliver"). Keep it open-ended.
 
 HARD CONSTRAINTS — if violated the draft fails:
 - MUST contain at least TWO specific proper nouns from ${buyer.company_name}'s intelligence. Generic references like "your company", "your brand", "your region" alone = Template smell = rejection.
@@ -757,7 +765,38 @@ async function agentE(sb: SB, jobId: string, _team: string) {
                   model: "claude-haiku-4-5-20251001", max_tokens: 200,
                   messages: [{
                     role: "user",
-                    content: `Rate this B2B cold email's spam/sales-tone risk on a 1-10 scale (10 = clean/natural, 1 = obvious spam). If score < 8, briefly state what would get it flagged (sales clichés, template smell, hype language, hard sell CTA, etc.). Reply ONLY a JSON object, no markdown:\n{"score": <integer 1-10>, "reason": "<one short Korean sentence; empty string if score >= 8>"}\n\nSubject: ${d.subject_line_1}\n\n${d.body_first}`,
+                    // ADR-025: 판정 기준 구체화. 이전 프롬프트가 "잘 쓴 B2B 콜드메일"도 7점 이하로
+                    // 과잉 판정하는 경향 → Teddy 스팸 flag 재발. 2024~2025 B2B 콜드메일 베스트 프랙티스
+                    // 기준으로 8~10점이 기본, 감점은 구체적 스팸/하드셀 증거가 있을 때만 허용.
+                    content: `You are evaluating a B2B cold email sent by a Korean cosmetic OEM/ODM manufacturer to a beauty brand buyer. Your job: score the email on whether it would (a) pass Gmail/Outlook spam filters and (b) feel authentic to the recipient. The baseline for a competent, personalized B2B cold email is 8-10. Only deduct below 8 if you find SPECIFIC concrete issues.
+
+SCORING RUBRIC:
+- 10: natural, personalized, peer-to-peer, zero red flags
+- 8-9: solid B2B cold email, maybe one minor polish point but no real risk
+- 6-7: noticeable issue — template smell, hype adjectives, overused sales jargon, or pushy CTA
+- 3-5: multiple issues — spam trigger words, excessive links/caps, hard-sell language, pressure tactics
+- 1-2: obvious spam / will land in spam folder
+
+DO NOT DEDUCT for:
+- Confident partnership tone, single soft CTA, single link in P.S.
+- Mentioning the sender company's capabilities at category level
+- Asking for a 15-minute conversation politely
+- Industry-insight sharing written in first person
+
+ONLY DEDUCT for:
+- Actual spam trigger words (free/guarantee/winner/urgent/click here/limited time etc.)
+- Hard-sell imperatives ("buy now", "act today", "don't miss out")
+- Excessive caps, repeated exclamation marks, multiple external links
+- Generic template smell (no specific personalization, interchangeable with any buyer)
+- Competitor bashing ("unlike other manufacturers", "most OEMs fail at")
+- Over-repetition of sales jargon (partner/synergy/bespoke/turnkey repeated 4+ times)
+
+Reply ONLY a JSON object, no markdown:
+{"score": <integer 1-10>, "reason": "<one short Korean sentence citing the specific issue; empty string if score >= 8>"}
+
+Subject: ${d.subject_line_1}
+
+${d.body_first}`,
                   }],
                 }),
               });

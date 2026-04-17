@@ -152,10 +152,39 @@ Deno.serve(async (req: Request) => {
           },
           body: JSON.stringify({
             model: MODEL_ID,
-            max_tokens: 120,
+            max_tokens: 200,
             messages: [{
               role: "user",
-              content: `Rate this B2B email spam risk 1-10 (10=safe, 1=highly spammy).\n\nIf score < 8, briefly explain in Korean (one sentence, 40자 이내) WHAT makes it risky so the author can fix it.\n\nReply ONLY as a JSON object (no markdown): {"score": N, "reason": "..." or null}\n\nSubject: ${draft.subject_line_1}\n\n${draft.body_first}`,
+              // ADR-025: 판정 기준 구체화 (agentE와 동기화). 이전 프롬프트가 잘 쓴 B2B 콜드메일도
+              // 7점 이하로 과잉 판정 → Teddy 스팸 flag 재발. 베스트 프랙티스 기준으로 8~10이 기본.
+              content: `You are evaluating a B2B cold email sent by a Korean cosmetic OEM/ODM manufacturer to a beauty brand buyer. Your job: score the email on whether it would (a) pass Gmail/Outlook spam filters and (b) feel authentic to the recipient. The baseline for a competent, personalized B2B cold email is 8-10. Only deduct below 8 if you find SPECIFIC concrete issues.
+
+SCORING RUBRIC:
+- 10: natural, personalized, peer-to-peer, zero red flags
+- 8-9: solid B2B cold email, maybe one minor polish point but no real risk
+- 6-7: noticeable issue — template smell, hype adjectives, overused sales jargon, or pushy CTA
+- 3-5: multiple issues — spam trigger words, excessive links/caps, hard-sell language, pressure tactics
+- 1-2: obvious spam / will land in spam folder
+
+DO NOT DEDUCT for:
+- Confident partnership tone, single soft CTA, single link in P.S.
+- Mentioning the sender company's capabilities at category level
+- Asking for a 15-minute conversation politely
+- Industry-insight sharing written in first person
+
+ONLY DEDUCT for:
+- Actual spam trigger words (free/guarantee/winner/urgent/click here/limited time etc.)
+- Hard-sell imperatives ("buy now", "act today", "don't miss out")
+- Excessive caps, repeated exclamation marks, multiple external links
+- Generic template smell (no specific personalization, interchangeable with any buyer)
+- Competitor bashing ("unlike other manufacturers", "most OEMs fail at")
+- Over-repetition of sales jargon (partner/synergy/bespoke/turnkey repeated 4+ times)
+
+Reply ONLY as a JSON object (no markdown): {"score": <integer 1-10>, "reason": "<one short Korean sentence citing the specific issue; empty string if score >= 8>"}
+
+Subject: ${draft.subject_line_1}
+
+${draft.body_first}`,
             }],
           }),
         });

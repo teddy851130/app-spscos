@@ -306,6 +306,41 @@
 
 ---
 
+## ADR-025: PR11.1 hotfix — 인사말 표준화 + "Warm-Confident" 톤 전환 + Claude 스팸 판정 기준 구체화
+**날짜**: 2026-04-17 (PR11.1)
+**결정**:
+### 프롬프트 (agentD + generate_ko)
+- **인사말 필수**: 영문 `Dear ${contact_name},` / 국문 `안녕하세요, ${contact_name} 님.` — 바로 본문 진입 금지.
+- **Challenger "Take-control" 톤 → "Warm-Confident" 톤**: 영어 직접 단언 표현이 한국어 번역 후 우월·도발적으로 읽히는 문제 해소.
+  - 금지: "대부분의 OEM은 그 속도로 움직이지 못합니다", "SPS는 정확히 그 지점을 위해 만들었습니다", "~ 겪지 않으셨으면 합니다"
+  - 권장: "많은 제조사들이 이 부분에서 함께 고민하시는 걸 자주 보았습니다", "SPS가 바로 이런 맥락에서 도움이 될 수 있지 않을까 싶습니다", "조금이라도 힘이 될 수 있다면 기쁜 마음으로 함께하겠습니다"
+- **서명**: 영문 `Warm regards,\nTeddy` / 국문 `Teddy 드림`.
+- **톤 가드레일**: "partner/partnership/bespoke/turnkey/tailored" 단어 총 2회 초과 금지 (반복 시 세일즈 스크립트 냄새). 경쟁자 직접 비하 금지 ("unlike other manufacturers" 등).
+
+### Claude 스팸 판정 프롬프트 (agentE + validate-draft 동기화)
+- **근본 원인**: 이전 프롬프트 "Rate spam risk 1-10"은 너무 포괄적 → Claude가 정상 B2B 콜드메일도 6~7점 과잉 부여 → Teddy 스팸 flag 재발.
+- **해결**: 2024~2025 B2B 콜드메일 베스트 프랙티스 기준을 명시적 rubric으로 주입.
+  - 10: 자연스럽고 개인화된 peer-to-peer 톤
+  - 8-9: 견고한 B2B 콜드메일 (기본값). 파트너십 톤·P.S. 단일 링크·예의 있는 15분 요청은 감점 사유 아님.
+  - 6-7: template smell, hype, 반복 jargon, pushy CTA
+  - 3-5: 스팸 트리거 단어, hard-sell, 압박
+  - 1-2: 명백한 스팸
+- **Do NOT deduct for**와 **Only deduct for** 두 섹션을 명시적으로 프롬프트에 포함 → 판정 일관성 확보.
+
+**이유**:
+- Teddy 피드백: "글은 좋아졌지만 6/10점 여전히 flag" — Claude 판정이 너무 엄격. Gmail 실제 필터 통과 예상되는 메일도 자체 게이트에서 차단.
+- Teddy 피드백: "국문이 도발적" — Challenger Sale의 Take-control 영어 직역이 한국어 정서와 충돌.
+- Warm-Confident = 영미권 자신감 유지 + 동북아/중동 정중함 균형.
+**대안 기각**:
+- 통과 기준 score >= 8 → 6으로 완화: 실제 스팸 위험이 높은 드래프트도 통과 가능 → 도메인 평판 리스크.
+- Challenger 톤 완전 폐기: CIA의 Ask 단계에서 자신감 필요. "positioned to" 류만 제거하고 humble-confident 변형 허용.
+- 인사말을 `Hi`: GCC·유럽 formal 바이어에게 너무 캐주얼. `Dear`가 3개 리전 통틀어 가장 안전.
+**결과**:
+- run-pipeline v24 → v25 / generate-draft v9 → v10 / validate-draft v3 → v4 배포.
+**관련**: `supabase/functions/run-pipeline/index.ts` agentD + agentE Claude 판정 부분, `supabase/functions/generate-draft/index.ts` generate_ko, `supabase/functions/validate-draft/index.ts`, PR11.1 커밋.
+
+---
+
 ## ADR 작성 템플릿
 
 ```markdown
