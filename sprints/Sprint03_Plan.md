@@ -109,31 +109,40 @@ RUNBOOK.md 또는 DECISIONS.md에 명문화.
 
 ## 2026-04-17 실행 결과 (Sprint03 1일 차 집중 작업)
 
-### 실행한 PR
+### 실행한 PR (커밋 11개)
 - **PR9** (`6a1974b`) — 직원 D 프롬프트 v1 (ADR-021). 제품 추천형 → 문제 제기형 + 객관식 CTA.
 - **PR10** (통합 → PR11) — v2 (ADR-023). 감시형 표현 제거 + 단언형 CTA + 숫자 제거.
 - **PR11** (`b303b71`) — v3 (ADR-024). **CIA + Challenger** 프레임워크. 세일즈 클리셰 15개 금지 + 고유명사 2개 의무 + P.S. 링크.
 - **PR11.1 hotfix** (`e354876`) — v4 (ADR-025). 인사말 표준화 + **Warm-Confident 톤** + 반복 어휘 금지 + Claude 판정 rubric 구체화.
+- **버그 2 수정** (`0404ac6`, ADR-026) — translate_save 한글 혼입 가드 + 재번역 1회.
+- **버그 3 수정** (`26e8869`, ADR-027) — MailQueue 저장 시 validate-draft 호출 전환 (가짜 pass 차단).
+- **ADR 문서** (`6b74681`, ADR-028) — ZeroBounce bounce/catch-all 정책 명문화 (우선순위 4).
+- **jitter** (`f3e1e65`, ADR-029) — fetchClaudeWithRetry ±500ms jitter (429 완화).
+- **SPAM_WORDS 35개** (`f2a1574`, ADR-030) — 14개 추가 + 5곳 동기화 (우선순위 3).
+- **PR12** (`7f569c9`, ADR-031) — **Perplexity Search 도입** (바이어 인텔 웹 검색) + rubric 완화.
 
-### Edge Function 배포 결과
-- `run-pipeline` v22 → **v25**
-- `generate-draft` v6 → **v10**
-- `validate-draft` v3 → **v4**
+### Edge Function 배포 최종 버전
+- `run-pipeline` v22 → **v28**
+- `generate-draft` v6 → **v12**
+- `validate-draft` v3 → **v5**
 
 ### Sprint03 우선순위 달성도
-- [x] **우선순위 1 — 직원 D 프롬프트 재설계** (PR9/10/11/11.1로 4단계 진화 완료)
-- [ ] **우선순위 2 — 직원 C 채점 rubric 재조정** (PR12 Perplexity 도입과 함께 진행 예정)
-- [ ] **우선순위 3 — 직원 E SPAM_WORDS 목록 확장** (미착수)
-- [ ] **우선순위 4 — 직원 B bounce/catch-all 정책 명문화** (미착수)
+- [x] **우선순위 1 — 직원 D 프롬프트 재설계** (PR9/10/11/11.1로 4단계 진화, Warm-Confident 톤 확립)
+- [x] **우선순위 2 — 직원 C 채점 rubric 재조정** (PR12에서 Perplexity 도입 + "2필드 이상 0점" 완화 병행)
+- [x] **우선순위 3 — 직원 E SPAM_WORDS 목록 확장** (21→35개, 5곳 동기화)
+- [x] **우선순위 4 — 직원 B bounce/catch-all 정책 명문화** (ADR-028)
+
+### 미해결 UI 이슈 자연 해소 / 검증 결과
+- [x] "오늘 보낼 메일" 회사 미상 — DB 조회 결과 이슈 없음 확인 (데이터 자연 정리)
+- [x] 초안 영문/국문 혼재 — ADR-026 한글 가드로 해소
+- [x] 스팸 "수정" 버튼 → "위험 낮음" — ADR-027로 validate-draft 호출 교체
+- [x] 바이어 인텔 3개 미수집 — 현재 NULL 바이어는 test 샘플 1건뿐. 데이터 자연 해소
+- [x] 429 경고 간헐 — ADR-029 jitter로 완화 (근본 해결은 Anthropic Build Tier 2 승격)
 
 ### 후속 PR 계획 (`memory/project_sps_future_pr.md`에 상세 기록)
-- **PR12** — Perplexity 바이어 인텔 웹 검색 (Teddy Perplexity Pro 가입 후 착수, Sprint03 우선순위 2와 통합)
-- **PR13** — 클릭 추적 랜딩 페이지 + CRM 자동 프로토콜 (P.S. 링크 자산화)
-- **PR14** (선택) — `email_drafts.spam_reason` 컬럼 + UI 노출
+- **PR13** — 클릭 추적 랜딩 페이지 + CRM 자동 프로토콜 (옵션 B 대시보드 위젯 + 옵션 C Pipedrive 자동 Activity). Perplexity·Pipedrive env 둘 다 등록 완료 상태로 착수 가능.
+- **PR14** (PR13 완료 후 재평가) — `email_drafts.spam_reason` 컬럼 + UI 노출.
 
-### 미해결 이슈 (Sprint03 외 이월)
-- "오늘 보낼 메일" 회사 미상 표시 (UI 버그)
-- 초안 영문/국문 혼재 (UI 버그)
-- 스팸 "수정" 버튼 → "위험 낮음" 반환 (validate-draft 로직)
-- 바이어 인텔 3개 미수집 (유효 이메일 없음)
-- 429 경고 간헐 발생 (Claude API 할당량)
+### 외부 API 등록 상태
+- `PERPLEXITY_API_KEY` ✅ 등록 + 배포 완료 (digest 검증)
+- `PIPEDRIVE_API_TOKEN` ✅ 등록 완료 (실제 유효성은 PR13 옵션 C 구현 시 자연 검증)
