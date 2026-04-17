@@ -56,7 +56,10 @@ async function fetchClaudeWithRetry(
       // Anthropic의 retry-after 헤더 우선 (초 단위), 없으면 기본 백오프
       const retryAfter = res.headers.get("retry-after");
       const headerDelayMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : 0;
-      const delayMs = headerDelayMs > 0 ? headerDelayMs : defaultDelays[attempt];
+      // ADR-029: ±500ms jitter 추가. 3팀 × 배치5 동시 재시도 시 정확히 같은 시각에 재요청하면
+      //   429가 연속 발생 → jitter로 분산. Claude API Build Tier 2 자동 승격 전 임시 완충재.
+      const jitterMs = Math.floor(Math.random() * 1000) - 500; // -500 ~ +500
+      const delayMs = Math.max(100, (headerDelayMs > 0 ? headerDelayMs : defaultDelays[attempt]) + jitterMs);
       await new Promise((r) => setTimeout(r, delayMs));
     }
   }
