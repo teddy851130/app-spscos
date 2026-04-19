@@ -586,6 +586,38 @@
 
 ---
 
+## ADR-035: PR15 — 첨부 파일 업로드 (inline base64, 총 4MB 제한)
+
+**날짜**: 2026-04-19
+**결정**: EmailComposeModal 우측 "첨부 파일" 섹션을 실제 작동하게 구현. 사용자가 로컬 파일을 드래그/클릭 선택 → 클라이언트에서 base64 인코딩 → send-email Edge Function JSON body에 포함 → nodemailer의 `attachments` 옵션으로 SMTP 발송. 총 첨부 크기 4MB 제한.
+
+### 구성 요소
+1. **EmailComposeModal 첨부 UI** (우측 패널): `<input type="file" multiple hidden>` + 클릭/드래그 드롭 영역. 선택된 파일은 `File[]` state에 누적, 각 파일에 `×` 제거 버튼 + 총 용량 표시(초과 시 빨강). 모달 열릴 때와 발송 성공 시 자동 초기화.
+2. **base64 변환**: 발송 직전 `FileReader.readAsDataURL` → `split(',')[1]`로 data URI prefix 제거 → payload `{ name, contentType, content_base64 }[]`.
+3. **send-email v13**: `attachments` 필드 수신 → 총 크기 4MB 검증 → nodemailer `attachments: [{ filename, content: base64_string, encoding: 'base64', contentType }]` 포맷 변환 후 `sendMail` 호출.
+4. **프론트 사전 검증**: 발송 전 client-side에서도 총 크기 체크 (서버 413 도달 전 UX 피드백).
+
+### 이유
+- 오늘 ADR(PR14 직후)까지는 "SPS_Company_Profile_2026.pdf" 같은 더미 PDF가 하드코딩돼 있었음 — 사용자 혼란.
+- 실전 발송 시 회사 소개서·제품 카탈로그 첨부가 필수.
+- Gmail SMTP 자체는 25MB까지 허용하지만, Supabase Edge Function JSON body 한계(~6MB)가 실질 상한 → base64 팽창률(~33%) 고려해 **4MB**를 안전 마진으로 채택.
+
+### 대안 기각
+- **Supabase Storage 업로드 후 URL 전달 방식**: Storage → Edge Function에서 fetch → 첨부. 6MB 한계 우회 가능하지만 Storage bucket 설정 + RLS + 수명 정책 추가 필요. MVP 범위 초과.
+- **multipart/form-data**: Edge Function에서 multipart 파싱 라이브러리 필요 (Deno 기본 `req.formData()`는 있지만 Node 생태계 습관과 다름). JSON + base64가 더 단순하고 디버깅 쉬움.
+- **nodemailer `path` 옵션 (로컬 파일 경로)**: Edge Function에 파일 시스템 접근 없음. 사용 불가.
+
+### 한계
+- **4MB 초과 첨부 불가**: 큰 카탈로그는 URL 링크로 대체 필요 (또는 추후 Storage 방식 도입).
+- **UI는 파일 타입 제한 없음**: 사용자가 실수로 .exe 같은 파일도 첨부 가능. Gmail 측에서 차단하겠지만 프론트 가드 없음. 실제 사용하며 필요 시 추가.
+- **첨부 파일은 DB에 기록 안 됨**: email_logs/buyer_activities에 첨부 여부/이름 저장하지 않음. 발송 히스토리 조회 시 "뭘 첨부했는지"는 Gmail Sent 박스 확인 필요. 추후 필요 시 email_logs에 컬럼 추가.
+
+**관련 파일**:
+- `app/components/EmailComposeModal.tsx` (UI + state + base64 변환 + handleSend 수정)
+- `supabase/functions/send-email/index.ts` (v12→v13: attachments 수신·검증·nodemailer 전달)
+
+---
+
 ## ADR 작성 템플릿
 
 ```markdown

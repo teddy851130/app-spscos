@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Check, X, Send, Search, Bot, Building2, Lightbulb, FlaskConical, Target, Pencil, RefreshCw, Paperclip, CheckCircle, AlertCircle, MailOpen, FileText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { parseIntelJson } from './BuyerIntelDrawer';
@@ -35,6 +35,11 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
   const [subject, setSubject] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  // PR15(ADR-035): 첨부 파일 state. 총 4MB 이하(Edge Function body 한계 고려).
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [dragActive, setDragActive] = useState(false);
+  const MAX_ATTACH_BYTES = 4 * 1024 * 1024; // 4MB
+  const attachRef = useRef<HTMLInputElement>(null);
 
   // Buyer intel state
   const [intel, setIntel] = useState<any>(null);
@@ -378,6 +383,9 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
       setDraftSpamScore(null);
       setIntelMissing(false);
       setDraftLoading(true);
+      // PR15: 이전 바이어 발송에서 첨부된 파일이 유출되지 않도록 모달 열 때마다 초기화
+      setAttachments([]);
+      if (attachRef.current) attachRef.current.value = '';
       // PR5.2: 초안 생성 state도 리셋
       setDraftKo(null);
       setGenerateError(null);
@@ -484,8 +492,32 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
       alert('직원 E가 스팸 검증을 완료한 초안만 발송할 수 있습니다. 다음 파이프라인 실행 시 검증이 완료된 후 발송하세요.');
       return;
     }
+    // PR15(ADR-035): 첨부 파일 총 크기 사전 검증 (발송 전에 UX 차원에서 차단).
+    const totalSize = attachments.reduce((sum, f) => sum + f.size, 0);
+    if (totalSize > MAX_ATTACH_BYTES) {
+      alert(`첨부 파일 합계 ${(totalSize / 1024 / 1024).toFixed(2)}MB — 4MB 이하만 허용. 일부 파일을 제거해주세요.`);
+      return;
+    }
+
     setIsLoading(true);
     try {
+      // PR15(ADR-035): File → base64 변환. 순수 payload만 (data URI prefix 제거).
+      const attachPayload = await Promise.all(
+        attachments.map(
+          (file) =>
+            new Promise<{ name: string; contentType: string; content_base64: string }>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                const result = reader.result as string;
+                const base64 = result.includes(',') ? result.split(',')[1] : result;
+                resolve({ name: file.name, contentType: file.type || 'application/octet-stream', content_base64: base64 });
+              };
+              reader.onerror = () => reject(reader.error);
+              reader.readAsDataURL(file);
+            })
+        )
+      );
+
       // Supabase Edge Function 'send-email' 호출 (Gmail SMTP 발송 + email_logs 기록)
       // emailType 자동 결정: 발송 횟수 기반
       // 0회 → initial, 1회 → followup1, 2회 → followup2, 3회+ → breakup
@@ -514,6 +546,7 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
           buyerId: buyer.id || null,
           contactId: buyer.contact_id || null,
           emailType: autoEmailType,
+          attachments: attachPayload.length > 0 ? attachPayload : undefined,
         }),
       });
 
@@ -536,6 +569,9 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
       if (data.warning) {
         console.warn('[send-email]', data.warning);
       }
+      // PR15: 다음 발송 시 누락 방지용으로 첨부 목록 초기화.
+      setAttachments([]);
+      if (attachRef.current) attachRef.current.value = '';
       setShowToast(true);
       onSent?.();  // 발송 성공 → Buyers에서 버튼/상태 갱신
       onClose();
@@ -908,10 +944,72 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
               {/* Right Panel */}
               <div className="w-[300px] bg-[#f6f8fa] border-l border-[#e3e8ee] flex flex-col overflow-hidden">
                 <div className="flex-1 overflow-y-auto">
-                  {/* 첨부 파일 — 드래그/클릭 영역만 유지. 실제 업로드 기능은 후속 PR. */}
+                  {/* PR15(ADR-035): 첨부 파일 — 실제 업로드 구현. 총 4MB 제한. */}
                   <div className="px-4 py-4 border-b border-[#e3e8ee]">
-                    <div className="text-xs font-semibold text-[#1a1f36] mb-3">첨부 파일</div>
-                    <div className="border-2 border-dashed border-[#e3e8ee] rounded-lg p-4 text-center cursor-pointer hover:border-[#635BFF] transition">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-xs font-semibold text-[#1a1f36]">첨부 파일</div>
+                      {attachments.length > 0 && (() => {
+                        const total = attachments.reduce((sum, f) => sum + f.size, 0);
+                        const mb = (total / 1024 / 1024).toFixed(2);
+                        const over = total > MAX_ATTACH_BYTES;
+                        return (
+                          <span className={`text-xs ${over ? 'text-red-600 font-semibold' : 'text-[#8792a2]'}`}>
+                            {mb}MB / 4MB
+                          </span>
+                        );
+                      })()}
+                    </div>
+
+                    {/* 선택된 파일 목록 */}
+                    {attachments.length > 0 && (
+                      <div className="space-y-1.5 mb-3">
+                        {attachments.map((file, idx) => (
+                          <div key={`${file.name}-${idx}`} className="flex items-center justify-between bg-[#f6f8fa] rounded px-2 py-1.5 border border-[#e3e8ee]">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <Paperclip size={14} className="text-[#635BFF] shrink-0" />
+                              <span className="text-xs text-[#1a1f36] truncate">{file.name}</span>
+                              <span className="text-xs text-[#8792a2] shrink-0">{(file.size / 1024 / 1024).toFixed(2)}MB</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                              className="text-[#8792a2] hover:text-red-600 transition ml-2 shrink-0"
+                              aria-label={`${file.name} 제거`}
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 드래그/클릭 업로드 영역 */}
+                    <input
+                      ref={attachRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files ?? []);
+                        if (files.length > 0) setAttachments((prev) => [...prev, ...files]);
+                      }}
+                    />
+                    <div
+                      onClick={() => attachRef.current?.click()}
+                      onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(true); }}
+                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(true); }}
+                      onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(false); }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDragActive(false);
+                        const files = Array.from(e.dataTransfer.files ?? []);
+                        if (files.length > 0) setAttachments((prev) => [...prev, ...files]);
+                      }}
+                      className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition ${
+                        dragActive ? 'border-[#635BFF] bg-[#635BFF]/5' : 'border-[#e3e8ee] hover:border-[#635BFF]'
+                      }`}
+                    >
                       <div className="text-lg mb-1"><Paperclip size={18} className="inline" /></div>
                       <div className="text-xs text-[#8792a2]">파일을 드래그하거나 클릭</div>
                     </div>

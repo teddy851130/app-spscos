@@ -14,6 +14,11 @@
 //   buyerId?: string     // 바이어 UUID — 있으면 email_logs에 기록
 //   contactId?: string   // 담당자 UUID — buyer_activities에 연결 (선택)
 //   emailType?: string   // initial | followup1 | followup2 | breakup (기본값: initial)
+//   attachments?: Array<{  // PR15(ADR-035): 첨부 파일. 총 4MB 제한(base64 팽창 + Edge Function body 한계).
+//     name: string            // 파일명
+//     contentType: string     // MIME 타입 (application/pdf 등)
+//     content_base64: string  // base64 인코딩 문자열 (data URI prefix 없이 순수 payload)
+//   }>
 // }
 //
 // 출력 성공: { success: true, message: "발송 완료", logId?: string }
@@ -89,6 +94,7 @@ Deno.serve(async (req: Request) => {
     buyerId?: string;
     contactId?: string;
     emailType?: string;
+    attachments?: Array<{ name?: string; contentType?: string; content_base64?: string }>;
   };
   try {
     payload = await req.json();
@@ -96,7 +102,33 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ success: false, error: "요청 본문 JSON 파싱 실패" }, 400);
   }
 
-  const { to, toName, subject, body: emailBody, buyerId, contactId, emailType } = payload;
+  const { to, toName, subject, body: emailBody, buyerId, contactId, emailType, attachments } = payload;
+
+  // PR15(ADR-035): 첨부 파일 검증. 총 base64 크기 4MB 이하로 제한.
+  const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
+  let totalAttachmentBytes = 0;
+  const normalizedAttachments: Array<{ filename: string; content: string; encoding: "base64"; contentType?: string }> = [];
+  if (Array.isArray(attachments)) {
+    for (const a of attachments) {
+      if (!a?.name || !a?.content_base64) {
+        return jsonResponse({ success: false, error: "첨부 파일의 name/content_base64 누락" }, 400);
+      }
+      totalAttachmentBytes += a.content_base64.length;
+      normalizedAttachments.push({
+        filename: a.name,
+        content: a.content_base64,
+        encoding: "base64",
+        contentType: a.contentType,
+      });
+    }
+    if (totalAttachmentBytes > MAX_ATTACHMENT_BYTES) {
+      const mb = (totalAttachmentBytes / 1024 / 1024).toFixed(2);
+      return jsonResponse(
+        { success: false, error: `첨부 파일 합계 ${mb}MB — 4MB 이하만 허용` },
+        413,
+      );
+    }
+  }
   // emailType 유효성 검사 — 허용된 값만 사용
   const validEmailTypes = ["initial", "followup1", "followup2", "breakup"];
   const resolvedEmailType = validEmailTypes.includes(emailType ?? "") ? emailType! : "initial";
@@ -138,8 +170,9 @@ Deno.serve(async (req: Request) => {
       subject,
       text: emailBody, // plain text 본문
       html: emailBody.replace(/\n/g, "<br>"), // 줄바꿈만 HTML로 변환
+      attachments: normalizedAttachments.length > 0 ? normalizedAttachments : undefined,
     });
-    console.log(`[send-email] 발송 성공: messageId=${info.messageId}, to=${to}`);
+    console.log(`[send-email] 발송 성공: messageId=${info.messageId}, to=${to}, attachments=${normalizedAttachments.length}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[send-email] SMTP 실패: ${msg}`);
