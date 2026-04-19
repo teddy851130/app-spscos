@@ -866,8 +866,8 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
                     <span className="text-xs font-semibold text-[#1a1f36]">
                       {draft.contact_name} @ {draft.company_name}
                     </span>
-                    <span className="text-xs bg-[#ef4444]/20 text-[#ef4444] px-2 py-0.5 rounded font-semibold">
-                      스팸점수: {draft.spam_score}
+                    <span className="text-xs bg-[#ef4444]/20 text-[#ef4444] px-2 py-0.5 rounded font-semibold" title="안전도 = 10(안전)~1(위험). 낮을수록 스팸 판정 위험.">
+                      안전도: {draft.spam_score}/10
                     </span>
                   </div>
                   <div className="text-xs text-[#697386]">{draft.subject_line_1}</div>

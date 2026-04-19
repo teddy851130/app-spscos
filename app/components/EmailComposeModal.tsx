@@ -604,8 +604,8 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
                     </span>
                   )}
                   {draftExists && draftSpamStatus === 'flag' && (
-                    <span className="bg-[#fef2f2] text-[#b91c1c] text-xs px-2 py-0.5 rounded" title="스팸 위험으로 판정됨. 본문 수정 후 재검증 필요.">
-                      <AlertCircle size={14} className="inline" /> 스팸 위험{draftSpamScore != null ? ` (${draftSpamScore}/10)` : ''}
+                    <span className="bg-[#fef2f2] text-[#b91c1c] text-xs px-2 py-0.5 rounded" title="안전도 미달로 스팸 판정됨. 본문 수정 후 재검증 필요. (안전도 = 10 안전 ~ 1 위험)">
+                      <AlertCircle size={14} className="inline" /> 검증 실패{draftSpamScore != null ? ` (안전도 ${draftSpamScore}/10)` : ''}
                     </span>
                   )}
                   {/* PR6: 신규 생성·강제 재생성 후 spam_status=null 상태 — 직원 E 재검증 대기 중임을 투명하게 노출 */}

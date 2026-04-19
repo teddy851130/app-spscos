@@ -61,11 +61,9 @@ interface SpamCheckResult {
 }
 
 // 서버(run-pipeline 직원 E)의 checkSpamRules / autoFixSpam 규칙과 동일 조건 + 동일 스케일.
-// 스케일: 1~10 (10=안전, 1=위험). 이슈 1개당 -2점, 최저 1.
-// level 라벨은 "위험 수준"을 나타내며 score 값과 일관됨:
-//   score 8+  → level '낮음' (위험 낮음 = 안전)
-//   score 5~7 → level '보통'
-//   score 1~4 → level '높음' (위험 높음)
+// 스케일: 1~10 (10=안전, 1=위험). "안전도 점수"로 해석: 높을수록 안전.
+// 규칙 위반이 1개라도 감지되면 score ≤ 5로 강제 (이전: 1개=8점 과대평가 버그. ADR-034).
+// 로컬 체크는 단순 규칙 기준이고 서버의 Claude rubric을 포함하지 않으므로 저장 시 재검증 필수.
 function checkSpamClient(text: string): SpamCheckResult {
   const issues: string[] = [];
   const lower = text.toLowerCase();
@@ -89,7 +87,15 @@ function checkSpamClient(text: string): SpamCheckResult {
   // 5. 느낌표 2개+
   if (/!!/.test(text)) issues.push('느낌표 연속 사용');
 
-  const score = Math.max(1, 10 - issues.length * 2);
+  // ADR-034: 규칙 위반 1건이라도 있으면 안전도 ≤ 5로 강제. "1개 걸렸는데 8점=낮음" 자기모순 제거.
+  let score: number;
+  if (issues.length === 0) {
+    score = 10;
+  } else {
+    score = Math.max(1, Math.min(5, 6 - issues.length * 2));
+  }
+  // score 8+ = '낮음'(위험 낮음 = 안전), 5~7 = '보통', 1~4 = '높음'(위험 높음)
+  // 위 공식상 issues>0이면 score≤5라 '낮음'에 안 들어감 → 모순 해소.
   const level = score >= 8 ? '낮음' : score >= 5 ? '보통' : '높음';
 
   return { score, level, issues };
@@ -449,7 +455,7 @@ export default function MailQueue() {
                       제목: {draft.subject_line_1 ? draft.subject_line_1.slice(0, 40) + (draft.subject_line_1.length > 40 ? '...' : '') : '-'}
                     </span>
 
-                    {/* 스팸 점수 (DB 스케일: 10=안전, 1=위험) */}
+                    {/* 안전도 뱃지 (10=안전, 1=위험. ADR-034: 라벨 "스팸"→"안전도" 혼동 해소) */}
                     {draft.spam_score !== null && (() => {
                       const level = spamLevel(draft.spam_score);
                       const cls = level === 'safe'
@@ -458,8 +464,8 @@ export default function MailQueue() {
                           ? 'bg-amber-500/20 text-amber-600'
                           : 'bg-red-500/20 text-red-600';
                       return (
-                        <span className={`text-xs px-2 py-0.5 rounded shrink-0 ${cls}`}>
-                          스팸: {draft.spam_score.toFixed(1)}/10
+                        <span className={`text-xs px-2 py-0.5 rounded shrink-0 ${cls}`} title="안전도 = 10(안전)~1(위험). 낮을수록 스팸 판정 위험.">
+                          안전도: {draft.spam_score.toFixed(1)}/10
                         </span>
                       );
                     })()}
@@ -508,7 +514,20 @@ export default function MailQueue() {
                             placeholder="본문"
                           />
 
-                          {/* 스팸 재확인 결과 */}
+                          {/* 편집 진입 시점 — DB 점수 보존 (본문 수정 전) */}
+                          {!spamResult && (
+                            <div className="rounded-lg p-3 border border-[#e3e8ee] bg-[#f6f8fa] text-sm">
+                              <div className="flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4 text-[#8792a2]" />
+                                <span className="text-[#697386]">
+                                  편집 전 DB 안전도: <span className="font-semibold text-[#1a1f36]">{draft.spam_score != null ? `${draft.spam_score.toFixed(1)}/10` : '미검증'}</span>
+                                  <span className="text-xs text-[#8792a2] ml-2">(본문 수정 시 로컬 재검사)</span>
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 스팸 재확인 결과 (본문 수정 중 — 로컬 규칙 기준) */}
                           {spamResult && (
                             <div className={`rounded-lg p-3 border text-sm ${
                               spamResult.level === '낮음'
@@ -526,7 +545,7 @@ export default function MailQueue() {
                                   spamResult.level === '낮음' ? 'text-green-400'
                                     : spamResult.level === '보통' ? 'text-amber-400' : 'text-red-400'
                                 }`}>
-                                  스팸 위험: {spamResult.level} ({spamResult.score}/10)
+                                  안전도: {spamResult.score}/10
                                 </span>
                               </div>
                               {spamResult.issues.length > 0 ? (
@@ -536,8 +555,11 @@ export default function MailQueue() {
                                   ))}
                                 </ul>
                               ) : (
-                                <p className="text-xs text-green-400 ml-6">문제 없음 — 발송해도 안전합니다</p>
+                                <p className="text-xs text-green-400 ml-6">규칙 통과</p>
                               )}
+                              <p className="text-xs text-[#8792a2] ml-6 mt-1.5 pt-1.5 border-t border-[#e3e8ee]">
+                                ※ 로컬 규칙 기준. 저장 시 서버 Claude 재검증에서 추가로 감점될 수 있음.
+                              </p>
                             </div>
                           )}
 
@@ -642,7 +664,8 @@ export default function MailQueue() {
                                 setEditingDraftId(draft.id);
                                 setEditSubject(draft.subject_line_1);
                                 setEditBody(draft.body_first || draft.body_followup || '');
-                                setSpamResult(checkSpamClient(draft.body_first || draft.body_followup || ''));
+                                // ADR-034: 진입 시점은 DB 점수를 보존. 본문이 변경돼야 로컬 재검사 전환 → 3.0(DB) vs 8.0(로컬) 격차 버그 해소.
+                                setSpamResult(null);
                               }}
                               className="px-3 py-1 text-xs bg-[#e3e8ee] hover:bg-[#8792a2] text-[#1a1f36] rounded transition"
                             >
