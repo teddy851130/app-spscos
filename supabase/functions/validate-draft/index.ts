@@ -37,7 +37,8 @@ const SPAM_WORDS = [
   "don't wait", "while supplies last", "one-time offer",
 ];
 
-// PR13(ADR-032): SPS 도메인 = spscos.com + app-spscos.vercel.app/go (tracking redirect) 합산
+// PR13(ADR-032): SPS 도메인 = spscos.com + app.spscos.com/go (tracking redirect) 합산
+// legacy 호환: app-spscos.vercel.app/go도 인식 (구 fallback URL, 과거 발송분)
 const SPS_DOMAIN_RE = /(?:spscos\.com|app-spscos\.vercel\.app\/go)/gi;
 const EXTERNAL_LINK_RE = /https?:\/\/(?!(?:[^\s]*spscos\.com)|(?:[^\s]*app-spscos\.vercel\.app\/go))[^\s)]+/gi;
 

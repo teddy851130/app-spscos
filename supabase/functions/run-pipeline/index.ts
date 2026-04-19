@@ -610,7 +610,7 @@ async function agentD(sb: SB, jobId: string, _team: string) {
 
       // PR13(ADR-032): P.S. 링크를 자체 redirect(/go/{token})로 교체 → 클릭 이벤트 수집 + Pipedrive Activity.
       //   tracking_token이 없는 legacy contact는 hardcoded spscos.com/으로 폴백 (발송 실패 방지).
-      const TRACK_BASE = Deno.env.get("TRACK_BASE_URL") || "https://app-spscos.vercel.app/go";
+      const TRACK_BASE = Deno.env.get("TRACK_BASE_URL") || "https://app.spscos.com/go";
       const trackingUrl = c.tracking_token
         ? `${TRACK_BASE}/${c.tracking_token}`
         : "https://spscos.com/";

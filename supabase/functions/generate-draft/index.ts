@@ -91,7 +91,7 @@ Deno.serve(async (req: Request) => {
 
       // PR13(ADR-032): P.S. 링크를 자체 redirect(/go/{token})로 교체 → 클릭 이벤트 수집.
       // 클라이언트가 tracking_token을 안 보낼 수 있으므로 서버에서 DB 조회로 보강.
-      const TRACK_BASE = Deno.env.get("TRACK_BASE_URL") || "https://app-spscos.vercel.app/go";
+      const TRACK_BASE = Deno.env.get("TRACK_BASE_URL") || "https://app.spscos.com/go";
       let trackingToken: string | null = typeof contact.tracking_token === "string" ? contact.tracking_token : null;
       if (!trackingToken && contact.id) {
         try {

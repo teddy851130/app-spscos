@@ -73,7 +73,7 @@ function checkSpamClient(text: string): SpamCheckResult {
   const found = SPAM_WORDS.filter((w) => lower.includes(w));
   if (found.length > 0) issues.push(`스팸 키워드 ${found.length}개: ${found.join(', ')}`);
 
-  // 2. SPS 도메인 링크 3개+ (PR13 ADR-032: spscos.com + app-spscos.vercel.app/go 합산)
+  // 2. SPS 도메인 링크 3개+ (PR13 ADR-032: spscos.com(서브도메인 app.spscos.com/go 포함) + legacy app-spscos.vercel.app/go 합산)
   const spsLinks = (text.match(/(?:spscos\.com|app-spscos\.vercel\.app\/go)/gi) || []).length;
   if (spsLinks >= 3) issues.push(`SPS 도메인 링크 ${spsLinks}개 (최대 2개)`);
 

@@ -472,14 +472,16 @@
 ## ADR-032: PR13 — 클릭 추적 redirect + Pipedrive 자동 Activity (옵션 B + C 병행)
 
 **날짜**: 2026-04-17 (PR13)
-**결정**: 메일 P.S. 링크를 자체 redirect 엔드포인트 `https://app-spscos.vercel.app/go/{tracking_token}`로 교체해 클릭 이벤트를 수집하고, Pipedrive "Website visited" Activity를 자동 등록한다.
+**결정**: 메일 P.S. 링크를 자체 redirect 엔드포인트 `https://app.spscos.com/go/{tracking_token}`로 교체해 클릭 이벤트를 수집하고, Pipedrive "Website visited" Activity를 자동 등록한다.
+
+> 정정 (2026-04-19): 초기 배포는 기본 Vercel 도메인 `app-spscos.vercel.app`을 fallback으로 썼으나 해당 도메인이 응답 불가 상태 확인됨 → production 커스텀 도메인 `app.spscos.com`으로 교체. 3개 Edge Function(run-pipeline v35·generate-draft v19·validate-draft v12) fallback URL + `MailQueue.tsx` 코멘트 수정. legacy 호환: validate-draft / MailQueue의 SPS 도메인 regex에는 `app-spscos.vercel.app/go`도 유지.
 
 ### 구성 요소
 1. **`buyer_contacts.tracking_token`** (migration 011): 12자 hex, UNIQUE, DB 측 기본값 `encode(gen_random_bytes(6), 'hex')`. 기존 26건 row는 백필. 앞선 계획의 HMAC 방식 폐기 — secret env 불필요.
 2. **`click_events` 테이블** (migration 011): `buyer_contact_id`, `clicked_at`, `user_agent`, `ip_address`, `ip_country`, `referer`, `pipedrive_status` (`pending`/`success`/`failed`/`skipped`), `pipedrive_activity_id`, `pipedrive_error`. RLS `SELECT true`, 쓰기는 service_role bypass.
 3. **`/go/[token]/route.ts`** (Next.js App Router, Node.js runtime): 토큰 정규식 검증 → DB lookup → click_events INSERT → contact_status 'Interested' 갱신 (`Sample`/`Deal`/`Lost`/`Bounced` 보호) → Pipedrive Activity 생성 → 302 `https://spscos.com/`.
 4. **Pipedrive lib** (`app/lib/pipedrive.ts`): `/persons/search?term={email}&exact_match=true`로 Person 찾고 `/activities` POST. 타임아웃 4초. `PIPEDRIVE_API_TOKEN` 없으면 `skipped`, 토큰 있는데 실패하면 `failed` + `pipedrive_error`. pipeline_logs는 agent CHECK(A~F) 제약으로 부적합 → click_events 자체 필드에 보존, agentF가 향후 집계.
-5. **프롬프트 동적 URL 주입**: `run-pipeline` agentD(영문), `generate-draft` generate_ko(국문) 모두 기존 하드코딩 `https://spscos.com/` → `${trackingUrl}` 치환. Edge Function 내부에서 `TRACK_BASE_URL` env(기본 `https://app-spscos.vercel.app/go`) + `contact.tracking_token`으로 구성. tracking_token이 없는 legacy contact는 `https://spscos.com/` 폴백.
+5. **프롬프트 동적 URL 주입**: `run-pipeline` agentD(영문), `generate-draft` generate_ko(국문) 모두 기존 하드코딩 `https://spscos.com/` → `${trackingUrl}` 치환. Edge Function 내부에서 `TRACK_BASE_URL` env(기본 `https://app.spscos.com/go`, 2026-04-19 정정) + `contact.tracking_token`으로 구성. tracking_token이 없는 legacy contact는 `https://spscos.com/` 폴백.
 6. **도메인 체크 로직 통합**: `SPS_DOMAIN_RE = /(?:spscos\.com|app-spscos\.vercel\.app\/go)/gi`를 run-pipeline `checkSpamRules`/`autoFixSpam` + validate-draft + MailQueue.tsx 3곳 동기화 (ADR-030 SPAM_WORDS 3-way sync 패턴 유지).
 7. **대시보드 "오늘의 관심 리드" 위젯** (`app/components/InterestedLeadsWidget.tsx`): 최근 72시간 click_events + buyer_contacts + buyers 조인. 카드: 회사명 · 담당자 · 클릭 시각(상대시간) · Tier · Pipedrive 상태 뱃지.
 8. **`SUPABASE_SERVICE_ROLE_KEY`** (Vercel env): route handler가 RLS bypass로 click_events INSERT 및 contact_status UPDATE에 필요. `app/lib/supabaseAdmin.ts`에서 지연 초기화, 서버 사이드 전용.
@@ -498,9 +500,9 @@
 - **`contact_status` enum 신규 값**: 기존 CHECK에 이미 'Interested' 포함 → 변경 불필요.
 
 ### 한계 / 후속
-- **이미 발송된 메일**: 하드코딩 `spscos.com` 링크로 나갔으므로 추적 불가. 신규 발송분(run-pipeline v34 · generate-draft v18 이후)만 해당.
-- **Pipedrive API 토큰 유효성**: 등록은 PR12에서 완료됐지만 실제 유효성은 첫 클릭 발생 시 자연 검증. 실패 시 `pipedrive_status='failed'` + error 저장.
-- **Vercel URL**: `TRACK_BASE_URL` env로 재정의 가능. 커스텀 도메인 도입 시 env 업데이트만.
+- **이미 발송된 메일**: 하드코딩 `spscos.com` 링크로 나갔으므로 추적 불가. 신규 발송분(run-pipeline v35 · generate-draft v19 · validate-draft v12 이후)만 해당.
+- **Pipedrive API 토큰 유효성**: 2026-04-19 첫 실제 클릭 테스트 결과 `pipedrive_status='skipped'` + `PIPEDRIVE_API_TOKEN 미설정` 확인 → Vercel env 누락. route handler는 Vercel 런타임이므로 Supabase env가 아닌 **Vercel env**에 등록 필요. 수동 등록 후 재테스트 예정.
+- **Vercel URL**: 커스텀 도메인 `app.spscos.com`으로 운영. `TRACK_BASE_URL` env로 재정의 가능.
 - **대시보드 위젯 "메일 작성 재진입" 버튼 생략**: 현재는 Buyers 탭 이동만. EmailComposeModal 깊은 연동은 후속.
 
 ### 비용
