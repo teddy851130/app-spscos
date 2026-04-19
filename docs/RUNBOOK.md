@@ -160,6 +160,29 @@ Vercel 필수:
   3. Gmail 계정 2단계 인증 + 앱 비밀번호 활성 여부
   4. teddy@spscos.com 일일 발송 한도 (Gmail 무료: 500통)
 
+### 메일 첨부 파일 발송 실패 (PR15 이후)
+- **원인 후보**:
+  1. 총 첨부 크기 4MB 초과 → 프론트에서 alert + 서버 413 반환. 파일 제거 또는 Supabase Storage 방식 재설계 필요.
+  2. nodemailer `encoding: 'base64'` 옵션 누락 → SMTP는 성공하지만 수신자 측에서 파일 깨짐.
+  3. Gmail 측 파일 타입 차단 (.exe/.zip 일부) → 로그에 SMTP error 그대로 찍힘.
+- **디버깅**: send-email Logs에 `attachments=<개수>` 확인. 0이면 프론트 payload 문제.
+
+### `/go/{token}` 404 — 클릭 추적 redirect 미작동 (PR13 교훈)
+- **원인**: fallback URL이 실제 응답 가능한 도메인을 가리키지 않음.
+- **확인**: 발송된 메일 본문의 P.S. URL을 브라우저에 직접 붙여넣어 302 되는지.
+  - `app-spscos.vercel.app/go/...` 형태 → 2026-04-19 hotfix 이전 발송분. 이 도메인은 커스텀 도메인 `app.spscos.com` 전환 후 응답 불가.
+  - `app.spscos.com/go/...` 형태 → 정상 동작 해야 함.
+- **교훈**: Vercel 기본 `*.vercel.app` 도메인을 env/하드코딩 fallback으로 쓰지 말 것. 커스텀 도메인 전환 후 자동 비활성화될 수 있음.
+- **통합 웹사이트 런칭 시 URL 전환 절차**: `memory/project_sps_future_pr.md`의 "런칭 시 전환 단계" 섹션 5단계 참조.
+
+### Vercel env vs Supabase Edge Function env 혼동
+- **문제**: PIPEDRIVE_API_TOKEN을 Supabase Edge Function env에 등록했는데 `/go/[token]/route.ts` 가 "토큰 미설정" 에러 반환.
+- **원인**: `route.ts`는 Next.js App Router route → **Vercel 런타임**에서 실행. Supabase env 접근 불가.
+- **규칙**:
+  - Supabase Edge Function (Deno)에서 쓰는 키 → **Supabase Secrets**
+  - Next.js route/page에서 쓰는 키 → **Vercel Environment Variables**
+  - 둘 다 쓰면 양쪽에 모두 등록 필요.
+
 ---
 
 ## 신규 migration 작성 시 사전 점검 SQL 템플릿
