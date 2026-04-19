@@ -35,8 +35,6 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
   const [subject, setSubject] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showToast, setShowToast] = useState(false);
-  const [attachPDF1, setAttachPDF1] = useState(true);
-  const [attachPDF2, setAttachPDF2] = useState(false);
 
   // Buyer intel state
   const [intel, setIntel] = useState<any>(null);
@@ -910,42 +908,10 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
               {/* Right Panel */}
               <div className="w-[300px] bg-[#f6f8fa] border-l border-[#e3e8ee] flex flex-col overflow-hidden">
                 <div className="flex-1 overflow-y-auto">
-                  {/* 첨부 파일 */}
+                  {/* 첨부 파일 — 드래그/클릭 영역만 유지. 실제 업로드 기능은 후속 PR. */}
                   <div className="px-4 py-4 border-b border-[#e3e8ee]">
                     <div className="text-xs font-semibold text-[#1a1f36] mb-3">첨부 파일</div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={attachPDF1}
-                            onChange={(e) => setAttachPDF1(e.target.checked)}
-                            className="w-4 h-4 rounded cursor-pointer"
-                          />
-                          <div className="flex-1">
-                            <div className="text-xs font-semibold text-[#1a1f36]">SPS_Company_Profile_2026.pdf</div>
-                            <div className="text-xs text-[#8792a2]">2.4MB</div>
-                          </div>
-                        </div>
-                        {attachPDF1 && <span className="text-xs text-[#635BFF]"><Check size={14} className="inline" /> 첨부됨</span>}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={attachPDF2}
-                            onChange={(e) => setAttachPDF2(e.target.checked)}
-                            className="w-4 h-4 rounded cursor-pointer"
-                          />
-                          <div className="flex-1">
-                            <div className="text-xs font-semibold text-[#1a1f36]">SPS_Product_Catalog_2026.pdf</div>
-                            <div className="text-xs text-[#8792a2]">5.1MB</div>
-                          </div>
-                        </div>
-                        {attachPDF2 && <span className="text-xs text-[#635BFF]"><Check size={14} className="inline" /> 첨부됨</span>}
-                      </div>
-                    </div>
-                    <div className="mt-3 border-2 border-dashed border-[#e3e8ee] rounded-lg p-4 text-center cursor-pointer hover:border-[#635BFF] transition">
+                    <div className="border-2 border-dashed border-[#e3e8ee] rounded-lg p-4 text-center cursor-pointer hover:border-[#635BFF] transition">
                       <div className="text-lg mb-1"><Paperclip size={18} className="inline" /></div>
                       <div className="text-xs text-[#8792a2]">파일을 드래그하거나 클릭</div>
                     </div>
