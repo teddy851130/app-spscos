@@ -519,6 +519,41 @@
 
 ---
 
+## ADR-033: PR14 — email_drafts.spam_reason 컬럼 + UI 노출
+
+**날짜**: 2026-04-19 (PR14)
+**결정**: agentE가 발견한 스팸 flag 사유(Claude 한국어 문장 또는 규칙 위반 목록)를 `email_drafts.spam_reason` 컬럼에 persist하고, Dashboard "검토 필요" 섹션 + MailQueue 각 초안 카드에 직접 노출한다.
+
+### 구성 요소
+1. **migration 012**: `ALTER TABLE email_drafts ADD COLUMN spam_reason TEXT;` + PostgREST schema reload. backfill 없음 — 기존 flag 초안은 NULL, 향후 재검증 시 채워짐.
+2. **run-pipeline agentE**: 두 flag 경로 (Claude score<8 + 규칙 위반 자동수정 실패) 모두 `spam_reason` UPDATE 포함. pass/rewrite 경로는 `spam_reason: null`로 clear (재검증 시 이전 사유 잔존 방지). Claude reason은 500자 슬라이스, 규칙 위반은 `issues.join("; ")` 500자 슬라이스.
+3. **validate-draft**: updatePayload에 `spam_reason` 추가. 기존 응답 필드(`reason`, `issues`)는 유지 (즉시 alert용). DB 저장분은 MailQueue/Dashboard에서 persistent 확인 용도.
+4. **UI — Dashboard**: `/` 대시보드 "검토 필요" 섹션 각 카드 하단에 빨간 경계선 + "사유: ..." 줄 추가. `draft.spam_reason`이 있을 때만 노출.
+5. **UI — MailQueue**: 초안 카드(클릭 펼치기 전)에 `spam_status === 'flag' && spam_reason`이면 카드 하단에 빨간 배경 사유 박스 인라인 표시.
+6. **타입 정의**: `app/lib/types.ts` EmailDraft 인터페이스에 `spam_reason?: string | null` 추가.
+
+### 이유
+- 기존 구조(ADR-024)는 flag 사유를 `pipeline_logs`에만 기록 → Teddy가 "어떤 초안이 왜 flag됐는지" 확인하려면 pipeline_logs 조회 필요 (UI 탐색 불가).
+- MailQueue/Dashboard에서 한눈에 사유 파악 가능해지면 수정 우선순위를 즉시 판단할 수 있음.
+- 응답 필드 `reason`/`issues`만으로는 validate-draft 호출 직후 1회만 노출되고 이후 조회 불가 → DB persist 필요.
+
+### 대안 기각
+- **툴팁 hover 방식**: 모바일·키보드 접근성 떨어짐. 인라인 줄이 더 직관적.
+- **EmailComposeModal 내 reason 노출**: 기존 alert(`vdata.reason`)로 충분히 커버. 추가 변경 없이 PR 범위 최소화.
+- **기존 flag 초안 backfill (스크립트로 Claude 재검증)**: 발송 없는 시점이라 실용 이득 낮음. 향후 자연 재검증 시점에 채워짐.
+
+### 한계
+- NULL 사유(기존 flag 초안)는 UI에서 "사유 없음" 대신 줄 자체를 숨김 → Teddy가 "왜 NULL?"을 구분 못 할 수 있음. 실전에서는 재검증 후 채워지므로 임시 문제.
+- `spam_reason` 컬럼에 RLS 추가 제약 없음 (기존 email_drafts 정책 그대로).
+
+**관련 파일**:
+- `supabase/migrations/012_spam_reason.sql` (+ rollback)
+- `supabase/functions/run-pipeline/index.ts` (v35→v36), `validate-draft/index.ts` (v12→v13)
+- `app/components/Dashboard.tsx`, `MailQueue.tsx`
+- `app/lib/types.ts`
+
+---
+
 ## ADR 작성 템플릿
 
 ```markdown

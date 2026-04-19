@@ -65,6 +65,8 @@ export interface EmailDraft {
   tier: 'Tier1' | 'Tier2'
   spam_score?: number
   spam_status?: 'pass' | 'flag' | 'rewrite' | 'pending_intel' | null
+  // PR14(ADR-033): flag 사유. Claude 한국어 문장 or 규칙 위반 목록. pass/rewrite 시 null.
+  spam_reason?: string | null
   is_sent: boolean
   sent_at?: string
   created_at?: string

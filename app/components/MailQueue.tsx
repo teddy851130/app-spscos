@@ -30,6 +30,7 @@ interface DraftItem {
   body_followup: string;
   spam_score: number | null;
   spam_status: string | null;
+  spam_reason: string | null;
   tier: string | null;
   // 조인된 바이어 정보
   company_name: string;
@@ -220,7 +221,7 @@ export default function MailQueue() {
       .from('email_drafts')
       .select(`
         id, subject_line_1, body_first, body_followup,
-        spam_score, spam_status, tier, buyer_id,
+        spam_score, spam_status, spam_reason, tier, buyer_id,
         buyers:buyer_id ( company_name ),
         buyer_contacts:buyer_contact_id ( contact_name, contact_email )
       `)
@@ -247,6 +248,7 @@ export default function MailQueue() {
         body_followup: (d.body_followup as string) || '',
         spam_score: d.spam_score as number | null,
         spam_status: d.spam_status as string | null,
+        spam_reason: (d.spam_reason as string | null) ?? null,
         tier: d.tier as string | null,
         company_name: buyerRel?.company_name || '',
         contact_name: contactRel?.contact_name || '',
@@ -469,6 +471,15 @@ export default function MailQueue() {
                     초안 보기
                   </button>
                 </div>
+
+                {/* PR14: flag 사유 — 카드 펼치지 않아도 즉시 확인 가능 */}
+                {draft.spam_status === 'flag' && draft.spam_reason && (
+                  <div className="px-4 pb-2 -mt-1">
+                    <div className="text-xs bg-red-500/10 border border-red-500/20 rounded px-3 py-1.5 text-red-700">
+                      <span className="font-semibold">스팸 사유: </span>{draft.spam_reason}
+                    </div>
+                  </div>
+                )}
 
                 {/* 초안 미리보기 / 수정 (토글) */}
                 {previewDraft?.id === draft.id && (

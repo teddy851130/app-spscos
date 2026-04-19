@@ -969,15 +969,15 @@ ${d.body_first}`,
           }
 
           if (score >= 8) {
-            await sb.from("email_drafts").update({ spam_score: score, spam_status: "pass" }).eq("id", d.id);
+            await sb.from("email_drafts").update({ spam_score: score, spam_status: "pass", spam_reason: null }).eq("id", d.id);
             passed++;
           } else {
-            await sb.from("email_drafts").update({ spam_score: score, spam_status: "flag" }).eq("id", d.id);
+            // PR14(ADR-033): flag 사유를 email_drafts.spam_reason에 저장 → MailQueue/Dashboard UI에서 직관적으로 확인.
+            const reasonText = (claudeReason || "Claude 사유 미수집").slice(0, 500);
+            await sb.from("email_drafts").update({ spam_score: score, spam_status: "flag", spam_reason: reasonText }).eq("id", d.id);
             flagged++;
-            // ADR-024: Claude가 판단한 flag 사유를 pipeline_logs에 기록 → Teddy가 원인 추적 가능.
-            // email_drafts 스키마 확장 없이 로그 레벨만 개선 (migration 불필요).
             await log(sb, jobId, "E", "running",
-              `검토필요 (${(d.id as string).slice(0, 8)}, score=${score}): ${(claudeReason || "Claude 사유 미수집").slice(0, 200)}`);
+              `검토필요 (${(d.id as string).slice(0, 8)}, score=${score}): ${reasonText.slice(0, 200)}`);
           }
         } else {
           // 규칙 위반 → 자동 수정 (최대 1회)
@@ -985,13 +985,15 @@ ${d.body_first}`,
           const retryIssues = checkSpamRules(d.subject_line_1 as string, fixed);
 
           if (retryIssues.length === 0) {
-            await sb.from("email_drafts").update({ body_first: fixed, spam_score: 8, spam_status: "rewrite" }).eq("id", d.id);
+            await sb.from("email_drafts").update({ body_first: fixed, spam_score: 8, spam_status: "rewrite", spam_reason: null }).eq("id", d.id);
             rewritten++;
             await log(sb, jobId, "E", "running", `수정통과 (${(d.id as string).slice(0, 8)}): ${fixes.join(", ")}`);
           } else {
-            await sb.from("email_drafts").update({ body_first: fixed, spam_score: 5, spam_status: "flag" }).eq("id", d.id);
+            // PR14(ADR-033): 자동수정 후에도 남은 규칙 위반을 spam_reason에 저장.
+            const reasonText = retryIssues.join("; ").slice(0, 500);
+            await sb.from("email_drafts").update({ body_first: fixed, spam_score: 5, spam_status: "flag", spam_reason: reasonText }).eq("id", d.id);
             flagged++;
-            await log(sb, jobId, "E", "running", `검토필요 (${(d.id as string).slice(0, 8)}): ${retryIssues.join(", ")}`);
+            await log(sb, jobId, "E", "running", `검토필요 (${(d.id as string).slice(0, 8)}): ${reasonText}`);
           }
         }
         checked++;

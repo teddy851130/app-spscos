@@ -871,6 +871,11 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
                     </span>
                   </div>
                   <div className="text-xs text-[#697386]">{draft.subject_line_1}</div>
+                  {draft.spam_reason && (
+                    <div className="text-xs text-[#ef4444] mt-1.5 pt-1.5 border-t border-[#ef4444]/10">
+                      <span className="font-semibold">사유: </span>{draft.spam_reason}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

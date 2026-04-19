@@ -239,9 +239,17 @@ ${draft.body_first}`,
       }
     }
 
+    // PR14(ADR-033): flag 사유를 spam_reason에 저장. pass/rewrite 시 기존 사유 초기화.
+    let reasonText: string | null = null;
+    if (spamStatus === "flag") {
+      if (flagIssues.length > 0) reasonText = flagIssues.join("; ").slice(0, 500);
+      else if (claudeReason) reasonText = claudeReason.slice(0, 500);
+    }
+
     const updatePayload: Record<string, unknown> = {
       spam_status: spamStatus,
       spam_score: spamScore,
+      spam_reason: reasonText,
     };
     if (spamStatus === "rewrite") updatePayload.body_first = finalBody;
 
