@@ -11,3 +11,4 @@
 - [Project — 후속 PR 로드맵](project_sps_future_pr.md) — PR12~PR15 완료 / 통합 웹사이트 런칭 시 tracking URL 전환 대기
 - [Project — DMARC 정책 단계적 상향](project_sps_dmarc.md) — 2026-04-19 EasyDMARC 연결 · 2주 후 quarantine → 2~3개월 reject 예정
 - [Reference — SPS 인프라 좌표](reference_sps_infra.md) — Supabase/Vercel/GitHub · Edge Function 버전 · 환경변수 · DMARC/SPF/DKIM
+- [Reference — 다중 PC 작업 워크플로](reference_workflow_multi_pc.md) — git pull/push로 PC 간 컨텍스트 동기화 · junction 작동 원리 · 새 세션 점검 체크리스트

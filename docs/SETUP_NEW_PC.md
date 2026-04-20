@@ -2,6 +2,15 @@
 
 이 프로젝트는 메모리(세션 간 동적 컨텍스트)를 `memory/` 폴더에 git 추적합니다. 다른 PC에서 작업을 이어받으려면 1회 setup이 필요합니다.
 
+## 빠른 흐름 (이미 setup 완료된 PC)
+
+```bash
+git pull             # 메모리 + 코드 최신화
+# Claude Code 세션 → 첫 멘트로 "이어서 작업하자" 또는 작업 지시
+# (메모리는 자동 로드)
+git add memory/ && git commit -m "..." && git push   # 작업 끝나고
+```
+
 ## 사전 조건
 - Git, Node.js, npm 설치
 - Claude Code (CLI 또는 IDE 확장) 설치
@@ -74,3 +83,26 @@ diff -q ~/.claude/projects/<슬러그>/memory/ ./memory/
 - **CSV 등 PII 파일은 git 제외** (`.gitignore`에 `sps_buyers_*.csv` 등록됨). 다른 PC로 옮길 땐 별도 수단(USB, 보안 클라우드)으로 전달.
 - **`.env.local`도 git 제외**. 새 PC에서 직접 작성.
 - 메모리에 secret 값(API key 실제 값) 절대 적지 말 것 — 변수명/digest만 기록.
+
+## 별도 전달 필요 (git에 없음)
+
+| 항목 | 방법 |
+|---|---|
+| `.env.local` (Anthropic/Supabase API key 등) | 보안 클라우드 또는 새 PC에서 재발급 |
+| MCP 서버 OAuth (Apollo, Supabase MCP, Gmail) | 새 PC에서 OAuth 재로그인 / PAT 재발급 |
+| CSV 파일 (`sps_buyers_*.csv`, 담당자 PII 포함) | USB / 보안 클라우드 |
+| Vercel 환경변수 (`PIPEDRIVE_API_TOKEN` 등) | Vercel Dashboard에 이미 등록됨 — 새 PC 영향 없음 |
+| Supabase Edge Function 환경변수 (`PERPLEXITY_API_KEY` 등) | Supabase Dashboard에 이미 등록됨 — 새 PC 영향 없음 |
+
+## 동시 작업 주의
+
+- 같은 시점에 PC A와 PC B에서 모두 메모리 갱신 → git conflict 발생
+- 권장 패턴: 한쪽 작업 완료 → push → 다른 쪽 pull → 그 다음 작업 시작
+- conflict 발생 시 Claude는 어느 버전 우선할지 사용자에게 물어보고 결정
+
+## 현재 PC 정보 (origin 기준 — 2026-04-20 setup)
+
+- **OS**: Windows 10 Pro
+- **사용자명**: `신동환` (한글) — 다른 PC에서 사용자명 다르면 setup 시 `<username>` 자리 본인 것으로 변경
+- **프로젝트 슬러그**: `c--Users-----Desktop-Claude-app-spscos` (Claude Code가 자동 생성. 프로젝트 절대경로 기반이므로 다른 PC에서 다른 경로면 슬러그도 다름)
+- **새 PC에서 슬러그 확인 방법**: Claude Code 한 번 실행 후 `~/.claude/projects/` 디렉토리 확인하면 자동 생성된 슬러그 보임
