@@ -1,0 +1,13 @@
+- [User — Teddy 프로필](user_teddy.md) — SPS International CEO, 비개발자, 한국어 응답 선호
+- [Project — SPS 바이어 앱 현재 상태](project_sps_buyer_app.md) — **다음 세션: Teddy의 PR16 수정 내용 받아 일괄 fix**
+- [Project — 파이프라인 버그 + PR16 이월](project_sps_pipeline_bugs.md) — Perplexity 401(해결) · race condition · team 필터 누락 · Emails 폴백 오표시
+- [Project — PR13 종료](project_sps_pr13.md) — 전 기능 검증 완료 · hotfix 배포 · 테스트 데이터 정리까지 끝
+- [Project — Sprint03 진행](project_sps_sprint03.md) — Sprint03 종료 리포트
+- [Feedback — 배포 승인 명시성](feedback_deploy_authorization.md) — prod 배포는 매번 명시 승인 받아야 함
+- [Feedback — 콜드메일 톤 가이드](feedback_email_tone.md) — 감시형 표현·객관식 CTA·하드 숫자 금지 / 맞춤형 풀턴키 포지셔닝
+- [Feedback — 외부 API 크레딧 부족 알림 의무](feedback_api_credit_alert.md) — 조용한 폴백 금지 / agentF 경고 박스 필수
+- [Feedback — 생성 파일 저장 위치](feedback_file_save_location.md) — 모든 생성 파일은 프로젝트 폴더 내부에. C:\temp 등 외부 경로 금지
+- [Feedback — 바이어 발굴 사전 중복 점검 의무](feedback_buyer_dedup_check.md) — 회사 후보 선정 직후 Supabase buyers 도메인 조회로 중복 사전 제거
+- [Project — 후속 PR 로드맵](project_sps_future_pr.md) — PR12~PR15 완료 / 통합 웹사이트 런칭 시 tracking URL 전환 대기
+- [Project — DMARC 정책 단계적 상향](project_sps_dmarc.md) — 2026-04-19 EasyDMARC 연결 · 2주 후 quarantine → 2~3개월 reject 예정
+- [Reference — SPS 인프라 좌표](reference_sps_infra.md) — Supabase/Vercel/GitHub · Edge Function 버전 · 환경변수 · DMARC/SPF/DKIM

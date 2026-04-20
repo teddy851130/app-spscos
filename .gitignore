@@ -42,3 +42,15 @@ next-env.d.ts
 
 # 2026-04-16: 구 바이어발굴/ 폴더 내용을 물리적으로 통합. Git 추적 대상 아님.
 /legacy-archive/
+
+# 2026-04-20: 개인정보 포함 (담당자 이메일/이름) — git 추적 금지
+sps_buyers_*.csv
+/data/
+
+# 2026-04-20: 캐시·임시·백업 디렉토리 — git 추적 불필요
+/.git.backup/
+/.playwright-mcp/
+/supabase/.temp/
+
+# 2026-04-20: 일회성 setup 스크린샷 — git 추적 제외 (필요시 docs/screenshots/로 이동 후 push)
+easydmarc-*.png

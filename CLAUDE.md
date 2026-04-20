@@ -118,10 +118,11 @@ npx playwright test
 - [docs/RUNBOOK.md](docs/RUNBOOK.md) — 배포·롤백·트러블슈팅
 - [sprints/](sprints/) — 스프린트 계획·리포트
 
-### 메모리 (세션 간 동적 상태)
+### 메모리 (세션 간 동적 상태) — 프로젝트 `memory/` 폴더에 git 추적
 - `memory/MEMORY.md` — 인덱스
 - `memory/project_sps_buyer_app.md` — 현재 진행 상황
-- `memory/project_sps_pr6_deferred.md` — PR6 이월 UI 항목
-- `memory/project_sps_agent_queue.md` — PR7 에이전트 큐 재설계
+- `memory/project_sps_pipeline_bugs.md` — PR16 이월 (race condition / team 필터 등)
 - `memory/reference_sps_infra.md` — Supabase/GitHub/Vercel 좌표
-- `memory/reference_sps_team.md` — SPS 팀원 정보
+- 그 외 `feedback_*.md`, `project_sps_*.md`, `user_teddy.md`
+
+**다른 PC에서 작업 이어받기**: [docs/SETUP_NEW_PC.md](docs/SETUP_NEW_PC.md) — junction 1회 생성으로 git 추적 + Claude 자동 로드 양립.
