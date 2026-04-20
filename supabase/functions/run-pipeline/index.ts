@@ -63,8 +63,18 @@ async function fetchPerplexitySearch(query: string, apiKey: string): Promise<Ppl
       body: JSON.stringify({ query, max_results: 3, max_tokens_per_page: 256 }),
     });
 
+    if (res.status === 401) {
+      // PR16(ADR-036): 401(키 무효)을 402(크레딧 부족)과 분리.
+      //   기존엔 401도 generic !res.ok 경로로 빠져 "크레딧 충전" 안내가 오표시됐음.
+      //   인증 실패는 충전이 아닌 키 재확인이 필요 — https://www.perplexity.ai/settings/api
+      return {
+        ok: false,
+        creditExhausted: false,
+        error: "Perplexity API 키 무효 (HTTP 401) — https://www.perplexity.ai/settings/api 에서 키 재확인 후 Supabase Secrets `PERPLEXITY_API_KEY` 갱신",
+      };
+    }
     if (res.status === 402) {
-      return { ok: false, creditExhausted: true, error: "Perplexity 크레딧 부족 (HTTP 402)" };
+      return { ok: false, creditExhausted: true, error: "Perplexity 크레딧 부족 (HTTP 402) — https://www.perplexity.ai/settings/api 에서 충전 후 재실행" };
     }
     if (!res.ok) {
       const bodyText = await res.text().catch(() => "");
@@ -493,9 +503,18 @@ ${externalSection}기업명: ${b.company_name}
 
         // 최종 판정
         if (finalJson && score >= INTEL_QUALITY_THRESHOLD) {
-          // 합격 — recent_news + intel_score 저장
+          // 합격 — recent_news + intel_score 저장.
+          // PR16(ADR-037): race condition 복구. 3팀 동시 실행 중 한 job이 먼저 1차 score<60으로
+          //   status='intel_failed' 마킹했더라도, 다른 job이 후행 score=100을 얻으면 status를
+          //   'Cold'로 reset해 모순 상태(점수 100 + intel_failed)를 제거.
+          //   analysis_failed_at도 함께 비워 재분석 게이트에서 제외되지 않도록 함.
           await sb.from("buyers")
-            .update({ recent_news: finalJson, intel_score: score })
+            .update({
+              recent_news: finalJson,
+              intel_score: score,
+              status: "Cold",
+              analysis_failed_at: null,
+            })
             .eq("id", b.id);
           analyzed++;
         } else {
@@ -535,8 +554,8 @@ ${externalSection}기업명: ${b.company_name}
 // ============================================
 // 직원 D: Claude API — 이메일 초안
 // ============================================
-async function agentD(sb: SB, jobId: string, _team: string) {
-  await log(sb, jobId, "D", "running", "직원D 시작: 이메일 초안 작성");
+async function agentD(sb: SB, jobId: string, team: string) {
+  await log(sb, jobId, "D", "running", `직원D 시작: 이메일 초안 작성 (team=${team})`);
 
   const API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
   if (!API_KEY) { await log(sb, jobId, "D", "failed", "ANTHROPIC_API_KEY 없음"); return; }
@@ -564,9 +583,12 @@ async function agentD(sb: SB, jobId: string, _team: string) {
 
   const buyerIds = [...new Set(newContacts.map((c: { buyer_id: string }) => c.buyer_id))];
   // PR4: status='intel_failed' 바이어는 인텔 품질 미달이므로 메일 초안 작성 대상에서 제외
+  // PR16(ADR-038): region=team 필터 추가. 3팀 동시 실행 시 같은 drafts 풀을 중복 처리하며
+  //   Claude API를 약 3배 낭비하던 버그 수정. 기존 _team 언더스코어 파라미터를 실사용으로 승격.
   const { data: buyers } = await sb.from("buyers").select("*")
     .in("id", buyerIds)
     .eq("is_blacklisted", false)
+    .eq("region", team)
     .neq("status", "intel_failed");
   const buyerMap = new Map((buyers || []).map((b: { id: string }) => [b.id, b]));
 
@@ -864,17 +886,30 @@ function autoFixSpam(body: string): { fixed: string; fixes: string[] } {
   return { fixed, fixes };
 }
 
-async function agentE(sb: SB, jobId: string, _team: string) {
-  await log(sb, jobId, "E", "running", "직원E 시작: 규칙 기반 스팸 검토");
+async function agentE(sb: SB, jobId: string, team: string) {
+  await log(sb, jobId, "E", "running", `직원E 시작: 규칙 기반 스팸 검토 (team=${team})`);
 
   const API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 
-  const { data: drafts } = await sb.from("email_drafts")
-    .select("id, subject_line_1, body_first, body_followup")
+  const { data: allDrafts } = await sb.from("email_drafts")
+    .select("id, subject_line_1, body_first, body_followup, buyer_id")
     .is("spam_status", null);
 
-  if (!drafts || drafts.length === 0) {
+  if (!allDrafts || allDrafts.length === 0) {
     await log(sb, jobId, "E", "completed", "스팸 검토할 이메일 없음"); return;
+  }
+
+  // PR16(ADR-038): region=team 필터. 3팀 동시 실행 시 drafts 풀 중복 처리를 차단.
+  //   email_drafts.buyer_id (PR1 NOT NULL 컬럼)를 기준으로 buyers.region 매핑 후 team만 추림.
+  const draftBuyerIds = [...new Set(allDrafts.map((d: { buyer_id: string }) => d.buyer_id).filter(Boolean))];
+  const { data: buyerRows } = await sb.from("buyers")
+    .select("id, region")
+    .in("id", draftBuyerIds);
+  const buyerRegionMap = new Map((buyerRows || []).map((r: { id: string; region: string }) => [r.id, r.region]));
+  const drafts = allDrafts.filter((d: { buyer_id: string }) => buyerRegionMap.get(d.buyer_id) === team);
+
+  if (drafts.length === 0) {
+    await log(sb, jobId, "E", "completed", `팀 ${team} 스팸 검토 대상 없음`); return;
   }
 
   let checked = 0, passed = 0, rewritten = 0, flagged = 0, totalCost = 0;

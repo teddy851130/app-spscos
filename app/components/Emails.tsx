@@ -48,12 +48,17 @@ export default function Emails() {
           setUsingFallback(false);
         } else {
           // 2차: buyers 테이블에서 발송 기록이 있는 바이어 조회
-          // 2차 폴백: buyers 테이블에서 발송 기록 있는 바이어
-          // DB status는 영어 enum → email_logs.status 형식('sent'/'replied'/'bounced')으로 매핑
+          // PR16(ADR-039): 폴백 필터를 '발송 진행 status'만 허용하도록 좁힘.
+          //   기존 `!= 'Cold'`는 intel_failed/Blacklisted까지 포함시켜 "발송 완료"로 오표시했음.
+          //   허용 상태: Contacted(발송) · Replied · Sample · Deal · Lost · Bounced.
+          //   Cold(미발송) · intel_failed(품질 미달) · Blacklisted 는 제외.
+          //   근본 해법은 email_logs에서 직접 읽는 1차 경로 + last_sent_at NOT NULL 보장이며,
+          //   이 폴백은 초기 이관기의 안전망 역할이 본의.
           const { data: buyers } = await supabase
             .from('buyers')
             .select('id, region, company_name, contact_email, contact_name, status, last_sent_at')
-            .not('status', 'eq', 'Cold')
+            .in('status', ['Contacted', 'Replied', 'Sample', 'Deal', 'Lost', 'Bounced'])
+            .not('last_sent_at', 'is', null)
             .order('last_sent_at', { ascending: false });
 
           if (buyers && buyers.length > 0) {

@@ -618,6 +618,42 @@
 
 ---
 
+## ADR-036: Perplexity 401/402 분리 에러 메시지
+**날짜**: 2026-04-20 (PR16)
+**결정**: `run-pipeline/index.ts` `fetchPerplexitySearch`에서 HTTP 401(키 무효)을 402(크레딧 부족)과 분리해 별도 안내 메시지 반환.
+**이유**: 2026-04-20 자동 발굴 첫 사이클에서 전사 401 발생. 기존 코드는 401도 generic `!res.ok`로 처리해 "크레딧 충전" 안내가 오표시 → Teddy가 원인 파악까지 시간 낭비. 401은 키 재확인(`https://www.perplexity.ai/settings/api`) + Supabase Secrets 갱신 경로, 402는 충전 경로로 구분 필요.
+**대안 기각**: `creditLike` 정규식에 `unauthorized/invalid`를 추가해 폴백 개선 — 문자열 매칭 의존 취약. HTTP status code 우선 분기가 안정적.
+**관련**: PR16, `supabase/functions/run-pipeline/index.ts` (fetchPerplexitySearch), `memory/project_sps_pipeline_bugs.md`
+
+---
+
+## ADR-037: agentC 합격 블록 status='Cold' reset (race condition 복구)
+**날짜**: 2026-04-20 (PR16)
+**결정**: `run-pipeline/index.ts` agentC 인텔 분석 합격 분기(intel_score≥60)에서 `buyers` UPDATE payload에 `status: 'Cold'`, `analysis_failed_at: null`을 추가.
+**이유**: 3팀(GCC/USA/Europe) 동시 실행으로 한 job이 1차 score<60을 보고 `status='intel_failed'` 마킹 → 다른 job이 후행 score=100으로 update해도 status 미복구 → 점수 100 + intel_failed 모순 상태가 발송 큐에서 제외되는 silent 버그. 합격 시 status를 Cold로 덮어쓰는 방식이 최소 변경이며 SELECT 단계에서 recent_news IS NULL 필터로 발송 진행 buyer는 이미 제외되므로 안전.
+**대안 기각**: advisory lock으로 팀 간 경합 차단 — 구현 복잡도·timeout 리스크 높음. status overwrite만으로 충분.
+**관련**: PR16, `run-pipeline/index.ts` L495-L510, `supabase/migrations/PR16_cleanup.sql` (기존 모순 row 정리)
+
+---
+
+## ADR-038: agentD/E region=team 필터 (중복 처리 차단)
+**날짜**: 2026-04-20 (PR16)
+**결정**: `run-pipeline/index.ts` agentD는 `buyers.region = team` 조건을 SELECT에 추가. agentE는 `email_drafts.buyer_id`로 `buyers.region` 매핑 후 team 일치 draft만 처리하도록 2단계 필터 적용. 함수 시그니처의 `_team` 언더스코어 제거(실사용 승격).
+**이유**: 기존 agentD/E는 team 파라미터를 받지만 SELECT에서 사용하지 않아 3팀이 동일 drafts 풀을 동시 처리 → Claude API 약 3배 낭비 + USA/Europe이 먼저 소화하고 GCC가 silently timeout으로 stuck. 2026-04-20 pipeline_logs에서 USA 39·Europe 35·GCC 6으로 관측된 중복·누락 확인.
+**대안 기각**: advisory lock(A) — agentD/E 전체 직렬화 시 처리량 저하. Supabase 중첩 관계 SELECT `buyer_contacts!inner(buyers!inner(region))` 서버사이드 필터(B) — PostgREST 중첩 eq 문법 취약, 유지보수 난이도 상승. buyer_id 기반 2단계 맵핑이 단순·안정.
+**관련**: PR16, `run-pipeline/index.ts` agentD L538·L567-L575, agentE L867-L895, `memory/project_sps_pipeline_bugs.md` 버그 3
+
+---
+
+## ADR-039: Emails.tsx 폴백 필터 정상화
+**날짜**: 2026-04-20 (PR16)
+**결정**: `app/components/Emails.tsx` 2차 폴백(email_logs 비었을 때 buyers에서 조회)의 필터를 `status != 'Cold'`에서 **`status IN ('Contacted','Replied','Sample','Deal','Lost','Bounced') AND last_sent_at IS NOT NULL`** 로 좁힘.
+**이유**: 기존 `!= 'Cold'`는 `intel_failed`·`Blacklisted`까지 포함시켜 발송 0건인데도 모든 바이어를 "발송 완료"로 오표시 + contact_email 레거시 NULL로 수신자 빈칸 표시. 폴백은 초기 이관기의 안전망 역할이므로 발송 진행 status만 허용하는 보수적 필터가 본의.
+**대안 기각**: 폴백 완전 제거 — email_logs 이관 지연 중 빈 화면이 UX에 악영향. 엄격화 유지가 안전.
+**관련**: PR16, `app/components/Emails.tsx` L50-L80, `memory/project_sps_pipeline_bugs.md` 버그 4
+
+---
+
 ## ADR 작성 템플릿
 
 ```markdown

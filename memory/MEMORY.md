@@ -1,6 +1,7 @@
 - [User — Teddy 프로필](user_teddy.md) — SPS International CEO, 비개발자, 한국어 응답 선호
-- [Project — SPS 바이어 앱 현재 상태](project_sps_buyer_app.md) — **다음 세션: Teddy의 PR16 수정 내용 받아 일괄 fix**
-- [Project — 파이프라인 버그 + PR16 이월](project_sps_pipeline_bugs.md) — Perplexity 401(해결) · race condition · team 필터 누락 · Emails 폴백 오표시
+- [**Project — Sprint04 진행 상태**](project_sps_sprint04.md) — **★ 다음 세션 첫 진입점**. v3 96점 확정 · PR16 배포 대기 · 5/10 최종 판정
+- [Project — SPS 바이어 앱 현재 상태](project_sps_buyer_app.md) — PR6~PR15 완료 이력 · Sprint04 진입 시점 기록
+- [Project — 파이프라인 버그 + PR16 이월](project_sps_pipeline_bugs.md) — Perplexity 401·race condition·team 필터·Emails 폴백 — **PR16 배포 후 archive 예정**
 - [Project — PR13 종료](project_sps_pr13.md) — 전 기능 검증 완료 · hotfix 배포 · 테스트 데이터 정리까지 끝
 - [Project — Sprint03 진행](project_sps_sprint03.md) — Sprint03 종료 리포트
 - [Feedback — 배포 승인 명시성](feedback_deploy_authorization.md) — prod 배포는 매번 명시 승인 받아야 함
