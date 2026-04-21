@@ -59,8 +59,10 @@ function checkSpamRules(subject: string, body: string): string[] {
   const found = SPAM_WORDS.filter((w) => lower.includes(w));
   if (found.length > 0) issues.push(`스팸단어 ${found.length}개: ${found.join(", ")}`);
 
+  // PR17.1 5줄 서명(teddy@spscos.com + Web: spscos.com) + MID-BODY tracking URL(app.spscos.com/go)
+  // = 정상 draft 1건에 3개 매칭이 기본. 임계값을 4 이상으로 완화해 서명이 autoFix에 잘리지 않도록.
   const spsLinks = (body.match(SPS_DOMAIN_RE) || []).length;
-  if (spsLinks >= 3) issues.push(`SPS 도메인 링크 ${spsLinks}개 (최대 2개)`);
+  if (spsLinks >= 4) issues.push(`SPS 도메인 링크 ${spsLinks}개 (최대 3개)`);
 
   const extLinks = (body.match(EXTERNAL_LINK_RE) || []).length;
   if (extLinks >= 2) issues.push(`외부 링크 ${extLinks}개 (최대 1개)`);
@@ -98,9 +100,10 @@ function autoFixSpam(body: string): { fixed: string; fixes: string[] } {
     }
   }
 
+  // PR17.1 서명 기본 3개 매칭 고려 — autoFix는 4번째부터 제거.
   let spsCount = 0;
-  fixed = fixed.replace(SPS_DOMAIN_RE, (m: string) => { spsCount++; return spsCount <= 2 ? m : ""; });
-  if (spsCount > 2) fixes.push(`SPS링크 ${spsCount}→2개`);
+  fixed = fixed.replace(SPS_DOMAIN_RE, (m: string) => { spsCount++; return spsCount <= 3 ? m : ""; });
+  if (spsCount > 3) fixes.push(`SPS링크 ${spsCount}→3개`);
 
   let extCount = 0;
   fixed = fixed.replace(EXTERNAL_LINK_RE, (m: string) => { extCount++; return extCount <= 1 ? m : ""; });

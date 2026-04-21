@@ -4,6 +4,7 @@
 - [Project — [ARCHIVED] 파이프라인 버그 PR16 이월](project_sps_pipeline_bugs.md) — 버그 4건 모두 해소(PR16 + PR18). 히스토리 참조용
 - [Project — PR13 종료](project_sps_pr13.md) — 전 기능 검증 완료 · hotfix 배포 · 테스트 데이터 정리까지 끝
 - [Project — Sprint03 진행](project_sps_sprint03.md) — Sprint03 종료 리포트
+- [**Feedback — 수정 후 한 번 더 검증 후 보고**](feedback_verify_before_report.md) — 코드 변경 후 말로만 완료 보고 금지. 실제 배포된 Edge Function/UI/DB 동작 확인 후에만 보고
 - [Feedback — 배포 승인 명시성](feedback_deploy_authorization.md) — prod 배포는 매번 명시 승인 받아야 함
 - [Feedback — 콜드메일 톤 가이드](feedback_email_tone.md) — 감시형 표현·객관식 CTA·하드 숫자 금지 / 맞춤형 풀턴키 포지셔닝
 - [**Feedback — 콜드메일 서명 규약**](feedback_signature_convention.md) — 5줄 풀 블록 + Managing Director + 이모지 미사용 (PR17.1/ADR-044)

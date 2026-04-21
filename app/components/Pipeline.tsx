@@ -3,13 +3,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase, invokePipeline } from '../lib/supabase';
 import type { PipelineJob, PipelineLog } from '../lib/types';
-import { MailOpen, BarChart3, Shield, ClipboardList, AlertTriangle, Play, Check, X, PenTool, FileText, Download } from 'lucide-react';
+import { MailOpen, BarChart3, ClipboardList, AlertTriangle, Play, Check, X, FileText, Download } from 'lucide-react';
 
+// PR18(ADR-046) + 금일 재수정: 직원 D/E는 배치 경로 삭제, 수동 초안 경로로 재정의됨.
+// 파이프라인 UI 스텝은 B→C→F 3단계로 한정. D/E는 EmailComposeModal "바이어 인텔" 탭에서 수동 트리거.
 const PIPELINE_STEPS = [
   { key: 'B', icon: <MailOpen size={16} className="inline" />, name: '직원 B — 이메일 검증', desc: 'ZeroBounce API 이메일 유효성 검증' },
   { key: 'C', icon: <BarChart3 size={16} className="inline text-[#697386]" />, name: '직원 C — 기업 분석', desc: 'Claude API 기업 분석 및 K-beauty 매칭' },
-  { key: 'D', icon: <PenTool size={16} className="inline" />, name: '직원 D — 이메일 초안', desc: 'Claude API 개인화 이메일 초안 생성' },
-  { key: 'E', icon: <Shield size={16} className="inline" />, name: '직원 E — 스팸 테스트', desc: 'Claude API 규칙 기반 스팸 검사 및 자동 수정' },
   { key: 'F', icon: <ClipboardList size={16} className="inline text-[#697386]" />, name: '직원 F — 시스템 모니터링', desc: 'API 상태 체크 및 경고' },
 ];
 
@@ -706,7 +706,7 @@ export default function Pipeline() {
         <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-5">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <div className="text-sm font-semibold text-[#1a1f36]">파이프라인 — CSV 업로드 → B→C→D→E→F 자동 실행</div>
+              <div className="text-sm font-semibold text-[#1a1f36]">파이프라인 — CSV 업로드 → B → C → F 자동 실행</div>
               <div className="text-xs text-[#8792a2] mt-1">
                 {isRunning
                   ? 'GCC + USA + Europe 3개 팀 동시 실행 중 — 브라우저를 닫으셔도 됩니다'
@@ -970,8 +970,7 @@ export default function Pipeline() {
                     <span className={`text-xs px-1 py-0.5 rounded font-semibold flex-shrink-0 ${
                       log.agent === 'B' ? 'bg-[#8b5cf6]/20 text-[#8b5cf6]' :
                       log.agent === 'C' ? 'bg-[#f59e0b]/20 text-[#f59e0b]' :
-                      log.agent === 'D' ? 'bg-[#22c55e]/20 text-[#22c55e]' :
-                      log.agent === 'E' ? 'bg-[#ef4444]/20 text-[#ef4444]' :
+                      log.agent === 'F' ? 'bg-[#22c55e]/20 text-[#22c55e]' :
                       'bg-[#8792a2]/20 text-[#8792a2]'
                     }`}>{log.agent}</span>
                     <span className={`text-xs flex-1 ${

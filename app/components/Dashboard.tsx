@@ -467,9 +467,9 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
           )}
         </div>
 
-        {/* KPI Cards */}
+        {/* KPI Cards — 열람율 카드 제거(open tracking 미구현)로 3열 그리드 */}
         {kpi && (
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-5">
               <div className="text-xs text-[#8792a2] font-semibold uppercase tracking-wide">이번 주 발송</div>
               <div className="text-3xl font-bold text-[#635BFF] mt-2">{kpi.sent}통</div>
@@ -497,16 +497,8 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
               </div>
             </div>
 
-            <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-5">
-              <div className="text-xs text-[#8792a2] font-semibold uppercase tracking-wide">열람율</div>
-              <div className="text-3xl font-bold mt-2 text-[#8792a2]">—</div>
-              <div className="text-xs mt-2 text-[#8792a2]">
-                추적 미설정 <span className="text-[#8792a2]">(기준: 45%)</span>
-              </div>
-              <div className="h-1 bg-[#e3e8ee] rounded mt-4 overflow-hidden">
-                <div className="h-full bg-[#e3e8ee]" style={{ width: '0%' }} />
-              </div>
-            </div>
+            {/* 열람율 KPI 카드: open tracking pixel 미구현으로 카드 자체 숨김.
+                PR13에서 구현된 건 클릭 추적(click_events)뿐. 실제 추적 구현 시 재노출. */}
 
             <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-5">
               <div className="text-xs text-[#8792a2] font-semibold uppercase tracking-wide">회신율</div>
