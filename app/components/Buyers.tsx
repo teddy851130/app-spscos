@@ -555,14 +555,21 @@ export default function Buyers() {
               </thead>
               <tbody>
                 {paged.map((buyer) => {
-                  // email_count 기반 버튼 라벨: 0회 → 첫 발송, 1~2회 → 팔로업, 3회+ → 마지막
+                  // PR19(ADR-047): email_count 기반 5단계 컬러 계단 — 0=첫 발송/회색, 1=1차/노랑, 2=2차/녹색, 3=3차/빨강, ≥4=보관/빨강 disabled
                   const count = (buyer as any).email_count ?? 0;
-                  const mailButtonLabel = count === 0 ? '첫 발송' : count <= 2 ? '팔로업' : '마지막';
-                  const mailButtonColor = count >= 3
-                    ? 'bg-[#ef4444]/20 text-[#ef4444]'
-                    : count > 0
-                    ? 'bg-[#f59e0b]/20 text-[#f59e0b]'
-                    : 'bg-[#635BFF]/20 text-[#635BFF]';
+                  const mailButtonLabel =
+                    count === 0 ? '첫 발송'
+                    : count === 1 ? '1차 팔로업'
+                    : count === 2 ? '2차 팔로업'
+                    : count === 3 ? '3차 팔로업'
+                    : '보관';
+                  const mailButtonColor =
+                    count === 0 ? 'bg-[#8792a2]/10 text-[#697386]'
+                    : count === 1 ? 'bg-[#f59e0b]/20 text-[#f59e0b]'
+                    : count === 2 ? 'bg-[#22c55e]/20 text-[#22c55e]'
+                    : count === 3 ? 'bg-[#ef4444]/20 text-[#ef4444]'
+                    : 'bg-[#ef4444]/10 text-[#ef4444] opacity-60 cursor-not-allowed';
+                  const mailButtonDisabled = count >= 4;
 
                   return (
                     <tr key={buyer.rowKey || buyer.id} className="border-b border-[#e3e8ee] hover:bg-[#f6f8fa]">
@@ -677,7 +684,9 @@ export default function Buyers() {
                       <td className="px-4 py-3 text-center">
                         <button
                           onClick={() => handleEmailClick(buyer)}
-                          className={`text-xs px-2 py-1 rounded font-semibold hover:opacity-80 transition ${mailButtonColor}`}
+                          disabled={mailButtonDisabled}
+                          title={mailButtonDisabled ? '3차 팔로업 완료. 더 이상 발송하지 않음.' : undefined}
+                          className={`text-xs px-2 py-1 rounded font-semibold transition ${mailButtonColor} ${mailButtonDisabled ? '' : 'hover:opacity-80'}`}
                         >
                           <MailOpen size={14} className="inline" /> {mailButtonLabel}
                         </button>

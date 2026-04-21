@@ -595,26 +595,46 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
                       팔로업 예정: {formatDate(buyer.next_followup_at)}
                     </span>
 
-                    {/* 메일 작성 버튼 — PR17.2(ADR-044): EmailComposeModal 직접 열기 (MailQueue 페이지 제거) */}
-                    <button
-                      onClick={() => {
-                        setSelectedBuyer({
-                          id: buyer.id,
-                          company: buyer.company_name,
-                          contact: buyer.contact_name,
-                          email: buyer.contact_email,
-                          region: buyer.region,
-                          tier: buyer.tier,
-                          status: buyer.status,
-                          email_count: buyer.email_count,
-                          contact_id: buyer.contact_id,
-                        });
-                        setEmailModalOpen(true);
-                      }}
-                      className="ml-auto text-xs px-3 py-1.5 bg-[#635BFF]/20 text-[#635BFF] rounded hover:bg-[#635BFF]/30 transition whitespace-nowrap flex-shrink-0 font-semibold"
-                    >
-                      메일 작성
-                    </button>
+                    {/* PR19(ADR-047): email_count 기반 5단계 컬러 계단 — Buyers.tsx와 동일 규칙 */}
+                    {(() => {
+                      const count = buyer.email_count ?? 0;
+                      const label =
+                        count === 0 ? '첫 발송'
+                        : count === 1 ? '1차 팔로업'
+                        : count === 2 ? '2차 팔로업'
+                        : count === 3 ? '3차 팔로업'
+                        : '보관';
+                      const color =
+                        count === 0 ? 'bg-[#8792a2]/10 text-[#697386] hover:bg-[#8792a2]/20'
+                        : count === 1 ? 'bg-[#f59e0b]/20 text-[#f59e0b] hover:bg-[#f59e0b]/30'
+                        : count === 2 ? 'bg-[#22c55e]/20 text-[#22c55e] hover:bg-[#22c55e]/30'
+                        : count === 3 ? 'bg-[#ef4444]/20 text-[#ef4444] hover:bg-[#ef4444]/30'
+                        : 'bg-[#ef4444]/10 text-[#ef4444] opacity-60 cursor-not-allowed';
+                      const disabled = count >= 4;
+                      return (
+                        <button
+                          onClick={() => {
+                            setSelectedBuyer({
+                              id: buyer.id,
+                              company: buyer.company_name,
+                              contact: buyer.contact_name,
+                              email: buyer.contact_email,
+                              region: buyer.region,
+                              tier: buyer.tier,
+                              status: buyer.status,
+                              email_count: buyer.email_count,
+                              contact_id: buyer.contact_id,
+                            });
+                            setEmailModalOpen(true);
+                          }}
+                          disabled={disabled}
+                          title={disabled ? '3차 팔로업 완료. 더 이상 발송하지 않음.' : undefined}
+                          className={`ml-auto text-xs px-3 py-1.5 rounded transition whitespace-nowrap flex-shrink-0 font-semibold ${color}`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })()}
                   </div>
                 );
               })}
