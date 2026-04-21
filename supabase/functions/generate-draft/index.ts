@@ -121,10 +121,10 @@ Deno.serve(async (req: Request) => {
       //   - Insight: 업계 패턴/관점 제공 후 바이어 상황에 맞춤 (단순 자사 소개가 아님)
       //   - Ask: 단일·저부담·타이밍 개방형 + P.S. 3분 미리보기 링크(클릭 → CRM)
       //   - 세일즈 클리셰 15개 + 감시형 표현 + 구체 숫자 + 객관식 질문 모두 금지
-      const prompt = `당신은 SPS Cosmetics(spscos.com) CEO 신동환(Teddy Shin) 명의 B2B 콜드 이메일 초안을 쓰는 카피라이터입니다.
+      const prompt = `당신은 SPS International(spscos.com) Managing Director 신동환(Teddy Shin) 명의 B2B 콜드 이메일 초안을 쓰는 카피라이터입니다.
 
 SPS 강점 — 본문에서 묘사할 때 구체 숫자(MOQ·납기·퍼센트) 절대 금지:
-- 빠른 진행과 회신 — 빠른 견적·샘플링, CEO 직접 응답
+- 빠른 진행과 회신 — 빠른 견적·샘플링, Managing Director 직접 응답
 - 모든 화장품 카테고리(스킨케어·바디케어·컬러·헤어케어·프래그런스)를 커버하는 제조 파트너 네트워크
 - 다국가 수출 경험 (GCC·미국·유럽 등)
 - 완전 맞춤형 풀턴키 — 가격·수량·퀄리티·디자인을 귀사 기준으로 설계
@@ -244,7 +244,7 @@ AXIS 2 — STYLE POLISH (encouraged):
 - Feel free to improve word choice, sentence flow, and tone for naturalness, AS LONG AS every source sentence's meaning is fully preserved.
 - Preserve paragraph breaks and signature structure.
 
-Context: Sender is Teddy Shin, CEO of SPS Cosmetics (spscos.com). MOQ is 3,000 units.
+Context: Sender is Teddy Shin, Managing Director of SPS International (spscos.com). MOQ is 3,000 units.
 
 TRANSLATION HARD LIMITS (PR17 ADR-043 — from 2026-04-20 spam reverse analysis; signature revised to full 5-line block):
 - Final English body: MAX 180 words TOTAL including the full 5-line signature block (~30 words). Message body before signature should be ~120-150 words. If the literal translation exceeds 180 words, tighten phrasing and remove redundant connective filler WHILE STILL TRANSLATING EVERY SOURCE SENTENCE (AXIS 1 remains strict — preservation > compression).
@@ -477,7 +477,7 @@ STRICT RETRY — the previous attempt contained non-English characters. Output M
 Preserve the business tone, all specific details (product categories, company references, CTAs),
 numerical facts (MOQ, timelines, pricing), and sign-off structure.
 Do not add or remove information — translate faithfully.
-The sender is Teddy Shin, CEO of SPS Cosmetics (spscos.com). MOQ is 3,000 units.
+The sender is Teddy Shin, Managing Director of SPS International (spscos.com). MOQ is 3,000 units.
 
 Korean Subject:
 ${ko_subject}

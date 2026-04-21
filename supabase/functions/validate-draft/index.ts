@@ -26,6 +26,13 @@ function getSupabase() {
 
 // ADR-030: 35개 (3곳 동기화 필수: run-pipeline · validate-draft · MailQueue.tsx)
 // ADR-043 (2026-04-21, PR17): 실측 스팸 메일 역추적으로 15개 추가 (35→50).
+// ADR-043 수정: PR17 신규 15개 중 autoFixSpam에서 통째 제거 시 문장 문법이
+// 깨지는 "정상 콜드메일 표현"은 제외. 진짜 corporate 자갈/template smell만 유지.
+// 제외된 것(정상 표현): "multi-market", "rapid response capability",
+// "next phase of expansion", "i would be grateful", "consistently notice",
+// "manufacturing flexibility", "long-term partnerships", "customer expectations",
+// "grown alongside", "export experience", "brief conversation"
+// → 이들은 Claude 평가 rubric에서 "template smell" 로 관찰, autoFix 대상 아님
 const SPAM_WORDS = [
   "free", "guarantee", "guaranteed", "winner", "congratulations",
   "limited time", "act now", "click here", "no cost", "risk free",
@@ -36,14 +43,11 @@ const SPAM_WORDS = [
   "hurry", "deadline", "last chance", "today only",
   "discount", "lowest price", "best price",
   "don't wait", "while supplies last", "one-time offer",
-  // ADR-043 신규 15개 (PR17)
-  "leveraging", "multi-market", "rapid response capability",
-  "next phase of expansion", "i would be grateful",
+  // ADR-043 유지 (실측 스팸 메일 공통 corporate 자갈/template smell)
+  "leveraging",
   "premium beauty brands across all categories",
-  "fully customized manufacturing partner", "formulation excellence",
-  "consistently notice", "manufacturing flexibility",
-  "long-term partnerships", "customer expectations",
-  "grown alongside", "export experience", "brief conversation",
+  "fully customized manufacturing partner",
+  "formulation excellence",
 ];
 
 // PR13(ADR-032): SPS 도메인 = spscos.com + app.spscos.com/go (tracking redirect) 합산
