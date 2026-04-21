@@ -169,7 +169,27 @@ Deno.serve(async (req: Request) => {
       to: toName ? `"${toName}" <${to}>` : to,
       subject,
       text: emailBody, // plain text 본문
-      html: emailBody.replace(/\n/g, "<br>"), // 줄바꿈만 HTML로 변환
+      // 2026-04-22 가독성 개선: 기존 \n → <br> 단순 치환은 문단 경계(\n\n)와 줄바꿈(\n)을 동일 처리해
+      //   3~4줄 덩어리로 이어져 가독성 저하. 문단은 <p> 태그 + margin 14px, 문단 내 줄바꿈만 <br>.
+      html: (() => {
+        const esc = (s: string) => s
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+        // URL 을 <a> 태그로 감싸기 (스팸 위험 낮추려고 rel=noopener)
+        const linkify = (s: string) => s.replace(
+          /(https?:\/\/[^\s<]+)/g,
+          (url) => `<a href="${url}" rel="noopener" style="color:#635BFF;text-decoration:underline;">${url}</a>`,
+        );
+        const wrap = (body: string) => body.split(/\n{2,}/).map((para) =>
+          `<p style="margin:0 0 14px 0;line-height:1.6;font-family:Arial,sans-serif;font-size:14px;color:#1a1f36;">${
+            linkify(esc(para).replace(/\n/g, "<br>"))
+          }</p>`
+        ).join("");
+        return `<div style="max-width:620px;">${wrap(emailBody)}</div>`;
+      })(),
       attachments: normalizedAttachments.length > 0 ? normalizedAttachments : undefined,
     });
     console.log(`[send-email] 발송 성공: messageId=${info.messageId}, to=${to}, attachments=${normalizedAttachments.length}`);

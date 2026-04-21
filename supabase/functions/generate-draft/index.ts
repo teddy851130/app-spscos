@@ -231,7 +231,12 @@ JSON 형식으로만 응답 (마크다운 금지):
       //   임의 삭제·재구성은 금지 (PR6.5의 "미워합니다" 누락 사건 방지).
       // PR17 ADR-043: TRANSLATION HARD LIMITS + SIGN-OFF RULE 신규 추가.
       //   실측 스팸 메일 역추적으로 150단어 / Hi firstName / Korea 필수 / URL 본문 중간 / Teddy Shin 서명 규칙화.
-      const firstNameTr = (contact.contact_name || "").trim().split(/\s+/)[0] || contact.contact_name || "there";
+      // 2026-04-22 fix: contact_name 이 "Marie Duhamel" / "Helen L" 처럼 공백으로 분리된 경우 첫 단어만 사용.
+      //   단 1글자 이니셜("L" 같은 것)이면 성일 가능성이 높으니 전체 이름 유지.
+      const _contactFull = (contact.contact_name || "").trim();
+      const _firstWord = _contactFull.split(/\s+/)[0] || "";
+      const firstNameTr = _firstWord.length >= 2 ? _firstWord : (_contactFull || "there");
+      const contactTitle = (contact.contact_title || "").trim();
       const prompt = `You are a professional B2B email translator (Korean → English) for a non-native English speaker.
 Your job has TWO axes — keep them separate:
 
@@ -246,12 +251,19 @@ AXIS 2 — STYLE POLISH (encouraged):
 
 Context: Sender is Teddy Shin, Managing Director of SPS International (spscos.com). MOQ is 3,000 units.
 
-TRANSLATION HARD LIMITS (PR17 ADR-043 — from 2026-04-20 spam reverse analysis; signature revised to full 5-line block):
+TRANSLATION HARD LIMITS (PR17 ADR-043 + 2026-04-22 가독성/개인화 보강):
 - Final English body: MAX 180 words TOTAL including the full 5-line signature block (~30 words). Message body before signature should be ~120-150 words. If the literal translation exceeds 180 words, tighten phrasing and remove redundant connective filler WHILE STILL TRANSLATING EVERY SOURCE SENTENCE (AXIS 1 remains strict — preservation > compression).
-- Greeting: "Hi ${firstNameTr}," — if the Korean source starts with "안녕하세요, [full name] 님" or "Dear" or uses full name, REPLACE with "Hi ${firstNameTr},". First name only.
+- Greeting: MUST start with "Hi ${firstNameTr}," (exact first name). FORBIDDEN alternatives that trigger immediate fail: "Hi there,", "Hello,", "Dear ${firstNameTr},", "Dear [any name],", "Greetings,", "To whom it may concern,". Even if the Korean source uses "안녕하세요" or full-name honorifics or generic opener, you MUST use "Hi ${firstNameTr},".
+- Recipient role anchoring (2026-04-22 신규): The recipient's title/role is "${contactTitle || 'unspecified'}". If the title is provided (not 'unspecified'), reference the recipient's role ONCE in paragraph 2 or 3 — naturally, not as a label. E.g., "as a Category Manager at NAOS Bioderma" or "in your product development role". This prevents Claude from flagging the email as "lacking recipient-role context" in downstream spam checks.
 - Korea identity MUST survive translation: at least ONE of [Korea, Korean, K-Beauty, Made in Korea] must appear in en_body. If the source omitted it, weave it in naturally during translation.
 - URL placement: if a tracking URL appears in the source, place it MID-BODY (end of paragraph 2 or between paragraph 2 and 3), NOT in a "P.S." line, NOT on its own standalone line. Weave it inline (e.g., "— a 3-minute preview: URL —").
 - FORBIDDEN openers/phrasings in en_body (even if source hints at them): "I was pleased to see", "I was excited to notice", "I hope this email finds you well", "I came across your company", "I wanted to reach out", "I wanted to touch base", "We consistently notice that", "In today's market", "As the industry evolves".
+
+READABILITY RULES (2026-04-22 신규 — 실제 발송 메일이 3~4줄 덩어리로 이어져 스캔 불가):
+- Each paragraph MUST be 2-3 sentences maximum. Break longer paragraphs at natural logical boundaries.
+- Each sentence MUST be 25 words or fewer. Split long sentences at commas or dashes into 2 shorter sentences.
+- Use blank line (\\n\\n) between every paragraph — this is what creates visible spacing in Gmail.
+- Target structure: [1] Hi firstName + 1-sentence opener referencing their specific recent event · [2] 2-3 short sentences of insight + role-anchored observation · [3] 2-3 sentences of SPS capability + MID-BODY URL · [4] 1 sentence Ask · [5] 5-line signature block.
 
 SIGN-OFF RULE (PR17 ADR-043 revision — full 5-line block):
 - The en_body MUST end with EXACTLY this 5-line block (copy verbatim, including blank line after "Warm regards,"):

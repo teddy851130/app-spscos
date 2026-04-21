@@ -191,34 +191,43 @@ Deno.serve(async (req: Request) => {
           body: JSON.stringify({
             model: MODEL_ID,
             max_tokens: 200,
+            // 2026-04-22 비결정성 차단: temperature 기본값 1.0 이라 같은 본문에 호출마다 6/7/8점 변동 발생.
+            // 0.2 로 고정해 동일 본문 재평가 시 같은 점수 수렴.
+            temperature: 0.2,
             messages: [{
               role: "user",
-              // ADR-025: 판정 기준 구체화 (agentE와 동기화). 이전 프롬프트가 잘 쓴 B2B 콜드메일도
-              // 7점 이하로 과잉 판정 → Teddy 스팸 flag 재발. 베스트 프랙티스 기준으로 8~10이 기본.
+              // ADR-025 + 2026-04-22 루브릭 강화: 7점 이하는 구체 증거 2개 이상 인용 필수.
               content: `You are evaluating a B2B cold email sent by a Korean cosmetic OEM/ODM manufacturer to a beauty brand buyer. Your job: score the email on whether it would (a) pass Gmail/Outlook spam filters and (b) feel authentic to the recipient. The baseline for a competent, personalized B2B cold email is 8-10. Only deduct below 8 if you find SPECIFIC concrete issues.
+
+IMPORTANT — EVIDENCE REQUIREMENT (2026-04-22):
+- Any score of 7 or below MUST be justified by quoting at least TWO specific problematic phrases from the email body. Vague reasons like "template smell" or "lacks personalization" without quoted evidence are NOT acceptable.
+- If you cannot identify TWO concrete spam triggers or specific generic phrases, default to 8.
 
 SCORING RUBRIC:
 - 10: natural, personalized, peer-to-peer, zero red flags
-- 8-9: solid B2B cold email, maybe one minor polish point but no real risk
-- 6-7: noticeable issue — template smell, hype adjectives, overused sales jargon, or pushy CTA
+- 8-9: solid B2B cold email, maybe one minor polish point but no real risk (DEFAULT for translated emails with basic personalization)
+- 6-7: noticeable issue — must quote 2+ specific problematic phrases (template smell, hype adjectives, overused sales jargon, pushy CTA)
 - 3-5: multiple issues — spam trigger words, excessive links/caps, hard-sell language, pressure tactics
 - 1-2: obvious spam / will land in spam folder
 
 DO NOT DEDUCT for:
-- Confident partnership tone, single soft CTA, single link in P.S.
+- Confident partnership tone, single soft CTA, single link in P.S. or mid-body
 - Mentioning the sender company's capabilities at category level
 - Asking for a 15-minute conversation politely
 - Industry-insight sharing written in first person
+- Translation artifacts ("we consistently observe", "we believe", "I have observed") — these are normal in professional B2B English
+- Recipient personalization that mentions company but not specific role (title reference is a nice-to-have, not required)
+- Length of signature block (5-line signature with address/phone is standard for Korean business context)
 
 ONLY DEDUCT for:
 - Actual spam trigger words (free/guarantee/winner/urgent/click here/limited time etc.)
 - Hard-sell imperatives ("buy now", "act today", "don't miss out")
 - Excessive caps, repeated exclamation marks, multiple external links
-- Generic template smell (no specific personalization, interchangeable with any buyer)
+- Generic template with zero specific personalization (no company name mentioned, no specific product/event reference)
 - Competitor bashing ("unlike other manufacturers", "most OEMs fail at")
 - Over-repetition of sales jargon (partner/synergy/bespoke/turnkey repeated 4+ times)
 
-Reply ONLY as a JSON object (no markdown): {"score": <integer 1-10>, "reason": "<one short Korean sentence citing the specific issue; empty string if score >= 8>"}
+Reply ONLY as a JSON object (no markdown): {"score": <integer 1-10>, "reason": "<if score >= 8, empty string. If score <= 7, ONE short Korean sentence that QUOTES 2+ specific problematic phrases from the email body>"}
 
 Subject: ${draft.subject_line_1}
 
