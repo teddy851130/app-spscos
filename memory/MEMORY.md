@@ -1,6 +1,6 @@
 - [User — Teddy 프로필](user_teddy.md) — SPS International CEO, 비개발자, 한국어 응답 선호
-- [**Project — Sprint04 진행 상태**](project_sps_sprint04.md) — **★ 다음 세션 첫 진입점**. PR16~PR18 배포 완료 · 배치 초안 경로 폐기 · PR19(팔로업 버튼) 대기 · 5/10 최종 판정
-- [Project — SPS 바이어 앱 현재 상태](project_sps_buyer_app.md) — PR6~PR18 완료 이력 · 파이프라인 B→C→F로 슬림화
+- [**Project — Sprint04 진행 상태**](project_sps_sprint04.md) — **★ 다음 세션 첫 진입점**. PR16~PR22-Lite 배포 완료 · 배치 초안 경로 폐기 · 팔로업 5단계 컬러 계단 · 에이전트 스펙 md 6개 · 4/25 1차 발송 대기 · 5/10 최종 판정
+- [Project — SPS 바이어 앱 현재 상태](project_sps_buyer_app.md) — PR6~PR22 완료 이력 · 파이프라인 B→C→F 슬림화 · 수동 초안 경로 단일화
 - [Project — [ARCHIVED] 파이프라인 버그 PR16 이월](project_sps_pipeline_bugs.md) — 버그 4건 모두 해소(PR16 + PR18). 히스토리 참조용
 - [Project — PR13 종료](project_sps_pr13.md) — 전 기능 검증 완료 · hotfix 배포 · 테스트 데이터 정리까지 끝
 - [Project — Sprint03 진행](project_sps_sprint03.md) — Sprint03 종료 리포트
