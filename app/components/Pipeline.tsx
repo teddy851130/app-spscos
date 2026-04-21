@@ -32,6 +32,8 @@ interface UploadResult {
   skipped: number;
   total: number;
   byTeam: Record<string, number>;
+  // PR22-Lite(ADR-048): 스킵 사유별 집계 — ICP 필터 등 제외 원인 UI 노출
+  skipReasons?: Record<string, number>;
 }
 
 interface TeamProgress {
@@ -224,9 +226,19 @@ export default function Pipeline() {
       const byTeam: Record<string, number> = { GCC: 0, USA: 0, Europe: 0 };
       let firstError: string | null = null;
 
+      // PR22-Lite(ADR-048): 스킵 사유 집계. Teddy가 CSV 업로드 후 제외된 행의 원인을 한눈에 확인.
+      const skipReasons: Record<string, number> = {
+        missing_domain_or_company: 0,  // 도메인 또는 회사명 누락
+        missing_contact_info: 0,        // 기존 buyer에 담당자 정보 부족
+        icp_title_mismatch: 0,          // ICP 직함 미달
+        max_contacts_reached: 0,        // 기존 buyer 담당자 3명 포화
+        duplicate_email: 0,             // 같은 기업 내 이메일 중복
+        db_insert_error: 0,             // DB INSERT 실패
+      };
+
       for (const row of rows) {
         const domain = (row.domain || '').toLowerCase().trim();
-        if (!domain || !row.company_name) { skipped++; continue; }
+        if (!domain || !row.company_name) { skipped++; skipReasons.missing_domain_or_company++; continue; }
 
         const existingBuyer = existingByDomain.get(domain);
 
@@ -234,22 +246,22 @@ export default function Pipeline() {
         if (existingBuyer) {
           // contact 정보가 없거나 ICP 직함이 아니면 스킵
           if (!row.contact_name || !row.contact_email || !row.contact_title) {
-            skipped++; continue;
+            skipped++; skipReasons.missing_contact_info++; continue;
           }
           if (!isIcpTitle(row.contact_title, existingBuyer.tier)) {
-            skipped++; continue;
+            skipped++; skipReasons.icp_title_mismatch++; continue;
           }
 
           // 현재 담당자 수 + 이메일 중복 체크 (최대 3명 유지 → 현재 2명 이하일 때 추가)
           // PR2: 배치 로드된 contactsByBuyerId Map에서 조회 (per-row 쿼리 제거).
           const currentContacts = contactsByBuyerId.get(existingBuyer.id) || [];
-          if (currentContacts.length >= 3) { skipped++; continue; }
+          if (currentContacts.length >= 3) { skipped++; skipReasons.max_contacts_reached++; continue; }
 
           const emailLower = row.contact_email.toLowerCase();
           const dup = currentContacts.some(
             (c) => (c.contact_email || '').toLowerCase() === emailLower
           );
-          if (dup) { skipped++; continue; }
+          if (dup) { skipped++; skipReasons.duplicate_email++; continue; }
 
           const { error: contactError } = await supabase.from('buyer_contacts').insert({
             buyer_id: existingBuyer.id,
@@ -264,6 +276,7 @@ export default function Pipeline() {
             console.error('buyer_contacts INSERT 실패:', contactError, 'row:', row);
             if (!firstError) firstError = `buyer_contacts: ${contactError.message}`;
             skipped++;
+            skipReasons.db_insert_error++;
             continue;
           }
           // 로컬 Map 갱신 — 같은 실행 내에서 동일 기업 담당자 추가 시 중복/카운트 정확히 반영
@@ -301,9 +314,10 @@ export default function Pipeline() {
           console.error('buyers INSERT 실패:', insertError, 'row:', row);
           if (!firstError) firstError = `buyers: ${insertError.message}`;
           skipped++;
+          skipReasons.db_insert_error++;
           continue;
         }
-        if (!newBuyer) { skipped++; continue; }
+        if (!newBuyer) { skipped++; skipReasons.db_insert_error++; continue; }
 
         // 신규 buyer의 primary contact INSERT (contact 정보가 있으면)
         if (row.contact_name && row.contact_email) {
@@ -331,7 +345,7 @@ export default function Pipeline() {
         byTeam[team] = (byTeam[team] || 0) + 1;
       }
 
-      setUploadResult({ added, skipped, total: rows.length, byTeam });
+      setUploadResult({ added, skipped, total: rows.length, byTeam, skipReasons });
       // CSV 파싱이 성공했으면 파일명은 항상 표시 (added=0이어도)
       setUploadedFile({ name: file.name, size: file.size });
       // 실행 버튼 활성화: 이번에 뭔가 추가됐거나, 이미 buyers에 데이터가 있으면 true
@@ -824,6 +838,26 @@ export default function Pipeline() {
                   <span key={k} className="text-[#697386]">{k}: {v}개</span>
                 ))}
               </div>
+              {/* PR22-Lite(ADR-048): 스킵 사유별 집계 — Teddy가 제외 원인 한눈에 파악 */}
+              {uploadResult.skipReasons && uploadResult.skipped > 0 && (
+                <div className="mt-2 pt-2 border-t border-[#e3e8ee] flex flex-wrap gap-3 text-xs">
+                  <span className="text-[#697386] font-semibold">스킵 사유:</span>
+                  {([
+                    ['missing_domain_or_company', '도메인/회사명 누락'],
+                    ['missing_contact_info', '담당자 정보 부족'],
+                    ['icp_title_mismatch', 'ICP 직함 미달'],
+                    ['max_contacts_reached', '담당자 3명 포화'],
+                    ['duplicate_email', '이메일 중복'],
+                    ['db_insert_error', 'DB INSERT 실패'],
+                  ] as const)
+                    .filter(([k]) => (uploadResult.skipReasons?.[k] ?? 0) > 0)
+                    .map(([k, label]) => (
+                      <span key={k} className="text-[#8792a2]">
+                        {label}: <span className="font-semibold text-[#697386]">{uploadResult.skipReasons![k]}건</span>
+                      </span>
+                    ))}
+                </div>
+              )}
             </div>
           )}
 

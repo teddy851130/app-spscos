@@ -709,6 +709,15 @@ Dashboard에서 "이메일 초안 목록" / "검토 필요 (스팸 점수 미달
 
 ---
 
+## ADR-048: PR21-Docs + PR22-Lite — 에이전트 스펙 md 6개 + CSV 스킵 사유 UI + 도메인 중복 체크 SQL 병기
+**날짜**: 2026-04-21 (PR21-Docs + PR22-Lite)
+**결정**: `docs/agents/` 신규 디렉토리에 직원 A~F 스펙 md 6개 작성. `AGENTS.md` 에 인덱스 추가 (기존 Next.js 주의 문구와 병기). `Pipeline.tsx` CSV 업로드 결과 박스에 스킵 사유별 집계 6종(도메인/회사명 누락·담당자 정보 부족·ICP 직함 미달·담당자 3명 포화·이메일 중복·DB INSERT 실패) 표시. `memory/reference_sps_infra.md` 에 Apollo/Clay 결과 도메인 중복 사전 체크 SQL 템플릿 병기. agent_d.md 는 배치 삭제된 agentD 대신 `generate-draft` 수동 경로를 재정의, agent_e.md 는 `validate-draft` 수동 경로를 재정의 (ADR-046 정책 반영).
+**이유**: (1) PR18로 파이프라인이 B→C→F로 축소되고 수동 경로가 단일화됐는데 문서가 없어 신규 세션 Claude 또는 향후 참여자가 현 구조를 파악하기 어려움. 6개 md는 중간 분량(20~40줄)으로 과잉 추상화 없이 역할·입출력·환경변수·실패 분기·관련 ADR만 기재. (2) CSV 스킵 사유 UI는 Teddy가 Apollo/Clay 업로드 후 "왜 100건 중 30건만 추가됐는지" 즉시 파악 가능하게 함. 이전엔 `skipped: 30개`만 나와 원인 불투명. (3) 도메인 중복 SQL은 feedback_buyer_dedup_check 의무 규칙을 Claude 세션이 쉽게 복붙할 수 있도록 reference 메모리와 agent_a.md 에 동시 병기.
+**대안 기각**: (a) agent_d.md / agent_e.md 파일 폐기 → 배치 경로 삭제됐으니 문서도 없애자 — 수동 경로 (generate-draft / validate-draft) 는 여전히 존재하므로 문서화가 있어야 향후 혼동 방지. "에이전트" 추상화를 수동 트리거까지 포함하는 쪽으로 재정의가 더 유지보수 유리. (b) 스킵 사유를 console.warn 으로만 기록 → 비개발자 Teddy가 DevTools 여는 경로 비현실. UI 노출 필요. (c) 중복 체크용 Edge Function 신설 → Clay/Apollo 웹훅 불가 + 매번 Claude 세션이 SQL 복붙이 실행 부담 가장 낮음 (v2 PR22-Lite 기각 이유 계승).
+**관련**: PR21+22 커밋(이번), `docs/agents/agent_a.md`~`agent_f.md`, `AGENTS.md`, `app/components/Pipeline.tsx:208-229` + `:829-863`, `memory/reference_sps_infra.md`, `sprints/Sprint04_Plan_v3.md` PR21-Docs/PR22-Lite 섹션, 기존 ADR-046(PR18 배치 삭제)
+
+---
+
 ## ADR 작성 템플릿
 
 ```markdown

@@ -82,3 +82,22 @@ Email: teddy@spscos.com  |  Web: spscos.com  |  Mobile: +82 10 4409 0963
 ## 새 DB 객체 (PR13, migration 011)
 - `buyer_contacts.tracking_token` (text NOT NULL UNIQUE, 12자 hex, DB 기본값) — P.S. 링크 토큰.
 - `click_events` 테이블 — id/buyer_contact_id/clicked_at/ip_*/pipedrive_*. RLS SELECT=true, INSERT/UPDATE는 service_role bypass.
+
+## 바이어 도메인 중복 사전 체크 SQL (PR22-Lite/ADR-048)
+Apollo/Clay 결과를 Claude 세션에서 받으면 **CSV 업로드 전** Supabase SQL Editor에서 실행. `existing_buyer_id IS NOT NULL` 인 행 = 중복 → 해당 도메인 제거 후 업로드.
+
+```sql
+-- 사용법: ARRAY 안에 후보 도메인 리스트 넣고 실행
+WITH candidates AS (
+  SELECT unnest(ARRAY[
+    'example1.com', 'example2.com', 'example3.com'  -- ← 교체
+  ]) AS domain
+)
+SELECT c.domain, b.id AS existing_buyer_id, b.company_name, b.status, b.created_at
+FROM candidates c
+LEFT JOIN buyers b ON b.domain = c.domain OR b.website ILIKE '%' || c.domain || '%'
+ORDER BY c.domain;
+```
+
+- [feedback_buyer_dedup_check](feedback_buyer_dedup_check.md) — 의무 규칙
+- [docs/agents/agent_a.md](../../docs/agents/agent_a.md) — 동일 SQL + ICP 체크리스트

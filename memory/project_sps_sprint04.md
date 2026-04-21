@@ -1,12 +1,12 @@
 ---
 name: Project - Sprint04 진행 상태
-description: SPS 바이어 앱 회신율 확보 스프린트. PR16~PR19 배포 완료 · 직원D/E 자동 경로 폐기 · 수동 초안 경로 단일화 · 팔로업 버튼 5단계 컬러 계단 · 5/10 최종 판정
+description: SPS 바이어 앱 회신율 확보 스프린트. PR16~PR22-Lite 배포 완료 · 직원D/E 자동 경로 폐기 · 수동 경로 단일화 · 팔로업 5단계 컬러 계단 · 에이전트 스펙 md 6개 · CSV 스킵 사유 UI · 5/10 최종 판정
 type: project
 originSessionId: e27efffa-00cd-4289-b37d-1adcebf88a93
 ---
 ## 현재 단계 (2026-04-21 밤 기준)
 
-**Sprint04 Day 2 종료.** 오늘 하루 PR16 + PR17 + PR17.1 + PR17.2 + PR18 + PR19 총 5커밋 배포. 아키텍처 큰 방향 전환: **배치 자동 초안 경로 폐기 → Buyers DB 수동 경로 단일화**. "오늘 보낼 메일" 페이지 제거. 팔로업 버튼 email_count 기반 5단계 컬러 계단(≥4 "보관" disabled)까지 완료. 다음(4/24 금 또는 이후) 액션은 **PR21-Docs**(에이전트 스펙 md 6개) + **PR22-Lite**(ICP 필터 스킵 사유 UI) 또는 토요일(4/25) 1차 5~10통 실전 발송 직전 PR0 재측정.
+**Sprint04 Day 2 종료.** 오늘 하루 PR16 + PR17 + PR17.1 + PR17.2 + PR18 + PR19 + PR21+22 총 6커밋 배포. 아키텍처 큰 방향 전환: **배치 자동 초안 경로 폐기 → Buyers DB 수동 경로 단일화**. "오늘 보낼 메일" 페이지 제거. 팔로업 버튼 5단계 컬러 계단(≥4 "보관" disabled). 에이전트 스펙 md 6개 + CSV 스킵 사유 UI + 도메인 중복 체크 SQL 병기까지 완료. 다음 주요 액션은 토요일(4/25) 1차 5~10통 실전 발송 **직전** PR0 재측정 (Teddy 자기 앞 2~3통 → Primary 5/5 확인).
 
 ## 2026-04-21 오늘 배포한 커밋 (시간순)
 
@@ -17,7 +17,8 @@ originSessionId: e27efffa-00cd-4289-b37d-1adcebf88a93
 | PR17.1 (ADR-044) | `2864609` | 서명 5줄 블록(Managing Director + Email/Web/Mobile + 등록 주소) + MAX_WORDS 150→180 |
 | PR17.2 (ADR-045) | `5d99f93` | "오늘 보낼 메일" 페이지 완전 제거. Sidebar 메뉴 + page.tsx 라우트 + MailQueue.tsx 파일(-775줄) 삭제. Dashboard 팔로업 섹션에 EmailComposeModal 직접 통합 + buyer_contacts JOIN flatten 이식 |
 | PR18 (ADR-046) | `fe6604e` | run-pipeline `agentD`(배치 영문 초안) + `agentE`(배치 스팸 검증) 전체 삭제. SPAM_WORDS/헬퍼 동반 제거. Dashboard "이메일 초안 목록" / "검토 필요" / "인텔 대기" 3개 섹션 제거. run-pipeline 1335→787줄. |
-| PR19 (ADR-047) | (이번 커밋) | Buyers.tsx + Dashboard 팔로업 섹션 "메일 작성" 버튼을 email_count 기반 5단계 컬러 계단으로 교체. 0=첫 발송/회색, 1=1차 팔로업/노랑, 2=2차 팔로업/녹색, 3=3차 팔로업/빨강, ≥4="보관"/빨강+disabled(tooltip). DB 변경 없음. Buyers +14/-7줄, Dashboard +43/-21줄. |
+| PR19 (ADR-047) | `976b3c2` | Buyers.tsx + Dashboard 팔로업 섹션 "메일 작성" 버튼을 email_count 기반 5단계 컬러 계단으로 교체. 0=첫 발송/회색, 1=1차 팔로업/노랑, 2=2차 팔로업/녹색, 3=3차 팔로업/빨강, ≥4="보관"/빨강+disabled(tooltip). DB 변경 없음. |
+| PR21+22 (ADR-048) | (이번 커밋) | `docs/agents/` 신규 디렉토리에 직원 A~F 스펙 md 6개(20~40줄, 중간 분량) 작성. AGENTS.md 인덱스 추가. Pipeline.tsx CSV 스킵 사유 6종 UI 노출(도메인/회사명·담당자 정보·ICP 직함·3명 포화·이메일 중복·INSERT 실패). reference_sps_infra.md 에 도메인 중복 체크 SQL 병기. agent_d/e.md 는 배치 삭제된 agentD/E 대신 generate-draft/validate-draft 수동 경로로 재정의. |
 
 ## 합의된 주요 결정
 
