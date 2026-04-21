@@ -285,11 +285,14 @@ export default function Buyers() {
   };
 
   // Update buyer status in list after email sent
-  const handleEmailSent = (buyerId: string) => {
+  // 2026-04-22 fix: buyer_id 만으로 매칭하면 같은 회사 모든 contact 행이 '발송완료/+1' 로 바뀜
+  //   (Charlotte Tilbury Beauty 에서 Regine 에게만 보냈는데 Edgar, Charlotte 도 1차 팔로업으로
+  //   잘못 표시되던 현상). contactId 도 함께 받아서 해당 담당자 행만 갱신.
+  const handleEmailSent = (buyerId: string, contactId: string | null) => {
     setBuyers((prev) =>
-      prev.map((b) =>
-        b.id === buyerId
-          ? { ...b, status: '발송완료', lastSent: new Date().toLocaleDateString('ko-KR'), email_count: ((b as any).email_count ?? 0) + 1 }
+      prev.map((b: any) =>
+        b.id === buyerId && b.contactId === contactId
+          ? { ...b, status: '발송완료', lastSent: new Date().toLocaleDateString('ko-KR'), email_count: (b.email_count ?? 0) + 1 }
           : b
       )
     );
@@ -761,7 +764,7 @@ export default function Buyers() {
             setEmailModalOpen(false);
             setSelectedBuyer(null);
           }}
-          onSent={() => handleEmailSent(selectedBuyer.id)}
+          onSent={() => handleEmailSent(selectedBuyer.id, selectedBuyer.contact_id ?? null)}
           buyer={selectedBuyer}
         />
       )}
