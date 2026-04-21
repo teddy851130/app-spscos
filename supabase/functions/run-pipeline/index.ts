@@ -682,12 +682,21 @@ FRAMEWORK — CIA (Context - Insight - Ask). Tone: "Warm-Confident" — confiden
 
 (4) ASK — 1 sentence. Single, low-commitment, timing-open, polite. Example: "If a short 15-minute conversation might be useful to see whether SPS fits ${buyer.company_name}'s next chapter, I'd be glad to make the time whenever suits you." NOT multiple-choice.
 
-(5) SIGN-OFF — "Warm regards," on one line, "Teddy Shin" on the next line. (PR17 ADR-043: bare "Teddy" lacks full-name context when forwarded internally by buyer.)
+(5) SIGN-OFF — Use this EXACT 5-line block at the end of body_first (and body_followup). Do NOT modify wording, order, or punctuation:
+"""
+Warm regards,
+
+Teddy Shin
+Managing Director, SPS International
+Email: teddy@spscos.com  |  Web: spscos.com  |  Mobile: +82 10 4409 0963
+8 Myeongdal-ro 22-gil, Seocho-gu, Seoul 06668, Republic of Korea
+"""
+(PR17 ADR-043 revision: full signature block with direct contact + registered address gives GCC/EU/USA buyers the legitimacy cues they expect from a non-US manufacturer. Do not add company-size claims ("trusted by 500+ brands" etc.) — they reverse the trust effect.)
 
 (6) URL PLACEMENT (PR17 ADR-043 — P.S. single-line replaced by mid-body inline) — Insert the ${trackingUrl} ONCE inside the body, naturally woven mid-sentence between paragraph 2 and paragraph 3 (or at the end of paragraph 2). Example phrasings: "— a 3-minute preview is here if useful: ${trackingUrl} —" or "(quick preview: ${trackingUrl})". Use the URL EXACTLY as given. NO standalone "P.S." line. NO standalone URL on its own line.
 
 HARD LIMITS (PR17 ADR-043 — from 2026-04-20 real spam-mail reverse analysis):
-1. MAX_WORDS=150 for body_first. Count words in body only (exclude subject). Reject if over.
+1. MAX_WORDS=180 for body_first INCLUDING the full signature block (signature ~30 words + message body 120~150 = 150~180). Count words in body only (exclude subject). Reject if over 180.
 2. Opening MUST be a 1-sentence concrete observation about THIS buyer (product name, campaign, press release, specific launch). FORBIDDEN opening phrases:
    - "I was pleased to see"
    - "I was excited to notice"
@@ -727,8 +736,8 @@ Return ONLY a JSON object (no markdown):
   "subject_line_1": "3-7 words, reference a specific ${buyer.company_name} fact + a light observation hook (e.g., '${buyer.company_name}'s [specific thing] — a quick thought')",
   "subject_line_2": "Reference-based subject using company_status (under 60 chars, e.g., 'Re: ${buyer.company_name}'s ${companyStatus.slice(0, 30)}')",
   "subject_line_3": "Insight-tease subject (under 60 chars, e.g., 'What most OEMs miss when ${buyer.region} brands scale')",
-  "body_first": "120-150 words MAX (PR17 HARD LIMIT). CIA + Challenger structure: (1) Context with 2+ specific proper nouns from the intelligence, (2) Insight teaching a non-obvious industry pattern tailored to ${buyer.company_name} — include Korea/K-Beauty/Korean identity naturally, (3) Transition to SPS capability at category level, naturally weaving the ${trackingUrl} preview link mid-body (end of paragraph 2), (4) Single low-commitment Ask with open timing, (5) 'Warm regards,' + 'Teddy Shin' sign-off on separate lines. NO P.S. line. NO standalone URL.",
-  "body_followup": "80-130 words MAX, ENGLISH ONLY. Sent ${tier === "Tier1" ? "5" : "7"} days after first. Brief reference to first email → one new specific angle (use kbeauty_interest or recommended category at CATEGORY level only, NO product name) → soft open-ended nudge to chat. MUST contain Korea/K-Beauty identity. Sign off 'Warm regards,' + 'Teddy Shin'. No P.S. needed here."
+  "body_first": "150-180 words MAX total INCLUDING signature block (message body ~120-150 + full 5-line signature ~30). CIA + Challenger structure: (1) Context with 2+ specific proper nouns from the intelligence, (2) Insight teaching a non-obvious industry pattern tailored to ${buyer.company_name} — include Korea/K-Beauty/Korean identity naturally, (3) Transition to SPS capability at category level, naturally weaving the ${trackingUrl} preview link mid-body (end of paragraph 2), (4) Single low-commitment Ask with open timing, (5) Full SIGN-OFF block (5-line exact block from rule 5 above — Warm regards / Teddy Shin / Managing Director, SPS International / Email+Web+Mobile / full registered address). NO P.S. line. NO standalone URL.",
+  "body_followup": "110-160 words MAX total INCLUDING full signature block, ENGLISH ONLY. Sent ${tier === "Tier1" ? "5" : "7"} days after first. Brief reference to first email → one new specific angle (use kbeauty_interest or recommended category at CATEGORY level only, NO product name) → soft open-ended nudge to chat. MUST contain Korea/K-Beauty identity. End with the SAME full 5-line SIGN-OFF block as body_first. No P.S. needed here."
 }`;
 
         const res = await fetchClaudeWithRetry("https://api.anthropic.com/v1/messages", {

@@ -246,16 +246,25 @@ AXIS 2 — STYLE POLISH (encouraged):
 
 Context: Sender is Teddy Shin, CEO of SPS Cosmetics (spscos.com). MOQ is 3,000 units.
 
-TRANSLATION HARD LIMITS (PR17 ADR-043 — from 2026-04-20 spam reverse analysis):
-- Final English body: MAX 150 words. If the literal translation exceeds 150 words, tighten phrasing and remove redundant connective filler WHILE STILL TRANSLATING EVERY SOURCE SENTENCE (AXIS 1 remains strict — preservation > compression).
+TRANSLATION HARD LIMITS (PR17 ADR-043 — from 2026-04-20 spam reverse analysis; signature revised to full 5-line block):
+- Final English body: MAX 180 words TOTAL including the full 5-line signature block (~30 words). Message body before signature should be ~120-150 words. If the literal translation exceeds 180 words, tighten phrasing and remove redundant connective filler WHILE STILL TRANSLATING EVERY SOURCE SENTENCE (AXIS 1 remains strict — preservation > compression).
 - Greeting: "Hi ${firstNameTr}," — if the Korean source starts with "안녕하세요, [full name] 님" or "Dear" or uses full name, REPLACE with "Hi ${firstNameTr},". First name only.
 - Korea identity MUST survive translation: at least ONE of [Korea, Korean, K-Beauty, Made in Korea] must appear in en_body. If the source omitted it, weave it in naturally during translation.
 - URL placement: if a tracking URL appears in the source, place it MID-BODY (end of paragraph 2 or between paragraph 2 and 3), NOT in a "P.S." line, NOT on its own standalone line. Weave it inline (e.g., "— a 3-minute preview: URL —").
 - FORBIDDEN openers/phrasings in en_body (even if source hints at them): "I was pleased to see", "I was excited to notice", "I hope this email finds you well", "I came across your company", "I wanted to reach out", "I wanted to touch base", "We consistently notice that", "In today's market", "As the industry evolves".
 
-SIGN-OFF RULE (PR17 ADR-043):
-- The en_body MUST end with exactly two lines: first line "Warm regards," and second line "Teddy Shin".
-- If the Korean source ends with "Teddy 드림" or "Teddy" or "신동환 드림" or any other variant, REPLACE with the two-line block above. "Donghwan Shin", "D. Shin", "신동환" are NOT allowed in the final output.
+SIGN-OFF RULE (PR17 ADR-043 revision — full 5-line block):
+- The en_body MUST end with EXACTLY this 5-line block (copy verbatim, including blank line after "Warm regards,"):
+"""
+Warm regards,
+
+Teddy Shin
+Managing Director, SPS International
+Email: teddy@spscos.com  |  Web: spscos.com  |  Mobile: +82 10 4409 0963
+8 Myeongdal-ro 22-gil, Seocho-gu, Seoul 06668, Republic of Korea
+"""
+- If the Korean source ends with "Teddy 드림" or "Teddy" or "신동환 드림" or any shorter sign-off variant, REPLACE with the full 5-line block above. Do NOT abbreviate. Do NOT localize. Do NOT emit "Donghwan Shin" / "D. Shin" / "신동환" anywhere in the output.
+- Do NOT add emojis, do NOT add social links, do NOT add disclaimers. Block stops after the address line.
 
 Korean Subject: ${ko_draft.subject}
 Korean Body:
@@ -264,7 +273,7 @@ ${ko_draft.body}
 Return ONLY a JSON object (no markdown):
 {
   "en_subject": "Polished English subject",
-  "en_body": "Polished English body — every Korean sentence translated, styled into natural B2B business English. Max 150 words. Ends with 'Warm regards,\\nTeddy Shin'."
+  "en_body": "Polished English body — every Korean sentence translated, styled into natural B2B business English. Max 180 words TOTAL including the full 5-line signature block. Ends with the exact 5-line block: Warm regards, / (blank line) / Teddy Shin / Managing Director, SPS International / Email+Web+Mobile line / registered address line."
 }`;
 
       // ADR-026: 한글 혼입 가드. translate_save는 사용자 수동 경로라 한글 잔류 시 바로 UI에

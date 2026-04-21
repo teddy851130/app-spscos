@@ -75,10 +75,11 @@ function checkSpamRules(subject: string, body: string): string[] {
     issues.push("한국 정체성 키워드 누락 (Korea / Korean / K-Beauty / Made in Korea 중 1개 필요)");
   }
 
-  // ADR-043 (PR17): 본문 150단어 초과 → 실측 스팸 평균 230+ 대비 짧게 유지
+  // ADR-043 (PR17): 본문 180단어 초과 flag.
+  //   전체 180 = 메시지 본문 ~120~150 + 5줄 풀 서명 블록 ~30. 실측 스팸 평균 230+ 대비 여전히 짧음.
   const wordCount = body.trim().split(/\s+/).filter(Boolean).length;
-  if (wordCount > 150) {
-    issues.push(`본문 ${wordCount}단어 (최대 150)`);
+  if (wordCount > 180) {
+    issues.push(`본문 ${wordCount}단어 (최대 180, 서명 블록 포함)`);
   }
 
   return issues;
