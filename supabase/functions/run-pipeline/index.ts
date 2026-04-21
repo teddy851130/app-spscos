@@ -632,10 +632,13 @@ async function agentD(sb: SB, jobId: string, team: string) {
 
       // PR13(ADR-032): P.S. 링크를 자체 redirect(/go/{token})로 교체 → 클릭 이벤트 수집 + Pipedrive Activity.
       //   tracking_token이 없는 legacy contact는 hardcoded spscos.com/으로 폴백 (발송 실패 방지).
+      // PR17(ADR-043): P.S. 단독 URL → 본문 중간 자연 삽입 + 서명 "Teddy" → "Teddy Shin".
       const TRACK_BASE = Deno.env.get("TRACK_BASE_URL") || "https://app.spscos.com/go";
       const trackingUrl = c.tracking_token
         ? `${TRACK_BASE}/${c.tracking_token}`
         : "https://spscos.com/";
+      // PR17(ADR-043): GREETING "Dear ${full_name}" → "Hi ${firstName}". 영문/아랍계 first name 추출.
+      const firstName = (c.contact_name || "").trim().split(/\s+/)[0] || c.contact_name || "there";
 
       try {
         // ADR-024: v3 프롬프트 — "CIA + Challenger Sale" 프레임워크 채택.
@@ -669,7 +672,7 @@ Sales Strategy: ${salesAngle}
 
 FRAMEWORK — CIA (Context - Insight - Ask). Tone: "Warm-Confident" — confident but kind. Avoid aggressive Challenger-style phrasing ("most OEMs can't", "we built SPS for exactly that") which reads as condescending when translated — use humble-confident variants instead.
 
-(0) GREETING (mandatory) — first line: "Dear ${c.contact_name}," — always use "Dear" for this buyer region mix (safer than "Hi" for GCC / European contacts). Never skip a greeting.
+(0) GREETING (mandatory) — first line EXACTLY: "Hi ${firstName}," — use first name only, never full name. Never skip a greeting. (PR17 ADR-043: "Dear ${full_name}," reads as bulk-mail formal — switched to Hi + firstName across GCC/USA/EU.)
 
 (1) CONTEXT — next 1-2 sentences. Reference AT LEAST TWO specific proper nouns pulled from Company Status or Proposal Angle (product/brand names, cities, partners, recent launches, campaigns). The goal is to show you genuinely followed ${buyer.company_name}'s work. Neutral, warm, not surveillance-style. Good starters: "I recently read about...", "Your launch of ... caught my attention...", "With your move into...". NEVER use "we observed", "it appears that", "based on our analysis".
 
@@ -679,9 +682,29 @@ FRAMEWORK — CIA (Context - Insight - Ask). Tone: "Warm-Confident" — confiden
 
 (4) ASK — 1 sentence. Single, low-commitment, timing-open, polite. Example: "If a short 15-minute conversation might be useful to see whether SPS fits ${buyer.company_name}'s next chapter, I'd be glad to make the time whenever suits you." NOT multiple-choice.
 
-(5) SIGN-OFF — "Warm regards," on one line, "Teddy" on the next line. Warmer than bare first-name.
+(5) SIGN-OFF — "Warm regards," on one line, "Teddy Shin" on the next line. (PR17 ADR-043: bare "Teddy" lacks full-name context when forwarded internally by buyer.)
 
-(6) P.S. (mandatory) — single line: "P.S. A 3-minute preview of what we do, if helpful: ${trackingUrl}" — keep it soft-optional, no hard sell. Use the URL EXACTLY as given (do not shorten, do not replace with spscos.com).
+(6) URL PLACEMENT (PR17 ADR-043 — P.S. single-line replaced by mid-body inline) — Insert the ${trackingUrl} ONCE inside the body, naturally woven mid-sentence between paragraph 2 and paragraph 3 (or at the end of paragraph 2). Example phrasings: "— a 3-minute preview is here if useful: ${trackingUrl} —" or "(quick preview: ${trackingUrl})". Use the URL EXACTLY as given. NO standalone "P.S." line. NO standalone URL on its own line.
+
+HARD LIMITS (PR17 ADR-043 — from 2026-04-20 real spam-mail reverse analysis):
+1. MAX_WORDS=150 for body_first. Count words in body only (exclude subject). Reject if over.
+2. Opening MUST be a 1-sentence concrete observation about THIS buyer (product name, campaign, press release, specific launch). FORBIDDEN opening phrases:
+   - "I was pleased to see"
+   - "I was excited to notice"
+   - "I hope this email finds you well"
+   - "I came across your company"
+   - "I wanted to reach out"
+   - "I wanted to touch base"
+3. NO preaching / industry-generalization paragraph. FORBIDDEN phrasings:
+   - "We consistently notice that..."
+   - "When we observe how..."
+   - "The more X, the more Y..."
+   - "In today's market..."
+   - "As the industry evolves..."
+   Use ONE concrete observation about ${buyer.company_name} instead.
+4. NO standalone company-pitch paragraph. SPS description MUST be ONE sentence inline inside another thought (example: "We make peptide serums and SPFs from our Korean facility for brands like yours.") — never its own paragraph.
+5. Korea identity MANDATORY: body MUST contain at least ONE of [Korea, Korean, K-Beauty, Made in Korea] naturally woven in. validate-draft flags if missing.
+6. URL placement: ${trackingUrl} inserted mid-body (end of paragraph 2 or between paragraph 2 and 3), NOT in a P.S. line, NOT on its own line.
 
 TONE GUARDRAILS (critical — many drafts get flagged by our internal spam-tone filter because of these):
 - Do NOT repeat "partner / partnership / bespoke / turnkey / tailored" more than 2 times total across the body. Over-repetition reads as sales script.
@@ -697,15 +720,15 @@ HARD CONSTRAINTS — if violated the draft fails:
 - The entire email (subject AND body AND PS) MUST be English only. No Korean, Hanja, or non-Latin scripts.
 - BANNED sales clichés (do not use in any form or synonym — these immediately trigger spam-tone flags): unlock, synergy, leverage, game-changer, game changer, best-in-class, world-class, world-leading, industry-leading, state-of-the-art, cutting-edge, revolutionary, next-level, take your [X] to the next level, positioned to, touch base, circle back, just wanted to, I hope this finds you well, amazing, ultimate.
 - BANNED spam trigger words (case-insensitive, 35 total): free, guarantee, guaranteed, winner, congratulations, limited time, act now, click here, no cost, risk free, risk-free, exclusive deal, don't miss, urgent, buy now, order now, special promotion, no obligation, double your, earn extra, cash bonus, amazing, ultimate, incredible, unbeatable, hurry, deadline, last chance, today only, discount, lowest price, best price, don't wait, while supplies last, one-time offer.
-- Links: exactly 1 link (the ${trackingUrl} above) in the P.S. — NOT in the body. No additional external links. No multiple consecutive uppercase words. No "!!" or repeated exclamation marks.
+- Links: exactly 1 link (the ${trackingUrl} above) inserted MID-BODY (end of paragraph 2 or between 2-3). NO P.S. line. NO standalone URL line. NO additional external links. No multiple consecutive uppercase words. No "!!" or repeated exclamation marks.
 
 Return ONLY a JSON object (no markdown):
 {
   "subject_line_1": "3-7 words, reference a specific ${buyer.company_name} fact + a light observation hook (e.g., '${buyer.company_name}'s [specific thing] — a quick thought')",
   "subject_line_2": "Reference-based subject using company_status (under 60 chars, e.g., 'Re: ${buyer.company_name}'s ${companyStatus.slice(0, 30)}')",
   "subject_line_3": "Insight-tease subject (under 60 chars, e.g., 'What most OEMs miss when ${buyer.region} brands scale')",
-  "body_first": "120-220 words. CIA + Challenger structure: (1) Context with 2+ specific proper nouns from the intelligence, (2) Insight teaching a non-obvious industry pattern tailored to ${buyer.company_name}, (3) Transition to SPS capability at category level, (4) Single low-commitment Ask with open timing, (5) 'Teddy' sign-off on its own line, (6) 'P.S. A 3-minute preview of what we do: ${trackingUrl}' — the URL MUST be copied exactly.",
-  "body_followup": "80-130 words, ENGLISH ONLY. Sent ${tier === "Tier1" ? "5" : "7"} days after first. Brief reference to first email → one new specific angle (use kbeauty_interest or recommended category at CATEGORY level only, NO product name) → soft open-ended nudge to chat. Sign off 'Teddy'. No P.S. needed here."
+  "body_first": "120-150 words MAX (PR17 HARD LIMIT). CIA + Challenger structure: (1) Context with 2+ specific proper nouns from the intelligence, (2) Insight teaching a non-obvious industry pattern tailored to ${buyer.company_name} — include Korea/K-Beauty/Korean identity naturally, (3) Transition to SPS capability at category level, naturally weaving the ${trackingUrl} preview link mid-body (end of paragraph 2), (4) Single low-commitment Ask with open timing, (5) 'Warm regards,' + 'Teddy Shin' sign-off on separate lines. NO P.S. line. NO standalone URL.",
+  "body_followup": "80-130 words MAX, ENGLISH ONLY. Sent ${tier === "Tier1" ? "5" : "7"} days after first. Brief reference to first email → one new specific angle (use kbeauty_interest or recommended category at CATEGORY level only, NO product name) → soft open-ended nudge to chat. MUST contain Korea/K-Beauty identity. Sign off 'Warm regards,' + 'Teddy Shin'. No P.S. needed here."
 }`;
 
         const res = await fetchClaudeWithRetry("https://api.anthropic.com/v1/messages", {
@@ -800,6 +823,7 @@ Return ONLY a JSON object (no markdown):
 // ADR-030: SPAM_WORDS 21개 → 35개 확장. 추가 14개는 업계 표준 B2B 콜드메일 스팸 트리거.
 //   오탐 가능성 높은 "save", "%"는 의도적으로 제외.
 //   3곳 동기화 필수: run-pipeline · validate-draft · MailQueue.tsx.
+// ADR-043 (2026-04-20, PR17): 실측 스팸 메일 역추적으로 코포레이트 자갈 15개 추가 (35→50).
 const SPAM_WORDS = [
   // 기존 21개 (원본)
   "free", "guarantee", "guaranteed", "winner", "congratulations",
@@ -812,6 +836,14 @@ const SPAM_WORDS = [
   "hurry", "deadline", "last chance", "today only",
   "discount", "lowest price", "best price",
   "don't wait", "while supplies last", "one-time offer",
+  // 추가 15개 (2026-04-21 ADR-043, PR17 실측 스팸 역추적)
+  "leveraging", "multi-market", "rapid response capability",
+  "next phase of expansion", "i would be grateful",
+  "premium beauty brands across all categories",
+  "fully customized manufacturing partner", "formulation excellence",
+  "consistently notice", "manufacturing flexibility",
+  "long-term partnerships", "customer expectations",
+  "grown alongside", "export experience", "brief conversation",
 ];
 
 // PR13(ADR-032): P.S. 링크가 spscos.com → app-spscos.vercel.app/go/{token}으로 변경됨.

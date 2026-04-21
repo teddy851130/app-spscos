@@ -25,6 +25,7 @@ function getSupabase() {
 // === run-pipeline/index.ts agentE에서 복사 (TODO: PR7에서 공용 모듈화) ===
 
 // ADR-030: 35개 (3곳 동기화 필수: run-pipeline · validate-draft · MailQueue.tsx)
+// ADR-043 (2026-04-21, PR17): 실측 스팸 메일 역추적으로 15개 추가 (35→50).
 const SPAM_WORDS = [
   "free", "guarantee", "guaranteed", "winner", "congratulations",
   "limited time", "act now", "click here", "no cost", "risk free",
@@ -35,6 +36,14 @@ const SPAM_WORDS = [
   "hurry", "deadline", "last chance", "today only",
   "discount", "lowest price", "best price",
   "don't wait", "while supplies last", "one-time offer",
+  // ADR-043 신규 15개 (PR17)
+  "leveraging", "multi-market", "rapid response capability",
+  "next phase of expansion", "i would be grateful",
+  "premium beauty brands across all categories",
+  "fully customized manufacturing partner", "formulation excellence",
+  "consistently notice", "manufacturing flexibility",
+  "long-term partnerships", "customer expectations",
+  "grown alongside", "export experience", "brief conversation",
 ];
 
 // PR13(ADR-032): SPS 도메인 = spscos.com + app.spscos.com/go (tracking redirect) 합산
@@ -59,6 +68,18 @@ function checkSpamRules(subject: string, body: string): string[] {
   if (/\b[A-Z]{2,}(\s+[A-Z]{2,}){2,}\b/.test(body)) issues.push("대문자 단어 3개+ 연속");
 
   if (/!{2,}/.test(full)) issues.push("느낌표 2개+ 연속");
+
+  // ADR-043 (PR17): 한국 정체성 키워드 누락 → Korean OEM 신호 부재 = 스팸 취급 위험
+  const koreaPattern = /\b(korea|korean|k-?beauty|made in korea)\b/i;
+  if (!koreaPattern.test(body)) {
+    issues.push("한국 정체성 키워드 누락 (Korea / Korean / K-Beauty / Made in Korea 중 1개 필요)");
+  }
+
+  // ADR-043 (PR17): 본문 150단어 초과 → 실측 스팸 평균 230+ 대비 짧게 유지
+  const wordCount = body.trim().split(/\s+/).filter(Boolean).length;
+  if (wordCount > 150) {
+    issues.push(`본문 ${wordCount}단어 (최대 150)`);
+  }
 
   return issues;
 }

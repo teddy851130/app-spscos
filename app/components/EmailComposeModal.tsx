@@ -715,7 +715,7 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
                     </div>
                     <div className="flex justify-between">
                       <span className="text-[#8792a2]">발신</span>
-                      <span className="text-[#1a1f36]">Donghwan Shin &lt;teddy@spscos.com&gt;</span>
+                      <span className="text-[#1a1f36]">Teddy Shin &lt;teddy@spscos.com&gt;</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-[#8792a2]">숨은참조</span>

@@ -143,6 +143,14 @@ K-beauty 관심도: ${kbeautyInterest}
 
 프레임워크: CIA (Context - Insight - Ask). 톤은 "Warm-Confident" — 자신감은 있되 한국어 비즈니스 정서에 맞게 **부드럽고 친절하게**. 영어식 직접 단언("~ 못합니다", "정확히 그 지점") 직역 금지 — 한국어로 직역되면 우월·도발적 인상.
 
+필수 제약 (PR17 ADR-043 — 2026-04-20 실측 스팸 메일 역추적):
+- 본문 150단어 이하 (국문 기준 350자 이하). 번역 후 영문 150단어 상한에 걸리지 않도록 애초에 짧게.
+- 오프닝: 해당 바이어의 **구체 관찰 1문장**. "안녕하세요, 건강하시죠", "좋은 하루 보내고 계시죠" 류 진부 도입 금지.
+- 일반 업계 관찰 문단 금지 — "최근 뷰티 시장은...", "오늘날 산업은..." 류 전체 배경 서술 금지. 오직 ${buyer.company_name}의 1가지 구체 사실만.
+- 회사 소개 독립 문단 금지. SPS 설명은 **1문장 자연 삽입**만 허용 (예: "한국 공장에서 펩타이드 세럼·SPF를 제조하는 파트너로...").
+- 본문에 Korea / K-Beauty / Korean OEM / Made in Korea 중 **최소 1개 자연 삽입** (번역 시 영문에도 보존돼야 함).
+- 국문 과도 정중체 금지: "귀사" 3회 이상 반복 금지, "혹시 여쭤봅니다" 결합체 금지, "~ 최선을 다하겠습니다" 류 마무리 금지.
+
 (0) 인사말 (필수 첫 줄) — "안녕하세요, ${contact.contact_name} 님." 또는 "${contact.contact_name} 님께," 로 시작. 바로 본문으로 들어가지 말 것.
 
 (1) CONTEXT — 인사말 다음 1~2문장. 반드시 "기업 상태" 또는 "제안 각도"에서 **구체 고유명사 2개 이상**(제품·브랜드·도시·파트너·최근 론칭·캠페인 등)을 인용해 "귀사 소식을 관심 있게 지켜보고 있다"를 증명. 중립·존중형. 좋은 시작 어구: "최근 ${buyer.company_name}의 ~ 소식을 관심 있게 보았습니다", "~ 론칭 기사를 인상 깊게 읽었습니다", "~ 확장 방향이 흥미로워 연락드립니다". 감시형 표현은 **절대 금지**: "관찰됩니다", "~인 것으로 보입니다", "저희가 분석한 바에 따르면", "~로 파악됩니다".
@@ -221,6 +229,9 @@ JSON 형식으로만 응답 (마크다운 금지):
       // PR6.6: 내용 보존은 엄격, 스타일은 세련되게 — 두 축을 분리. 사용자(Teddy)는 한국어로
       //   비즈니스 톤 작성 후 Claude가 polished English로 다듬어주길 원함. 단 의도한 문장의
       //   임의 삭제·재구성은 금지 (PR6.5의 "미워합니다" 누락 사건 방지).
+      // PR17 ADR-043: TRANSLATION HARD LIMITS + SIGN-OFF RULE 신규 추가.
+      //   실측 스팸 메일 역추적으로 150단어 / Hi firstName / Korea 필수 / URL 본문 중간 / Teddy Shin 서명 규칙화.
+      const firstNameTr = (contact.contact_name || "").trim().split(/\s+/)[0] || contact.contact_name || "there";
       const prompt = `You are a professional B2B email translator (Korean → English) for a non-native English speaker.
 Your job has TWO axes — keep them separate:
 
@@ -235,6 +246,17 @@ AXIS 2 — STYLE POLISH (encouraged):
 
 Context: Sender is Teddy Shin, CEO of SPS Cosmetics (spscos.com). MOQ is 3,000 units.
 
+TRANSLATION HARD LIMITS (PR17 ADR-043 — from 2026-04-20 spam reverse analysis):
+- Final English body: MAX 150 words. If the literal translation exceeds 150 words, tighten phrasing and remove redundant connective filler WHILE STILL TRANSLATING EVERY SOURCE SENTENCE (AXIS 1 remains strict — preservation > compression).
+- Greeting: "Hi ${firstNameTr}," — if the Korean source starts with "안녕하세요, [full name] 님" or "Dear" or uses full name, REPLACE with "Hi ${firstNameTr},". First name only.
+- Korea identity MUST survive translation: at least ONE of [Korea, Korean, K-Beauty, Made in Korea] must appear in en_body. If the source omitted it, weave it in naturally during translation.
+- URL placement: if a tracking URL appears in the source, place it MID-BODY (end of paragraph 2 or between paragraph 2 and 3), NOT in a "P.S." line, NOT on its own standalone line. Weave it inline (e.g., "— a 3-minute preview: URL —").
+- FORBIDDEN openers/phrasings in en_body (even if source hints at them): "I was pleased to see", "I was excited to notice", "I hope this email finds you well", "I came across your company", "I wanted to reach out", "I wanted to touch base", "We consistently notice that", "In today's market", "As the industry evolves".
+
+SIGN-OFF RULE (PR17 ADR-043):
+- The en_body MUST end with exactly two lines: first line "Warm regards," and second line "Teddy Shin".
+- If the Korean source ends with "Teddy 드림" or "Teddy" or "신동환 드림" or any other variant, REPLACE with the two-line block above. "Donghwan Shin", "D. Shin", "신동환" are NOT allowed in the final output.
+
 Korean Subject: ${ko_draft.subject}
 Korean Body:
 ${ko_draft.body}
@@ -242,7 +264,7 @@ ${ko_draft.body}
 Return ONLY a JSON object (no markdown):
 {
   "en_subject": "Polished English subject",
-  "en_body": "Polished English body — every Korean sentence translated, styled into natural B2B business English"
+  "en_body": "Polished English body — every Korean sentence translated, styled into natural B2B business English. Max 150 words. Ends with 'Warm regards,\\nTeddy Shin'."
 }`;
 
       // ADR-026: 한글 혼입 가드. translate_save는 사용자 수동 경로라 한글 잔류 시 바로 UI에

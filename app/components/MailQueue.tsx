@@ -37,11 +37,14 @@ interface DraftItem {
   contact_name: string;
   contact_email: string;
   buyer_id: string;
+  // PR17(ADR-043): contact 단위 집계용. null이면 legacy 초안(담당자 분리 전).
+  buyer_contact_id: string | null;
 }
 
 // ── 스팸 체크 (클라이언트 사이드 — run-pipeline과 동일 규칙) ──
 
 // ADR-030: 35개 (3곳 동기화: run-pipeline · validate-draft · MailQueue.tsx)
+// ADR-043 (2026-04-21, PR17): 실측 스팸 메일 역추적으로 15개 추가 (35→50).
 const SPAM_WORDS = [
   "free", "guarantee", "guaranteed", "winner", "congratulations",
   "limited time", "act now", "click here", "no cost", "risk free",
@@ -52,6 +55,14 @@ const SPAM_WORDS = [
   "hurry", "deadline", "last chance", "today only",
   "discount", "lowest price", "best price",
   "don't wait", "while supplies last", "one-time offer",
+  // ADR-043 신규 15개 (PR17)
+  "leveraging", "multi-market", "rapid response capability",
+  "next phase of expansion", "i would be grateful",
+  "premium beauty brands across all categories",
+  "fully customized manufacturing partner", "formulation excellence",
+  "consistently notice", "manufacturing flexibility",
+  "long-term partnerships", "customer expectations",
+  "grown alongside", "export experience", "brief conversation",
 ];
 
 interface SpamCheckResult {
@@ -160,6 +171,9 @@ export default function MailQueue() {
   }
 
   // 섹션 1: 팔로업 필요 바이어 조회
+  // PR17(ADR-043): buyer_contacts JOIN으로 per-contact 단위 flatten.
+  //   기존 버그 — buyers 단독 조회로 같은 회사 담당자 3명 중 buyers.contact_name에 저장된 1명만 큐에 노출.
+  //   해결 — buyer_contacts 전체를 JOIN해서 담당자별 row 생성. Replied/Deal/Lost/Bounced 확정 contact는 제외.
   async function fetchFollowups() {
     // KST 기준 오늘 끝 시간 계산
     const kstOffset = 9 * 60 * 60 * 1000; // UTC+9
@@ -177,10 +191,16 @@ export default function MailQueue() {
 
     // PR4: intel_failed 바이어는 인텔 품질 미달이라 발송 대상에서 자동 제외
     const excludeStatuses = ['Lost', 'Deal', 'Bounced', 'intel_failed'];
+    // PR17(ADR-043): contact 단위 확정 상태는 큐에서 제외. Cold/Contacted/NULL은 발송 대상.
+    const excludeContactStatuses = new Set(['Replied', 'Deal', 'Lost', 'Bounced']);
 
     const { data, error } = await supabase
       .from('buyers')
-      .select('id, company_name, contact_name, contact_email, tier, region, status, last_sent_at, next_followup_at, email_count')
+      .select(`
+        id, company_name, contact_name, contact_email, tier, region, status,
+        last_sent_at, next_followup_at, email_count,
+        buyer_contacts ( id, contact_name, contact_email, contact_status )
+      `)
       .not('next_followup_at', 'is', null)
       .lte('next_followup_at', todayEndUtc)
       .not('status', 'in', `(${excludeStatuses.join(',')})`)
@@ -191,32 +211,58 @@ export default function MailQueue() {
       return;
     }
 
-    if (data && data.length > 0) {
-      const mapped: FollowupBuyer[] = data.map((b) => {
-        const followupTime = new Date(b.next_followup_at).getTime();
-        const todayStartTime = new Date(todayStartUtc).getTime();
-
-        // overdue: 오늘 시작 전 / today: 오늘 범위 내
-        const badge: 'overdue' | 'today' = followupTime < todayStartTime ? 'overdue' : 'today';
-
-        return {
-          id: b.id,
-          company_name: b.company_name || '',
-          contact_name: b.contact_name || '담당자',
-          contact_email: b.contact_email || '',
-          tier: b.tier || '',
-          region: b.region || '',
-          status: b.status || '',
-          last_sent_at: b.last_sent_at,
-          next_followup_at: b.next_followup_at,
-          email_count: b.email_count ?? 0,
-          badge,
-        };
-      });
-      setFollowups(mapped);
-    } else {
+    if (!data || data.length === 0) {
       setFollowups([]);
+      return;
     }
+
+    const todayStartTime = new Date(todayStartUtc).getTime();
+    const flattened: FollowupBuyer[] = [];
+
+    for (const b of data as Array<Record<string, unknown>>) {
+      const followupTime = new Date(b.next_followup_at as string).getTime();
+      const badge: 'overdue' | 'today' = followupTime < todayStartTime ? 'overdue' : 'today';
+      const contacts = (b.buyer_contacts as Array<{
+        id: string;
+        contact_name: string | null;
+        contact_email: string | null;
+        contact_status: string | null;
+      }> | null) ?? [];
+
+      const base = {
+        id: b.id as string,
+        company_name: (b.company_name as string) || '',
+        tier: (b.tier as string) || '',
+        region: (b.region as string) || '',
+        status: (b.status as string) || '',
+        last_sent_at: (b.last_sent_at as string | null) ?? null,
+        next_followup_at: b.next_followup_at as string,
+        email_count: (b.email_count as number | null) ?? 0,
+        badge,
+      };
+
+      if (contacts.length === 0) {
+        // legacy buyer: buyer_contacts 행 없음 → buyers 본체 필드로 폴백 (contact_id 없음)
+        flattened.push({
+          ...base,
+          contact_name: (b.contact_name as string) || '담당자',
+          contact_email: (b.contact_email as string) || '',
+        });
+        continue;
+      }
+
+      for (const c of contacts) {
+        if (c.contact_status && excludeContactStatuses.has(c.contact_status)) continue;
+        flattened.push({
+          ...base,
+          contact_name: c.contact_name || '담당자',
+          contact_email: c.contact_email || '',
+          contact_id: c.id,
+        });
+      }
+    }
+
+    setFollowups(flattened);
   }
 
   // 섹션 2: 미발송 초안 조회
@@ -227,7 +273,7 @@ export default function MailQueue() {
       .from('email_drafts')
       .select(`
         id, subject_line_1, body_first, body_followup,
-        spam_score, spam_status, spam_reason, tier, buyer_id,
+        spam_score, spam_status, spam_reason, tier, buyer_id, buyer_contact_id,
         buyers:buyer_id ( company_name ),
         buyer_contacts:buyer_contact_id ( contact_name, contact_email )
       `)
@@ -260,6 +306,7 @@ export default function MailQueue() {
         contact_name: contactRel?.contact_name || '',
         contact_email: contactRel?.contact_email || '',
         buyer_id: (d.buyer_id as string) || '',
+        buyer_contact_id: (d.buyer_contact_id as string | null) ?? null,
       };
     });
 
@@ -282,20 +329,29 @@ export default function MailQueue() {
     setEmailModalOpen(true);
   };
 
-  // 발송 완료 후 해당 바이어를 큐에서 제거
-  const handleEmailSent = (buyerId: string) => {
-    setFollowups((prev) => prev.filter((b) => b.id !== buyerId));
+  // 발송 완료 후 해당 담당자를 큐에서 제거.
+  // PR17(ADR-043): contact 단위 flatten으로 바뀌면서 같은 buyer의 다른 담당자는 유지해야 함 → contact_id 기반 filter.
+  const handleEmailSent = (buyerId: string, contactId?: string) => {
+    setFollowups((prev) => prev.filter((b) => {
+      if (b.id !== buyerId) return true;
+      // 같은 buyer: contact_id가 일치하는 row만 제거. legacy(contact_id 없음)는 buyer 매치 시 제거.
+      return b.contact_id !== contactId;
+    }));
   };
 
   // ── 표시 데이터 (상위 20건 제한) ──
   const displayedFollowups = showAllFollowups ? followups : followups.slice(0, DISPLAY_LIMIT);
   const displayedDrafts = showAllDrafts ? drafts : drafts.slice(0, DISPLAY_LIMIT);
-  // 중복 제거: 같은 buyer가 팔로업 큐와 미발송 초안에 동시에 있으면 1건으로 카운트.
-  // "오늘 보낼 메일" 의미는 "오늘 작업해야 할 바이어 수"이므로 고유 buyer 수가 올바름.
-  const uniqueBuyerIds = new Set<string>();
-  followups.forEach((f) => uniqueBuyerIds.add(f.id));
-  drafts.forEach((d) => { if (d.buyer_id) uniqueBuyerIds.add(d.buyer_id); });
-  const totalCount = uniqueBuyerIds.size;
+  // PR17(ADR-043): "오늘 보낼 메일" = 메일 단위 (contact 단위). 같은 회사 담당자 3명 = 3건.
+  //   follow-up(contact_id) + draft(buyer_contact_id) 기준으로 유니크. legacy(contact_id 없음)는 buyer_id 폴백.
+  const uniqueContactIds = new Set<string>();
+  followups.forEach((f) => {
+    uniqueContactIds.add(f.contact_id ?? `buyer-${f.id}`);
+  });
+  drafts.forEach((d) => {
+    uniqueContactIds.add(d.buyer_contact_id ?? `draft-${d.id}`);
+  });
+  const totalCount = uniqueContactIds.size;
 
   // ── 로딩 ──
   if (loading) {
@@ -345,7 +401,7 @@ export default function MailQueue() {
 
               return (
                 <div
-                  key={buyer.id}
+                  key={buyer.contact_id ?? `buyer-${buyer.id}`}
                   className="flex items-center justify-between px-4 py-3 hover:bg-[#f6f8fa] transition-colors"
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -709,7 +765,7 @@ export default function MailQueue() {
             setEmailModalOpen(false);
             setSelectedBuyer(null);
           }}
-          onSent={() => handleEmailSent(selectedBuyer.id)}
+          onSent={() => handleEmailSent(selectedBuyer.id, selectedBuyer.contact_id)}
           buyer={selectedBuyer}
         />
       )}
