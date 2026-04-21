@@ -30,7 +30,10 @@ interface EmailComposeModalProps {
 
 export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: EmailComposeModalProps) {
   // PR6.3: 국문 수정 탭 제거. 국문 초안 생성·수정은 바이어 인텔 탭에서 단일화.
-  const [currentTab, setCurrentTab] = useState<'en' | 'intel'>('en');
+  // 2026-04-22 fix: 기본 탭을 'intel' 로. 사용자 흐름은
+  //   바이어 인텔 확인 → 국문 초안 생성 → 국문 확인 → 영문 반영 및 검증 → 영문 확인 → 발송.
+  //   이전엔 'en' 기본이라 모달 열자마자 기존 DB 영문 draft 가 먼저 보여 "국문 확인 없이 영문이 먼저 나왔다"는 혼란 유발.
+  const [currentTab, setCurrentTab] = useState<'en' | 'intel'>('intel');
   const [emailBody, setEmailBody] = useState('');
   const [subject, setSubject] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -744,18 +747,10 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
                   />
                 </div>
 
-                {/* Tabs */}
+                {/* Tabs — 2026-04-22 fix: 왼쪽에 바이어 인텔(기본), 오른쪽에 영문(발송본).
+                    올바른 흐름: 1) 바이어 인텔 확인 → 국문 초안 생성 → 국문 확인
+                    → 영문 반영 및 검증 → 2) 영문 탭 자동 전환 → 최종 검토 → 발송 */}
                 <div className="flex border-b border-[#e3e8ee] flex-shrink-0 bg-[#f6f8fa]">
-                  <button
-                    onClick={() => setCurrentTab('en')}
-                    className={`flex-1 px-4 py-3 text-xs font-semibold border-b-2 transition ${
-                      currentTab === 'en'
-                        ? 'text-[#635BFF] border-[#635BFF]'
-                        : 'text-[#8792a2] border-transparent hover:text-[#697386]'
-                    }`}
-                  >
-                    🇺🇸 영문(발송본)
-                  </button>
                   <button
                     onClick={() => setCurrentTab('intel')}
                     className={`flex-1 px-4 py-3 text-xs font-semibold border-b-2 transition relative ${
@@ -764,10 +759,20 @@ export default function EmailComposeModal({ isOpen, onClose, onSent, buyer }: Em
                         : 'text-[#8792a2] border-transparent hover:text-[#697386]'
                     }`}
                   >
-                    <Search size={14} className="inline" /> 바이어 인텔
+                    <Search size={14} className="inline" /> 1. 바이어 인텔 → 국문 초안
                     {intel && !intelLoading && (
                       <span className="absolute top-2 right-3 w-1.5 h-1.5 bg-[#635BFF] rounded-full" />
                     )}
+                  </button>
+                  <button
+                    onClick={() => setCurrentTab('en')}
+                    className={`flex-1 px-4 py-3 text-xs font-semibold border-b-2 transition ${
+                      currentTab === 'en'
+                        ? 'text-[#635BFF] border-[#635BFF]'
+                        : 'text-[#8792a2] border-transparent hover:text-[#697386]'
+                    }`}
+                  >
+                    🇺🇸 2. 영문(발송본)
                   </button>
                 </div>
 
