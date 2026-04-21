@@ -131,6 +131,7 @@ export default function Buyers() {
                 isPrimaryContact: true,
                 email_count: row.email_count ?? 0,
                 lastSent: row.last_sent_at ? new Date(row.last_sent_at).toLocaleDateString('ko-KR') : '미발송',
+                lastSentAtRaw: (row.last_sent_at as string | null) ?? null,
                 status: mapStatus(row.status),
               }];
             }
@@ -155,6 +156,7 @@ export default function Buyers() {
               isPrimaryContact: !!c.is_primary,
               email_count: c.email_count ?? 0,
               lastSent: c.last_sent_at ? new Date(c.last_sent_at).toLocaleDateString('ko-KR') : '미발송',
+              lastSentAtRaw: (c.last_sent_at as string | null) ?? null,
               // 담당자별 독립 상태: contact_status 우선, 없고 email_count>0 이면 '발송완료', 그 외 buyers.status 상속
               status: mapStatus(
                 c.contact_status
@@ -184,13 +186,34 @@ export default function Buyers() {
     fetchBuyers();
   }, []);
 
-  const filtered = buyers.filter((b) => {
-    if (search && !b.company.toLowerCase().includes(search.toLowerCase()) && !b.contact.toLowerCase().includes(search.toLowerCase()) && !b.email.toLowerCase().includes(search.toLowerCase())) return false;
-    if (region && b.region !== region) return false;
-    if (tier && b.tier !== tier) return false;
-    if (status && b.status !== status) return false;
-    return true;
-  });
+  // 마지막 발송일 필터: 이번 달/지난 달은 발송 기간 필터, latest 는 발송일 내림차순 정렬
+  const now = new Date();
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999).getTime();
+
+  const filtered = buyers
+    .filter((b: any) => {
+      if (search && !b.company.toLowerCase().includes(search.toLowerCase()) && !b.contact.toLowerCase().includes(search.toLowerCase()) && !b.email.toLowerCase().includes(search.toLowerCase())) return false;
+      if (region && b.region !== region) return false;
+      if (tier && b.tier !== tier) return false;
+      if (status && b.status !== status) return false;
+      if (date === 'month' || date === 'last') {
+        if (!b.lastSentAtRaw) return false;
+        const t = new Date(b.lastSentAtRaw).getTime();
+        if (date === 'month' && (t < thisMonthStart || t > thisMonthEnd)) return false;
+        if (date === 'last' && (t < lastMonthStart || t > lastMonthEnd)) return false;
+      }
+      return true;
+    })
+    .sort((a: any, b: any) => {
+      if (date !== 'latest') return 0;
+      // 최신순: lastSentAtRaw 내림차순. null(미발송)은 뒤로.
+      const at = a.lastSentAtRaw ? new Date(a.lastSentAtRaw).getTime() : -Infinity;
+      const bt = b.lastSentAtRaw ? new Date(b.lastSentAtRaw).getTime() : -Infinity;
+      return bt - at;
+    });
 
   const displayCount = filtered.length;
   const totalPages = Math.ceil(displayCount / PAGE_SIZE) || 1;
