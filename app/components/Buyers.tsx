@@ -157,10 +157,15 @@ export default function Buyers() {
               email_count: c.email_count ?? 0,
               lastSent: c.last_sent_at ? new Date(c.last_sent_at).toLocaleDateString('ko-KR') : '미발송',
               lastSentAtRaw: (c.last_sent_at as string | null) ?? null,
-              // 담당자별 독립 상태: contact_status 우선, 없고 email_count>0 이면 '발송완료', 그 외 buyers.status 상속
+              // 담당자별 독립 상태 (2026-04-22 fix):
+              //   1순위 contact_status (개별 지정된 상태: Replied/Deal 등)
+              //   2순위 email_count>0 → Contacted (발송완료)
+              //   3순위 'Cold' (미발송) — 기존엔 row.status 로 fallback 해서 같은 회사 buyer.status=Contacted 이면
+              //     미발송 contact 도 '발송완료' 로 잘못 표시되던 버그. buyer 집계는 UI 에 쓰지 않음.
+              //   단 buyer.status 가 'intel_failed' 면 contact 와 무관하게 전파 (품질 게이트).
               status: mapStatus(
                 c.contact_status
-                || (Number(c.email_count ?? 0) > 0 ? 'Contacted' : row.status)
+                || (Number(c.email_count ?? 0) > 0 ? 'Contacted' : (row.status === 'intel_failed' ? 'intel_failed' : 'Cold'))
               ),
             }));
           });
