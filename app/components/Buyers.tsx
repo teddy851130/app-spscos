@@ -90,7 +90,7 @@ export default function Buyers() {
         setLoading(true);
         const { data, error, count } = await supabase
           .from('buyers')
-          .select('*, buyer_contacts(id, linkedin_url, contact_name, contact_email, contact_title, is_primary, contact_status)', { count: 'exact' })
+          .select('*, buyer_contacts(id, linkedin_url, contact_name, contact_email, contact_title, is_primary, contact_status, email_count, last_sent_at, next_followup_at)', { count: 'exact' })
           .order('created_at', { ascending: false });
 
         if (error) {
@@ -111,16 +111,14 @@ export default function Buyers() {
               // PR5: 인텔 품질 점수 (0~100, null=미분석)
               intel_score: (row.intel_score ?? null) as number | null,
               website: row.website || '',
-              lastSent: row.last_sent_at ? new Date(row.last_sent_at).toLocaleDateString('ko-KR') : '미발송',
-              status: mapStatus(row.status),
               notes: row.notes || '',
               is_blacklisted: row.is_blacklisted || false,
               annual_revenue: row.annual_revenue,
               discovered_at: row.discovered_at,
-              email_count: row.email_count ?? 0,
             };
 
             // 담당자가 없으면 buyers 테이블의 레거시 contact 필드로 1행 생성
+            // 2026-04-22 per-contact tracking 이후: contact 없는 buyer는 회사 단위 집계 그대로 표시
             if (contacts.length === 0) {
               return [{
                 ...base,
@@ -131,6 +129,9 @@ export default function Buyers() {
                 email: row.contact_email || '',
                 linkedin_url: row.linkedin_url || '',
                 isPrimaryContact: true,
+                email_count: row.email_count ?? 0,
+                lastSent: row.last_sent_at ? new Date(row.last_sent_at).toLocaleDateString('ko-KR') : '미발송',
+                status: mapStatus(row.status),
               }];
             }
 
@@ -141,6 +142,8 @@ export default function Buyers() {
               return 0;
             });
 
+            // 담당자별 독립 발송 추적 — email_count / last_sent_at 은 contact 단위에서 가져옴.
+            // 회사 단위 집계(row.email_count / row.last_sent_at)는 더 이상 개별 행에 반영하지 않음.
             return sorted.map((c, idx) => ({
               ...base,
               rowKey: `${row.id}-${c.contact_email || idx}`,
@@ -150,8 +153,13 @@ export default function Buyers() {
               email: c.contact_email || '',
               linkedin_url: c.linkedin_url || '',
               isPrimaryContact: !!c.is_primary,
-              // 담당자별 독립 상태: contact_status가 있으면 우선, 없으면 buyers.status 상속
-              status: mapStatus(c.contact_status || row.status),
+              email_count: c.email_count ?? 0,
+              lastSent: c.last_sent_at ? new Date(c.last_sent_at).toLocaleDateString('ko-KR') : '미발송',
+              // 담당자별 독립 상태: contact_status 우선, 없고 email_count>0 이면 '발송완료', 그 외 buyers.status 상속
+              status: mapStatus(
+                c.contact_status
+                || (Number(c.email_count ?? 0) > 0 ? 'Contacted' : row.status)
+              ),
             }));
           });
           setBuyers(mapped);

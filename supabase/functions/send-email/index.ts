@@ -190,11 +190,12 @@ Deno.serve(async (req: Request) => {
       const sb = getSupabase();
       const now = new Date().toISOString();
 
-      // 1) email_logs에 기록
+      // 1) email_logs에 기록 (buyer_contact_id 포함 — 2026-04-22 per-contact tracking)
       const { data, error } = await sb
         .from("email_logs")
         .insert({
           buyer_id: buyerId,
+          buyer_contact_id: contactId ?? null,
           email_type: resolvedEmailType,
           subject,
           body_en: emailBody,
@@ -208,9 +209,9 @@ Deno.serve(async (req: Request) => {
       if (error) throw error;
       logId = data?.id;
 
-      // 2) buyers 업데이트 — PR1 이후 원자적 RPC 사용
-      // 팔로업 날짜는 tier에 따라 다르므로 tier만 먼저 조회 (RPC 파라미터 계산용).
-      // email_count 증가 + last_sent_at + status 전이는 increment_email_sent RPC가 한 트랜잭션에서 처리.
+      // 2) 담당자 단위 추적 — 2026-04-22 per-contact RPC 전환
+      // 이전: buyers.email_count 회사 단위 → 같은 회사 모든 contact 가 "발송완료" 로 표시되는 버그
+      // 이후: buyer_contacts.email_count 담당자 단위 + buyers.last_sent_at 은 회사 집계용 동기화
       const { data: buyerData } = await sb
         .from("buyers")
         .select("tier")
@@ -229,19 +230,23 @@ Deno.serve(async (req: Request) => {
         nextFollowup = followupDate.toISOString();
       }
 
-      // 원자적 증감: email_count +1, last_sent_at, next_followup_at, status 전이를 한 번에.
-      // (migration 008에서 정의된 increment_email_sent RPC)
-      const { error: rpcError } = await sb.rpc("increment_email_sent", {
-        p_buyer_id: buyerId,
+      // 원자적 증감: contact.email_count +1, contact.last_sent_at, contact.next_followup_at
+      //   + buyers 회사 단위 last_sent_at/status 동기화 — increment_contact_email_sent RPC 한 트랜잭션.
+      // contactId 가 없으면 에러 — per-contact tracking 필수.
+      if (!contactId) {
+        console.error(`[send-email] contactId 누락 — buyer=${buyerId}. SMTP는 이미 발송됨. UI 호출부 확인 필요.`);
+        throw new Error("contactId 누락: per-contact 추적에 필수");
+      }
+      const { error: rpcError } = await sb.rpc("increment_contact_email_sent", {
+        p_contact_id: contactId,
         p_sent_at: now,
         p_next_followup_at: nextFollowup,
       });
       if (rpcError) {
-        // P0002 = buyer 존재하지 않음. SMTP는 이미 나간 상태이므로 데이터 복구 불가.
-        // 운영 관찰성을 위해 명시적 로그를 남기고 상위 catch로 던짐.
+        // P0002 = contact 존재하지 않음. SMTP는 이미 나간 상태이므로 데이터 복구 불가.
         const code = (rpcError as { code?: string }).code;
         if (code === "P0002") {
-          console.error(`[send-email] 치명적: RPC P0002 — buyer=${buyerId} 존재하지 않음. SMTP는 이미 발송됨.`);
+          console.error(`[send-email] 치명적: RPC P0002 — contact=${contactId} 존재하지 않음. SMTP는 이미 발송됨.`);
         }
         throw rpcError;
       }

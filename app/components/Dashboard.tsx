@@ -312,72 +312,55 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
         const todayEndUtc = new Date(kstTodayEnd.getTime() - kstOffset).toISOString();
         const tomorrowEndUtc = new Date(kstTomorrowEnd.getTime() - kstOffset).toISOString();
 
-        // PR17.2(ADR-044): buyers 단독 → buyer_contacts JOIN. 담당자 여러 명이면 각자 row로 flatten.
-        //   확정 상태 contact(Replied/Deal/Lost/Bounced)는 제외.
-        const excludeStatuses = ['Lost', 'Deal', 'Bounced', 'intel_failed'];
+        // 2026-04-22 per-contact tracking: buyers → buyer_contacts 로 접근 반전.
+        //   각 contact 의 next_followup_at/email_count/last_sent_at 사용 → 같은 회사의 다른 담당자에
+        //   잘못된 팔로업 버튼이 뜨는 버그 차단. 확정 상태(Replied/Deal/Lost/Bounced/intel_failed) 제외.
         const excludeContactStatuses = new Set(['Replied', 'Deal', 'Lost', 'Bounced']);
-        const { data: followups } = await supabase
-          .from('buyers')
+        const excludeBuyerStatuses = ['Lost', 'Deal', 'Bounced', 'intel_failed'];
+        const { data: followupContacts } = await supabase
+          .from('buyer_contacts')
           .select(`
-            id, company_name, contact_name, tier, last_sent_at, next_followup_at,
-            contact_email, region, status, email_count,
-            buyer_contacts ( id, contact_name, contact_email, contact_status )
+            id, contact_name, contact_email, contact_status,
+            email_count, last_sent_at, next_followup_at,
+            buyers!inner ( id, company_name, tier, region, status )
           `)
           .not('next_followup_at', 'is', null)
           .lte('next_followup_at', tomorrowEndUtc)
-          .not('status', 'in', `(${excludeStatuses.join(',')})`)
           .order('next_followup_at', { ascending: true });
 
-        if (followups && followups.length > 0) {
+        if (followupContacts && followupContacts.length > 0) {
           const todayStartTime = new Date(todayStartUtc).getTime();
           const todayEndTime = new Date(todayEndUtc).getTime();
           const flattened: FollowupBuyer[] = [];
 
-          for (const b of followups as Array<Record<string, unknown>>) {
-            const followupTime = new Date(b.next_followup_at as string).getTime();
+          for (const c of followupContacts as Array<Record<string, unknown>>) {
+            const contactStatus = (c.contact_status as string | null) ?? null;
+            if (contactStatus && excludeContactStatuses.has(contactStatus)) continue;
+
+            const buyer = (c.buyers as Record<string, unknown>) ?? {};
+            const buyerStatus = (buyer.status as string) || '';
+            if (excludeBuyerStatuses.includes(buyerStatus)) continue;
+
+            const followupTime = new Date(c.next_followup_at as string).getTime();
             let badge: 'overdue' | 'today' | 'tomorrow';
             if (followupTime < todayStartTime) badge = 'overdue';
             else if (followupTime <= todayEndTime) badge = 'today';
             else badge = 'tomorrow';
 
-            const contacts = (b.buyer_contacts as Array<{
-              id: string;
-              contact_name: string | null;
-              contact_email: string | null;
-              contact_status: string | null;
-            }> | null) ?? [];
-
-            const base = {
-              id: b.id as string,
-              company_name: (b.company_name as string) || '',
-              tier: (b.tier as string) || '',
-              last_sent_at: (b.last_sent_at as string | null) ?? null,
-              next_followup_at: b.next_followup_at as string,
-              region: (b.region as string) || '',
-              status: (b.status as string) || '',
-              email_count: (b.email_count as number | null) ?? 0,
+            flattened.push({
+              id: (buyer.id as string) || '',
+              company_name: (buyer.company_name as string) || '',
+              tier: (buyer.tier as string) || '',
+              last_sent_at: (c.last_sent_at as string | null) ?? null,
+              next_followup_at: c.next_followup_at as string,
+              region: (buyer.region as string) || '',
+              status: buyerStatus,
+              email_count: (c.email_count as number | null) ?? 0,
+              contact_name: (c.contact_name as string) || '담당자',
+              contact_email: (c.contact_email as string) || '',
+              contact_id: c.id as string,
               badge,
-            };
-
-            if (contacts.length === 0) {
-              // legacy: buyer_contacts 없는 구 데이터 → buyers 본체 필드 폴백 (contact_id 없음)
-              flattened.push({
-                ...base,
-                contact_name: (b.contact_name as string) || '담당자',
-                contact_email: (b.contact_email as string) || '',
-              });
-              continue;
-            }
-
-            for (const c of contacts) {
-              if (c.contact_status && excludeContactStatuses.has(c.contact_status)) continue;
-              flattened.push({
-                ...base,
-                contact_name: c.contact_name || '담당자',
-                contact_email: c.contact_email || '',
-                contact_id: c.id,
-              });
-            }
+            });
           }
 
           setFollowupBuyers(flattened);
