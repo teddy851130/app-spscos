@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import type { EmailDraft, PipelineLog } from '../lib/types';
 import { AlertTriangle, Target, Check, ClipboardList, CheckCircle } from 'lucide-react';
 import InterestedLeadsWidget from './InterestedLeadsWidget';
 import EmailComposeModal from './EmailComposeModal';
@@ -94,11 +93,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
   const [bounceRate, setBounceRate] = useState(0);
   const [alertTeam, setAlertTeam] = useState<string | null>(null);
   const [todayStats, setTodayStats] = useState({ companies: 0, contacts: 0, tier1: 0, tier2: 0, tier3: 0 });
-  const [emailDrafts, setEmailDrafts] = useState<(EmailDraft & { contact_name?: string; company_name?: string })[]>([]);
-  const [flaggedDrafts, setFlaggedDrafts] = useState<(EmailDraft & { contact_name?: string; company_name?: string })[]>([]);
-  const [pendingIntelDrafts, setPendingIntelDrafts] = useState<(EmailDraft & { contact_name?: string; company_name?: string })[]>([]);
   const [systemWarnings, setSystemWarnings] = useState<string[]>([]);
-  const [previewDraft, setPreviewDraft] = useState<(EmailDraft & { contact_name?: string; company_name?: string }) | null>(null);
   // 팔로업 대기 목록
   const [followupBuyers, setFollowupBuyers] = useState<FollowupBuyer[]>([]);
   // PR17.2: EmailComposeModal 직접 연결 (이전엔 MailQueue 페이지 경유)
@@ -285,35 +280,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
           });
         }
 
-        // Email drafts 로드 — PR1 이후: buyer_id 직접 조인으로 1단계 join.
-        const { data: drafts } = await supabase
-          .from('email_drafts')
-          .select(`
-            *,
-            buyers:buyer_id ( company_name ),
-            buyer_contacts:buyer_contact_id ( contact_name, contact_email )
-          `)
-          .order('created_at', { ascending: false })
-          .limit(20);
-
-        if (drafts && drafts.length > 0) {
-          const enrichedDrafts = drafts.map((d: Record<string, unknown>) => {
-            const buyerRel = d.buyers as { company_name?: string } | null;
-            const contactRel = d.buyer_contacts as { contact_name?: string; contact_email?: string } | null;
-            return {
-              ...d,
-              contact_name: contactRel?.contact_name || '',
-              company_name: buyerRel?.company_name || '',
-            };
-          }) as (EmailDraft & { contact_name?: string; company_name?: string })[];
-
-          // 발송 준비 완료(pass) 초안만 정상 섹션에 표시.
-          // spam_status=null은 직원 E 미검증 상태(새로 생성되거나 UPDATE로 리셋된 초안)이므로
-          // 정상 섹션에 섞이면 미검증 발송 위험 → 별도 섹션에 두지 않고 조용히 제외.
-          setEmailDrafts(enrichedDrafts.filter((d) => d.spam_status === 'pass' || d.spam_status === 'rewrite'));
-          setFlaggedDrafts(enrichedDrafts.filter((d) => d.spam_status === 'flag'));
-          setPendingIntelDrafts(enrichedDrafts.filter((d) => (d.spam_status as string) === 'pending_intel'));
-        }
+        // PR18(ADR-045): 배치 email_drafts 목록 섹션 제거 — 초안은 Buyers DB 페이지 수동 경로로만 생성.
 
         // 시스템 경고 (직원 F 최근 로그)
         const { data: fLogs } = await supabase
@@ -842,123 +809,8 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
         {/* PR13: 오늘의 관심 리드 (72시간 내 P.S. 링크 클릭) */}
         <InterestedLeadsWidget onNavigateBuyers={onNavigate ? () => onNavigate('buyers') : undefined} />
 
-        {/* 이메일 초안 목록 */}
-        {emailDrafts.length > 0 && (
-          <div className="bg-[#ffffff] border border-[#e3e8ee] rounded-lg p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <div className="text-sm font-semibold text-[#1a1f36]">이메일 초안 목록</div>
-                <div className="text-xs text-[#8792a2] mt-0.5">{emailDrafts.length}개 초안 준비됨</div>
-              </div>
-              {flaggedDrafts.length > 0 && (
-                <span className="bg-[#ef4444]/20 text-[#ef4444] text-xs px-3 py-1 rounded font-semibold">
-                  {flaggedDrafts.length}개 검토 필요
-                </span>
-              )}
-            </div>
-            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              {emailDrafts.map((draft) => (
-                <button
-                  key={draft.id}
-                  onClick={() => setPreviewDraft(previewDraft?.id === draft.id ? null : draft)}
-                  className="w-full text-left p-3 bg-[#f6f8fa] rounded-lg border border-[#e3e8ee] hover:border-[#635BFF]/50 transition"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-[#1a1f36]">{draft.contact_name}</span>
-                      <span className="text-xs text-[#8792a2]">@ {draft.company_name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs px-2 py-0.5 rounded font-semibold ${
-                        draft.tier === 'Tier1' ? 'bg-[#22c55e]/20 text-[#22c55e]' : 'bg-[#f59e0b]/20 text-[#f59e0b]'
-                      }`}>
-                        {draft.tier}
-                      </span>
-                      {draft.spam_status === 'pass' && (
-                        <span className="text-xs bg-[#22c55e]/20 text-[#22c55e] px-2 py-0.5 rounded">
-                          스팸통과
-                        </span>
-                      )}
-                      {draft.spam_score && (
-                        <span className="text-xs text-[#8792a2]">{draft.spam_score}점</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-xs text-[#697386] space-y-0.5">
-                    <div>1: {draft.subject_line_1}</div>
-                    <div>2: {draft.subject_line_2}</div>
-                    <div>3: {draft.subject_line_3}</div>
-                  </div>
-
-                  {/* 본문 미리보기 */}
-                  {previewDraft?.id === draft.id && (
-                    <div className="mt-3 p-3 bg-[#ffffff] rounded border border-[#e3e8ee]">
-                      <div className="text-xs font-semibold text-[#635BFF] mb-2">1차 콜드메일</div>
-                      <div className="text-xs text-[#697386] whitespace-pre-wrap mb-3">{draft.body_first}</div>
-                      <div className="text-xs font-semibold text-[#8b5cf6] mb-2">2차 팔로업</div>
-                      <div className="text-xs text-[#697386] whitespace-pre-wrap">{draft.body_followup}</div>
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Flag 항목 (검토 필요) */}
-        {flaggedDrafts.length > 0 && (
-          <div className="bg-[#ffffff] border border-[#ef4444]/30 rounded-lg p-5">
-            <div className="text-sm font-semibold text-[#ef4444] mb-3">
-              검토 필요 (스팸 점수 미달) — {flaggedDrafts.length}건
-            </div>
-            <div className="space-y-2">
-              {flaggedDrafts.map((draft) => (
-                <div key={draft.id} className="p-3 bg-[#f6f8fa] rounded-lg border border-[#ef4444]/20">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-[#1a1f36]">
-                      {draft.contact_name} @ {draft.company_name}
-                    </span>
-                    <span className="text-xs bg-[#ef4444]/20 text-[#ef4444] px-2 py-0.5 rounded font-semibold" title="안전도 = 10(안전)~1(위험). 낮을수록 스팸 판정 위험.">
-                      안전도: {draft.spam_score}/10
-                    </span>
-                  </div>
-                  <div className="text-xs text-[#697386]">{draft.subject_line_1}</div>
-                  {draft.spam_reason && (
-                    <div className="text-xs text-[#ef4444] mt-1.5 pt-1.5 border-t border-[#ef4444]/10">
-                      <span className="font-semibold">사유: </span>{draft.spam_reason}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Pending Intel 항목 */}
-        {pendingIntelDrafts.length > 0 && (
-          <div className="bg-[#ffffff] border border-[#f59e0b]/30 rounded-lg p-5">
-            <div className="text-sm font-semibold text-[#f59e0b] mb-3">
-              인텔 데이터 필요 — {pendingIntelDrafts.length}건
-            </div>
-            <div className="text-xs text-[#fbbf24] mb-3">
-              파이프라인 실행 후 재시도하면 자동으로 초안이 생성됩니다.
-            </div>
-            <div className="space-y-2">
-              {pendingIntelDrafts.map((draft) => (
-                <div key={draft.id} className="p-3 bg-[#f6f8fa] rounded-lg border border-[#f59e0b]/20">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-[#1a1f36]">
-                      {draft.contact_name} @ {draft.company_name}
-                    </span>
-                    <span className="text-xs bg-[#f59e0b]/20 text-[#f59e0b] px-2 py-0.5 rounded font-semibold">
-                      인텔 대기
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* PR18(ADR-045): '이메일 초안 목록' / '검토 필요' / '인텔 데이터 필요' 3개 섹션 제거.
+            초안 생성은 Buyers DB 페이지 수동 경로(EmailComposeModal)로만 진행 → 배치 결과 목록 불필요. */}
 
       </div>
 
