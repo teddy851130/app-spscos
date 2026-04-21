@@ -1,10 +1,22 @@
 ---
-name: Project - 파이프라인 버그 + PR16 이월
-description: 2026-04-20 첫 자동 발굴 후 파이프라인 실행에서 발견된 3개 버그. Teddy가 DB 활용 테스트 후 전체 수정 내용 공유 예정 — 다음 세션 시작 시 그 결과 반영하여 PR16 진행
+name: Project - [ARCHIVED] 파이프라인 버그 PR16 이월
+description: 2026-04-20 발견된 4개 버그 기록. 2026-04-21 PR16 배포로 모두 해소. 추가로 PR18에서 직원D/E 자체 제거되면서 버그 3(team 필터)은 원천 무효화. 히스토리 참조용으로만 유지
 type: project
 originSessionId: aa970480-04ca-4a6a-a73a-b686db6dc218
 ---
-## 발견 시점
+
+## ⚠️ ARCHIVED (2026-04-21)
+
+아래 4개 버그는 PR16 배포(`d93076b`) + PR18 직원D/E 제거(`fe6604e`)로 해소 완료. **추가 참조 불필요**. 유사 race condition 재발 감지 시 문맥 자료로만 활용.
+
+- 버그 1 (Perplexity 401): **해결** — ADR-036으로 401/402 분리 에러 메시지
+- 버그 2 (agentC race condition): **해결** — ADR-037로 합격 블록 status='Cold' reset + SQL 사전점검 0건(자연 해소) 확인
+- 버그 3 (직원D/E team 필터): **해결 → 무효화** — PR16(ADR-038)로 필터 추가 후 PR18(ADR-046)로 agentD/E 자체 제거
+- 버그 4 (Emails.tsx 폴백): **해결** — ADR-039로 허용 status 목록 명시화
+
+---
+
+## [원본 기록 — 참조용] 발견 시점
 2026-04-20 — 자동 발굴된 15개사/26명 CSV 업로드 → 파이프라인 1회 실행 후
 
 ## 버그 1: Perplexity API 401 (해결됨)

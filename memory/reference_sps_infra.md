@@ -13,10 +13,10 @@ originSessionId: 21a63ab3-e127-4fd4-a0d3-c51593fa444c
 - **Project Ref**: `hoerrdwupqhmqyyvwefg`
 - **Project URL**: `https://hoerrdwupqhmqyyvwefg.supabase.co`
 - **MCP 서버**: `.mcp.json`에 정의. `SUPABASE_ACCESS_TOKEN` (Teddy User env)에서 PAT 주입.
-- **Edge Functions (2026-04-19 PR14 배포 기준 최신)**:
-  - `run-pipeline` **v36** — 직원 B/C/D/E/F 실행. ADR-024/025/029/030/031/032/033 반영. v36은 agentE flag 경로에 spam_reason persist.
-  - `generate-draft` **v19** — 국문 초안 경로. ADR-024/025/026/030/032.
-  - `validate-draft` **v13** — 즉시 스팸 검증. ADR-025 + ADR-030 + ADR-032 + ADR-033(spam_reason persist).
+- **Edge Functions (2026-04-21 PR18 배포 기준 최신)**:
+  - `run-pipeline` — 직원 **B/C/F만** 실행 (D/E 제거, PR18/ADR-046). 787줄. ADR-024/025/029/030/031/032/033/036/037/039 반영.
+  - `generate-draft` — 국문 초안 + 영문 번역 경로. PR17/PR17.1 반영: HARD LIMITS 7건 + 5줄 서명 블록(Managing Director) + 180단어 상한 + Hi firstName. ADR-024/025/026/030/032/043/044.
+  - `validate-draft` — 즉시 스팸 검증. PR17 반영: SPAM_WORDS 50 + Korea 누락 flag + 180단어 초과 flag. ADR-025 + ADR-030 + ADR-032 + ADR-033(spam_reason persist) + ADR-043/044.
   - `send-email` **v13** — Gmail SMTP 발송. PR15(ADR-035)에서 첨부 파일 처리 추가 (base64, 총 4MB 제한).
   - `snapshot-kpi` v7 — KPI 스냅샷.
 
@@ -35,8 +35,28 @@ originSessionId: 21a63ab3-e127-4fd4-a0d3-c51593fa444c
 - 메모리: `C:\Users\신동환\.claude\projects\c--Users-----Desktop-Claude-app-spscos\memory\`
 
 ## Claude API
-- 모델 ID (현재 사용): `claude-haiku-4-5-20251001` (직원 C/D + generate-draft 전 경로 + agentE/validate-draft 스팸 판정)
+- 모델 ID (현재 사용): `claude-haiku-4-5-20251001` (직원 C + generate-draft 전 경로 + validate-draft 스팸 판정). PR18(ADR-046) 이후 직원D/E 배치 경로 제거 → 모델 호출 지점 단순화.
 - API 키: Edge Function 환경변수 `ANTHROPIC_API_KEY`에 주입 (Supabase Dashboard → Functions → Environment)
+
+## 콜드메일 서명 좌표 (PR17.1/ADR-044 확정 2026-04-21)
+프롬프트·발송·첨부 어디서든 동일 값 사용. 변경 시 generate-draft translate_save `SIGN-OFF RULE` + run-pipeline agentD(제거됨) 동시 갱신 필요 있었음. 현재 agentD 제거 후에는 generate-draft 단독.
+
+```
+Warm regards,
+
+Teddy Shin
+Managing Director, SPS International
+Email: teddy@spscos.com  |  Web: spscos.com  |  Mobile: +82 10 4409 0963
+8 Myeongdal-ro 22-gil, Seocho-gu, Seoul 06668, Republic of Korea
+```
+
+- **회사명**: SPS International (영문 통일). 코드 곳곳에 `SPS Cosmetics` 표기도 있으나 대외 서명은 `SPS International`.
+- **직책**: Managing Director (CEO/Founder 대신 채택, ADR-044 근거 참조)
+- **이메일**: teddy@spscos.com
+- **웹사이트**: spscos.com
+- **Mobile**: +82 10 4409 0963
+- **등록 주소 영문**: 8 Myeongdal-ro 22-gil, Seocho-gu, Seoul 06668, Republic of Korea
+- **이모지 미사용** (ADR-044)
 
 ## 외부 API
 - **Perplexity Search API** (PR12 도입, ADR-031): 바이어 인텔 웹 검색. Teddy $50 선충전. env `PERPLEXITY_API_KEY` ✅ 등록 완료 (digest 02c92ae).

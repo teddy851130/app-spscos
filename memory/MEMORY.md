@@ -1,15 +1,17 @@
 - [User — Teddy 프로필](user_teddy.md) — SPS International CEO, 비개발자, 한국어 응답 선호
-- [**Project — Sprint04 진행 상태**](project_sps_sprint04.md) — **★ 다음 세션 첫 진입점**. v3 96점 확정 · PR16 배포 대기 · 5/10 최종 판정
-- [Project — SPS 바이어 앱 현재 상태](project_sps_buyer_app.md) — PR6~PR15 완료 이력 · Sprint04 진입 시점 기록
-- [Project — 파이프라인 버그 + PR16 이월](project_sps_pipeline_bugs.md) — Perplexity 401·race condition·team 필터·Emails 폴백 — **PR16 배포 후 archive 예정**
+- [**Project — Sprint04 진행 상태**](project_sps_sprint04.md) — **★ 다음 세션 첫 진입점**. PR16~PR18 배포 완료 · 배치 초안 경로 폐기 · PR19(팔로업 버튼) 대기 · 5/10 최종 판정
+- [Project — SPS 바이어 앱 현재 상태](project_sps_buyer_app.md) — PR6~PR18 완료 이력 · 파이프라인 B→C→F로 슬림화
+- [Project — [ARCHIVED] 파이프라인 버그 PR16 이월](project_sps_pipeline_bugs.md) — 버그 4건 모두 해소(PR16 + PR18). 히스토리 참조용
 - [Project — PR13 종료](project_sps_pr13.md) — 전 기능 검증 완료 · hotfix 배포 · 테스트 데이터 정리까지 끝
 - [Project — Sprint03 진행](project_sps_sprint03.md) — Sprint03 종료 리포트
 - [Feedback — 배포 승인 명시성](feedback_deploy_authorization.md) — prod 배포는 매번 명시 승인 받아야 함
 - [Feedback — 콜드메일 톤 가이드](feedback_email_tone.md) — 감시형 표현·객관식 CTA·하드 숫자 금지 / 맞춤형 풀턴키 포지셔닝
+- [**Feedback — 콜드메일 서명 규약**](feedback_signature_convention.md) — 5줄 풀 블록 + Managing Director + 이모지 미사용 (PR17.1/ADR-044)
+- [**Feedback — 초안 생성 수동 경로 단일**](feedback_manual_draft_only.md) — 배치 자동 초안(직원D/E) 재도입 금지 (PR18/ADR-046)
 - [Feedback — 외부 API 크레딧 부족 알림 의무](feedback_api_credit_alert.md) — 조용한 폴백 금지 / agentF 경고 박스 필수
 - [Feedback — 생성 파일 저장 위치](feedback_file_save_location.md) — 모든 생성 파일은 프로젝트 폴더 내부에. C:\temp 등 외부 경로 금지
 - [Feedback — 바이어 발굴 사전 중복 점검 의무](feedback_buyer_dedup_check.md) — 회사 후보 선정 직후 Supabase buyers 도메인 조회로 중복 사전 제거
 - [Project — 후속 PR 로드맵](project_sps_future_pr.md) — PR12~PR15 완료 / 통합 웹사이트 런칭 시 tracking URL 전환 대기
 - [Project — DMARC 정책 단계적 상향](project_sps_dmarc.md) — 2026-04-19 EasyDMARC 연결 · 2주 후 quarantine → 2~3개월 reject 예정
-- [Reference — SPS 인프라 좌표](reference_sps_infra.md) — Supabase/Vercel/GitHub · Edge Function 버전 · 환경변수 · DMARC/SPF/DKIM
+- [Reference — SPS 인프라 좌표](reference_sps_infra.md) — Supabase/Vercel/GitHub · Edge Function 버전(2026-04-21 기준) · 환경변수 · DMARC/SPF/DKIM · 콜드메일 서명 좌표
 - [Reference — 다중 PC 작업 워크플로](reference_workflow_multi_pc.md) — git pull/push로 PC 간 컨텍스트 동기화 · junction 작동 원리 · 새 세션 점검 체크리스트

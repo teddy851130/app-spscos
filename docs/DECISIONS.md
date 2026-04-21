@@ -654,6 +654,52 @@
 
 ---
 
+## ADR-043: PR17 실측 스팸 역추적 — HARD LIMITS 7건 + Hi firstName + Korea 필수 + URL 본문 중간 + SPAM_WORDS 35→50
+**날짜**: 2026-04-21 (PR17)
+**결정**: 2026-04-20 자기 앞 5통 발송 시 1건 스팸 판정(Trinny London 패턴 역추적). agentD/generate-draft/translate_save 프롬프트에 공통 HARD LIMITS 7건 + 금지 오프닝 6개 + 설교 문단 금지 + 회사소개 1줄 인라인 + Korea/K-Beauty 1회+ 필수 + URL 본문 중간 삽입(P.S. 단독 줄 폐기) + 인사말 `Hi ${firstName}` 고정. SPAM_WORDS 3곳(run-pipeline·validate-draft·MailQueue 당시) 35개 → 50개 확장(leveraging/multi-market/rapid response capability 등 15개 추가). validate-draft `checkSpamRules`에 Korea 누락 + 150(후속 180)단어 초과 flag 신설. EmailComposeModal 발신 표기 `Donghwan Shin` → `Teddy Shin`.
+**이유**: v2 플랜은 규칙 일반화 수준에 머물러 실측 스팸 메일 패턴을 반영하지 못함. v3 Generator/Evaluator 3회차로 Trinny London 실패 메일을 역추적해 "230+ 단어 / 설교형 일반화 문단 / 회사 소개 독립 문단 / P.S. 링크 / Dear 풀네임 인사" 7개 트리거 식별 → 이를 HARD LIMITS로 직접 명문화. 3곳 프롬프트 동기화로 agentD(배치) + generate_ko + translate_save 어느 경로든 동일 규칙 적용.
+**대안 기각**: (a) 프롬프트 규칙 유지하되 후처리 validator에 전적 의존 — Claude 출력이 실패율 높아 재생성 비용 상승. (b) 영문 프롬프트만 수정 — 국문 초안이 진부한 "안녕하세요, 건강하시죠" 인사로 시작해 번역해도 스팸 징후 잔존.
+**관련**: PR17 커밋 `f5616b9`, `run-pipeline/index.ts` agentD, `generate-draft/index.ts` generate_ko+translate_save, `validate-draft/index.ts`, `EmailComposeModal.tsx` L718, `sprints/Sprint04_Plan_v3.md` v3 추가 1~5, `docs/PR0_Delivery_Check.md`
+
+---
+
+## ADR-044: PR17.1 서명 5줄 블록 (Managing Director + 전체 연락처 + 등록 주소) + MAX_WORDS 150→180
+**날짜**: 2026-04-21 (PR17.1)
+**결정**: 콜드메일 서명을 단일 이름 `Teddy` → 5줄 풀 서명 블록으로 전면 교체. agentD 프롬프트 SIGN-OFF 규칙 + translate_save SIGN-OFF RULE 모두 동일 블록 강제. 블록 내용:
+```
+Warm regards,
+
+Teddy Shin
+Managing Director, SPS International
+Email: teddy@spscos.com  |  Web: spscos.com  |  Mobile: +82 10 4409 0963
+8 Myeongdal-ro 22-gil, Seocho-gu, Seoul 06668, Republic of Korea
+```
+서명 분량 ~30단어 추가로 전체 MAX_WORDS 150→180 상향 (메시지 본문 120~150 + 서명 ~30). validate-draft도 180으로 동기화.
+**이유**: Teddy 피드백 "단독 서명은 GCC/EU 바이어에게 legitimacy 전달 부족. 회사명·직책·연락처·등록 주소가 함께 보여야 신뢰". 직책 선택지 중 **Managing Director** 채택: CEO/Founder가 주는 "회사 규모 작아 보임" 부담을 회피하면서 국제 B2B 권위 전달(GCC·아랍권에서 CEO보다 Managing Director가 더 흔함). 이모지는 Teddy 조건부 요청("스팸 영향 있으면 쓰지 마")을 보수적으로 해석 — 텍스트만 사용. 주소 형식은 한국식 `/우편번호` 대신 국제 표준 `Seoul 06668, Republic of Korea`로 조정.
+**대안 기각**: (a) `Head of International Partnerships` / `Director of International Business` — 역할 너무 특정, Managing Director가 더 포괄·중립. (b) 이모지 1~2개 사용 — B2B 콜드메일 최신 베스트 프랙티스는 텍스트 서명. 추가 스팸 필터 리스크 감수 이유 없음. (c) MAX_WORDS 150 유지 + 서명을 발송 시점 자동 append — 템플릿 분리는 구현 복잡도 상승, 프롬프트 레벨에서 통일이 단순.
+**관련**: PR17.1 커밋 `2864609`, `run-pipeline/index.ts` agentD SIGN-OFF 블록, `generate-draft/index.ts` translate_save SIGN-OFF RULE, `validate-draft/index.ts` wordCount 180
+
+---
+
+## ADR-045: PR17.2 "오늘 보낼 메일" 페이지 제거 + Dashboard로 팔로업 기능 흡수
+**날짜**: 2026-04-21 (PR17.2)
+**결정**: 좌측 사이드바 "오늘 보낼 메일" 메뉴 + `mailQueue` 라우트 + `app/components/MailQueue.tsx` 파일 전체(-775줄) 삭제. 팔로업 기능은 `Dashboard.tsx`의 기존 "팔로업 필요" 섹션으로 흡수 + `EmailComposeModal` 직접 통합(이전 경로: Dashboard→MailQueue→EmailComposeModal, 신규: Dashboard→EmailComposeModal 직접). Dashboard 팔로업 쿼리를 `buyers` 단독 → `buyer_contacts` JOIN 기반 per-contact flatten으로 변경, 같은 회사 담당자 3명이면 각각 row로 노출. `contact_status` 확정(Replied/Deal/Lost/Bounced)인 담당자는 자동 제외. 발송 완료 후 큐 업데이트는 `(buyer_id, contact_id)` 쌍 기반으로 같은 회사 다른 담당자는 유지.
+**이유**: Teddy 판단 "페이지 역할 필요 없음, row도 안 뜸". 중복 기능(Buyers에서 직접 메일 작성 가능 + Dashboard에 이미 팔로업 목록 존재) → 별도 페이지가 클릭 경로만 늘림. 제거 + 통합으로 진입점 단일화.
+**대안 기각**: (a) 페이지 유지 + 진단 수정(row 안 뜨는 원인 추적) — Teddy가 페이지 자체를 원치 않음. (b) Buyers에 팔로업 상태 드롭다운 필터 추가 — Teddy 명시 거부("드롭다운 형태 X"). 후속 PR19에서 발송 카운트 기반 컬러 계단 버튼으로 대체.
+**관련**: PR17.2 커밋 `5d99f93`, `app/page.tsx`, `app/components/Sidebar.tsx`, `app/components/Dashboard.tsx` 팔로업 섹션 통합, `app/components/MailQueue.tsx` 삭제
+
+---
+
+## ADR-046: PR18 파이프라인 직원D(배치 영문 초안) + 직원E(배치 스팸 검증) 제거 + Dashboard 초안 목록 3개 섹션 제거
+**날짜**: 2026-04-21 (PR18)
+**결정**: `run-pipeline/index.ts`에서 `agentD` 함수 전체(L557~L826, 273줄) + `agentE` 함수 전체(L828~L1089, 262줄) + 공용 헬퍼(`SPAM_WORDS`/`SPS_DOMAIN_RE`/`EXTERNAL_LINK_RE`/`checkSpamRules`/`autoFixSpam`) 전부 삭제. 메인 `agents` 배열에서 D/E 제거, `agentF` 로그 스캔 대상 `["B","C","D","E"]` → `["B","C"]`, D 결과 체크 블록 제거. 파일 상단 주석 "직원 B→C→D→E→F" → "B→C→F". 파일 1335→787줄.
+Dashboard에서 "이메일 초안 목록" / "검토 필요 (스팸 점수 미달)" / "인텔 데이터 필요" 3개 섹션 + 관련 state(`emailDrafts`/`flaggedDrafts`/`pendingIntelDrafts`/`previewDraft`) + `email_drafts` 조회 블록 + `EmailDraft`/`PipelineLog` import 제거.
+**이유**: Teddy 결정 "초안 작성은 Buyers DB 페이지 수동 경로(바이어 인텔 탭 → 국문 초안 → 영문 번역)로만 함, 배치 자동 초안 생성 사용 안 함". 배치 경로는 사용 안 됨 + Claude API 비용 낭비(인텔 있는 바이어마다 자동 초안·스팸 검증) + Dashboard 초안 목록도 배치 산출물 표시용이라 함께 불필요. `generate-draft` + `validate-draft` Edge Function은 수동 경로에서 여전히 사용 → 유지. `email_drafts` 테이블 스키마 유지(수동 경로에서 INSERT).
+**대안 기각**: (a) 직원D/E는 유지하고 UI에서만 초안 목록 제거 — 배치 경로 실행 시 Claude API 비용이 계속 발생하는데 표시하지 않는 것은 은폐. 코드 레벨에서 진짜 제거가 맞음. (b) 직원D만 제거 + E 유지 — E는 D가 만든 드래프트를 검증하는 종속 관계. D 없이 E 단독 유의미하지 않음.
+**관련**: PR18 커밋 `fe6604e`, `run-pipeline/index.ts` (787줄), `app/components/Dashboard.tsx`, `sprints/Sprint04_Plan_v3.md` PR18/PR19 재정의 섹션
+
+---
+
 ## ADR 작성 템플릿
 
 ```markdown
