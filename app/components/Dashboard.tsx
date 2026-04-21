@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import type { EmailDraft, PipelineLog } from '../lib/types';
 import { AlertTriangle, Target, Check, ClipboardList, CheckCircle } from 'lucide-react';
 import InterestedLeadsWidget from './InterestedLeadsWidget';
+import EmailComposeModal from './EmailComposeModal';
 
 interface BuyerRow {
   id: string;
@@ -24,8 +25,10 @@ interface BuyerRow {
 }
 
 // 팔로업 대기 목록용 인터페이스
+// PR17.2(ADR-044): "오늘 보낼 메일" 페이지 제거 → 팔로업 기능을 Dashboard로 흡수.
+//   MailQueue에 있던 buyer_contacts JOIN 기반 per-contact flatten 로직도 동일하게 적용.
 interface FollowupBuyer {
-  id: string;
+  id: string;                  // buyers.id
   company_name: string;
   contact_name: string;
   tier: string;
@@ -34,6 +37,8 @@ interface FollowupBuyer {
   contact_email: string;
   region: string;
   status: string;
+  email_count: number;
+  contact_id?: string;         // buyer_contacts.id — legacy(없음)는 buyer 본체 contact_name 폴백
   badge: 'overdue' | 'today' | 'tomorrow'; // 긴급/오늘/내일 구분
 }
 
@@ -96,6 +101,9 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
   const [previewDraft, setPreviewDraft] = useState<(EmailDraft & { contact_name?: string; company_name?: string }) | null>(null);
   // 팔로업 대기 목록
   const [followupBuyers, setFollowupBuyers] = useState<FollowupBuyer[]>([]);
+  // PR17.2: EmailComposeModal 직접 연결 (이전엔 MailQueue 페이지 경유)
+  const [selectedBuyer, setSelectedBuyer] = useState<Record<string, unknown> | null>(null);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
 
   useEffect(() => {
     async function loadDashboard() {
@@ -337,44 +345,75 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
         const todayEndUtc = new Date(kstTodayEnd.getTime() - kstOffset).toISOString();
         const tomorrowEndUtc = new Date(kstTomorrowEnd.getTime() - kstOffset).toISOString();
 
-        const excludeStatuses = ['Lost', 'Deal', 'Bounced'];
+        // PR17.2(ADR-044): buyers 단독 → buyer_contacts JOIN. 담당자 여러 명이면 각자 row로 flatten.
+        //   확정 상태 contact(Replied/Deal/Lost/Bounced)는 제외.
+        const excludeStatuses = ['Lost', 'Deal', 'Bounced', 'intel_failed'];
+        const excludeContactStatuses = new Set(['Replied', 'Deal', 'Lost', 'Bounced']);
         const { data: followups } = await supabase
           .from('buyers')
-          .select('id, company_name, contact_name, tier, last_sent_at, next_followup_at, contact_email, region, status')
+          .select(`
+            id, company_name, contact_name, tier, last_sent_at, next_followup_at,
+            contact_email, region, status, email_count,
+            buyer_contacts ( id, contact_name, contact_email, contact_status )
+          `)
           .not('next_followup_at', 'is', null)
           .lte('next_followup_at', tomorrowEndUtc)
           .not('status', 'in', `(${excludeStatuses.join(',')})`)
           .order('next_followup_at', { ascending: true });
 
         if (followups && followups.length > 0) {
-          const mapped: FollowupBuyer[] = followups.map((b) => {
-            const followupTime = new Date(b.next_followup_at).getTime();
-            const todayStartTime = new Date(todayStartUtc).getTime();
-            const todayEndTime = new Date(todayEndUtc).getTime();
+          const todayStartTime = new Date(todayStartUtc).getTime();
+          const todayEndTime = new Date(todayEndUtc).getTime();
+          const flattened: FollowupBuyer[] = [];
 
+          for (const b of followups as Array<Record<string, unknown>>) {
+            const followupTime = new Date(b.next_followup_at as string).getTime();
             let badge: 'overdue' | 'today' | 'tomorrow';
-            if (followupTime < todayStartTime) {
-              badge = 'overdue';
-            } else if (followupTime <= todayEndTime) {
-              badge = 'today';
-            } else {
-              badge = 'tomorrow';
-            }
+            if (followupTime < todayStartTime) badge = 'overdue';
+            else if (followupTime <= todayEndTime) badge = 'today';
+            else badge = 'tomorrow';
 
-            return {
-              id: b.id,
-              company_name: b.company_name || '',
-              contact_name: b.contact_name || '담당자',
-              tier: b.tier || '',
-              last_sent_at: b.last_sent_at,
-              next_followup_at: b.next_followup_at,
-              contact_email: b.contact_email || '',
-              region: b.region || '',
-              status: b.status || '',
+            const contacts = (b.buyer_contacts as Array<{
+              id: string;
+              contact_name: string | null;
+              contact_email: string | null;
+              contact_status: string | null;
+            }> | null) ?? [];
+
+            const base = {
+              id: b.id as string,
+              company_name: (b.company_name as string) || '',
+              tier: (b.tier as string) || '',
+              last_sent_at: (b.last_sent_at as string | null) ?? null,
+              next_followup_at: b.next_followup_at as string,
+              region: (b.region as string) || '',
+              status: (b.status as string) || '',
+              email_count: (b.email_count as number | null) ?? 0,
               badge,
             };
-          });
-          setFollowupBuyers(mapped);
+
+            if (contacts.length === 0) {
+              // legacy: buyer_contacts 없는 구 데이터 → buyers 본체 필드 폴백 (contact_id 없음)
+              flattened.push({
+                ...base,
+                contact_name: (b.contact_name as string) || '담당자',
+                contact_email: (b.contact_email as string) || '',
+              });
+              continue;
+            }
+
+            for (const c of contacts) {
+              if (c.contact_status && excludeContactStatuses.has(c.contact_status)) continue;
+              flattened.push({
+                ...base,
+                contact_name: c.contact_name || '담당자',
+                contact_email: c.contact_email || '',
+                contact_id: c.id,
+              });
+            }
+          }
+
+          setFollowupBuyers(flattened);
         }
 
       } catch (err) {
@@ -555,7 +594,7 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
 
                 return (
                   <div
-                    key={buyer.id}
+                    key={buyer.contact_id ?? `buyer-${buyer.id}`}
                     className="flex items-center gap-3 p-3 bg-[#f6f8fa] rounded-lg border border-[#e3e8ee] hover:border-[#635BFF]/50 transition"
                   >
                     {/* 긴급/오늘/내일 배지 */}
@@ -589,9 +628,22 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
                       팔로업 예정: {formatDate(buyer.next_followup_at)}
                     </span>
 
-                    {/* 메일 작성 버튼 — '오늘 보낼 메일' 탭으로 이동 */}
+                    {/* 메일 작성 버튼 — PR17.2(ADR-044): EmailComposeModal 직접 열기 (MailQueue 페이지 제거) */}
                     <button
-                      onClick={() => onNavigate?.('mailQueue')}
+                      onClick={() => {
+                        setSelectedBuyer({
+                          id: buyer.id,
+                          company: buyer.company_name,
+                          contact: buyer.contact_name,
+                          email: buyer.contact_email,
+                          region: buyer.region,
+                          tier: buyer.tier,
+                          status: buyer.status,
+                          email_count: buyer.email_count,
+                          contact_id: buyer.contact_id,
+                        });
+                        setEmailModalOpen(true);
+                      }}
                       className="ml-auto text-xs px-3 py-1.5 bg-[#635BFF]/20 text-[#635BFF] rounded hover:bg-[#635BFF]/30 transition whitespace-nowrap flex-shrink-0 font-semibold"
                     >
                       메일 작성
@@ -909,6 +961,24 @@ export default function Dashboard({ onNavigate }: DashboardProps = {}) {
         )}
 
       </div>
+
+      {/* PR17.2(ADR-044): 팔로업 "메일 작성" 버튼에서 직접 여는 모달. MailQueue 페이지 제거에 따른 통합. */}
+      {selectedBuyer && (
+        <EmailComposeModal
+          isOpen={emailModalOpen}
+          onClose={() => {
+            setEmailModalOpen(false);
+            setSelectedBuyer(null);
+          }}
+          onSent={() => {
+            // 발송 완료된 담당자만 큐에서 제거. 같은 회사의 다른 담당자는 유지.
+            const sentBuyerId = selectedBuyer.id as string;
+            const sentContactId = selectedBuyer.contact_id as string | undefined;
+            setFollowupBuyers((prev) => prev.filter((f) => !(f.id === sentBuyerId && f.contact_id === sentContactId)));
+          }}
+          buyer={selectedBuyer as Parameters<typeof EmailComposeModal>[0]['buyer']}
+        />
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import {
-  BarChart3, Inbox, Zap, Building2, Mail, TrendingUp, Shield, LogOut,
+  BarChart3, Zap, Building2, Mail, TrendingUp, Shield, LogOut,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { signOut } from './AuthGuard';
@@ -34,7 +34,6 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
 
   const navItems: { id: string; label: string; icon: ReactNode; hasDot?: boolean; badgeCount?: number }[] = [
     { id: 'dashboard', label: '대시보드', icon: <BarChart3 size={18} /> },
-    { id: 'mailQueue', label: '오늘 보낼 메일', icon: <Inbox size={18} /> },
     { id: 'pipeline', label: '파이프라인', icon: <Zap size={18} />, hasDot: true },
     { id: 'buyers', label: '바이어 DB', icon: <Building2 size={18} /> },
     { id: 'emails', label: '이메일 로그', icon: <Mail size={18} />, badgeCount: draftCount },
@@ -43,9 +42,9 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
   ];
 
   const sections = [
-    { title: '메인', items: navItems.slice(0, 3) },
-    { title: '바이어 관리', items: navItems.slice(3, 5) },
-    { title: '모니터링', items: navItems.slice(5) },
+    { title: '메인', items: navItems.slice(0, 2) },
+    { title: '바이어 관리', items: navItems.slice(2, 4) },
+    { title: '모니터링', items: navItems.slice(4) },
   ];
 
   return (
